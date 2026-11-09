@@ -106,16 +106,20 @@ class CommunityIntelligenceService:
 
                 # Determine initial state and handle conflicts
                 initial_state = VerificationState.UNVERIFIED
-                if coord.is_disputed or dedup_res.category == DeduplicationCategory.CONFLICTING_REPORT:
+                is_conflict = (
+                    coord.is_disputed
+                    or dedup_res.category == DeduplicationCategory.CONFLICTING_REPORT
+                    or (coord.active_claim is not None and coord.active_claim != claim.value)
+                )
+
+                if is_conflict:
                     initial_state = VerificationState.DISPUTED
                     coord.is_disputed = True
-                    matched_id = dedup_res.matched_report_id
-                    if matched_id:
-                        matched_report = self.repo.get_community_report(session, matched_id)
-                        if matched_report and matched_report.verification_state != VerificationState.DISPUTED:
+                    for r_ent in existing_entities:
+                        if r_ent.verification_state != VerificationState.DISPUTED.value:
                             self.repo.update_community_report_state(
                                 session=session,
-                                report_id=matched_id,
+                                report_id=str(r_ent.report_id),
                                 new_state=VerificationState.DISPUTED,
                                 reviewed_at=now,
                             )
@@ -123,11 +127,11 @@ class CommunityIntelligenceService:
                                 session,
                                 ReportAuditEntry(
                                     event_id=f"audit-{uuid.uuid4().hex[:10]}",
-                                    report_id=matched_id,
-                                    previous_state=matched_report.verification_state,
+                                    report_id=str(r_ent.report_id),
+                                    previous_state=VerificationState(r_ent.verification_state),
                                     new_state=VerificationState.DISPUTED,
                                     action="transition_to_disputed",
-                                    reason=dedup_res.conflict_reason or "Conflicting claim filed",
+                                    reason=dedup_res.conflict_reason or f"Conflicting claim '{claim.value}' filed against domain",
                                     actor_ref="system_deduplicator",
                                     timestamp=now,
                                 ),
@@ -135,9 +139,6 @@ class CommunityIntelligenceService:
                 else:
                     if coord.active_claim is None:
                         coord.active_claim = claim.value
-                    elif coord.active_claim != claim.value:
-                        coord.is_disputed = True
-                        initial_state = VerificationState.DISPUTED
 
                 # Persist new community report
                 report_id = f"cr-{uuid.uuid4().hex[:10]}"

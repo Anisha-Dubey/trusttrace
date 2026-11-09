@@ -354,7 +354,7 @@ class TestPostgresIntegration(unittest.TestCase):
                 errors.append(e)
 
         t1 = threading.Thread(target=worker, args=("phishing", "reporter_a"))
-        t2 = threading.Thread(target=worker, args=("malware_delivery", "reporter_b"))
+        t2 = threading.Thread(target=worker, args=("other", "reporter_b"))
         t1.start()
         t2.start()
         t1.join()
