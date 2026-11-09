@@ -82,9 +82,10 @@ class SourceFamilyAnalyzer:
         cls,
         raw_family: Optional[str],
         is_authenticated_provider: bool = False,
+        permitted_families: Optional[Set[str]] = None,
     ) -> str:
-        """Validate and map source family, rejecting unauthorized client claims of provider identities
-        or arbitrary strings trying to inflate corroboration."""
+        """Validate and map source family, rejecting unauthorized client claims of provider identities,
+        cross-provider impersonation, or arbitrary strings trying to inflate corroboration."""
         if not raw_family or raw_family.strip().lower() in ("", "community_user"):
             return "community_user"
 
@@ -106,6 +107,13 @@ class SourceFamilyAnalyzer:
                 f"Permitted provider families: {sorted(list(cls.VERIFIED_PROVIDER_FAMILIES))}"
             )
 
+        # Principal-to-provider authorization check: prevent cross-provider impersonation (TASK 4)
+        if permitted_families is not None and canonical not in permitted_families:
+            raise ValueError(
+                f"Principal is not authorized to submit for provider family '{canonical}'. "
+                f"Permitted provider families: {sorted(list(permitted_families))}"
+            )
+
         return canonical
 
 
@@ -123,10 +131,13 @@ class ReportDeduplicator:
         new_source_family: str,
         existing_reports: List[CommunityReportEntity],
         is_authenticated_provider: bool = False,
+        permitted_families: Optional[Set[str]] = None,
     ) -> DeduplicationResult:
         """Evaluate submission against existing reports for the same domain with source verification."""
         canonical_family = SourceFamilyAnalyzer.validate_and_canonicalize(
-            new_source_family, is_authenticated_provider=is_authenticated_provider
+            new_source_family,
+            is_authenticated_provider=is_authenticated_provider,
+            permitted_families=permitted_families,
         )
 
         if not existing_reports:

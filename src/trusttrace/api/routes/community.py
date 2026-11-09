@@ -16,6 +16,7 @@ from ...evidence.community.rate_limiter import (
     default_rate_limiter,
     RateLimitExceededError,
     ReplaySubmissionError,
+    RateLimiterBackendError,
 )
 from ...evidence.community.state_machine import InvalidStateTransitionError
 from ...evidence.domain.enums import VerificationState, ClaimType
@@ -39,7 +40,7 @@ def submit_community_report(payload: SubmitCommunityReportRequest, request: Requ
     """
     client_ip = request.client.host if request.client else "unknown_client"
 
-    # 1. Rate limiting & replay protection
+    # 1. Rate limiting & replay protection (fails closed on backend infrastructure error)
     try:
         default_rate_limiter.check_and_record(
             client_ip=client_ip,
@@ -52,15 +53,70 @@ def submit_community_report(payload: SubmitCommunityReportRequest, request: Requ
             detail=str(e),
             headers={"Retry-After": "60"},
         )
+    except RateLimiterBackendError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Service unavailable: Rate limiting infrastructure failure (fail-closed). {e}",
+        )
 
-    # 2. Check for authenticated feed provider privileges
-    is_provider = False
+    # 2. Check for authenticated feed provider privileges and bind provider identity (TASK 4)
     auth_header = request.headers.get("Authorization")
+    user: Optional[AuthenticatedUser] = None
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
         user = verify_bearer_token(token)
-        if user and (user.has_role("collector") or user.has_role("admin")):
+
+    requested_family = payload.source_family.strip().lower() if payload.source_family else None
+    is_provider = False
+    permitted_families = None
+    assigned_family = None
+
+    if user:
+        if user.has_role("collector") or user.has_role("admin"):
             is_provider = True
+            permitted_families = user.permitted_source_families
+            if requested_family and requested_family != "community_user":
+                from ...evidence.community.deduplicator import SourceFamilyAnalyzer
+                canonical_req = SourceFamilyAnalyzer.canonicalize_family(requested_family)
+                if canonical_req not in SourceFamilyAnalyzer.VERIFIED_PROVIDER_FAMILIES:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Unknown or unauthorized provider family: '{requested_family}'.",
+                    )
+                if not user.is_authorized_for_family(canonical_req):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=(
+                            f"Forbidden: Principal '{user.username}' is not authorized to submit "
+                            f"reports on behalf of source family '{requested_family}'."
+                        ),
+                    )
+                assigned_family = canonical_req
+            else:
+                # Default to principal's primary authorized source family
+                if user.permitted_source_families:
+                    assigned_family = sorted(list(user.permitted_source_families))[0]
+                else:
+                    assigned_family = "internal_collector"
+        else:
+            if requested_family and requested_family != "community_user":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: Principal does not have threat provider submission privileges.",
+                )
+            assigned_family = "community_user"
+    else:
+        # Public / unauthenticated submissions: strictly forbidden from claiming provider identities (HTTP 400)
+        if requested_family and requested_family != "community_user":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Unauthorized source family claim: '{payload.source_family}'. "
+                    f"Public submissions receive server-assigned 'community_user' and cannot claim "
+                    f"provider identities or arbitrary source families."
+                ),
+            )
+        assigned_family = "community_user"
 
     try:
         report, dedup_res = community_service.submit_report(
@@ -68,9 +124,10 @@ def submit_community_report(payload: SubmitCommunityReportRequest, request: Requ
             claim_type=payload.claim_type.value,
             note=payload.note,
             raw_reporter_identifier=client_ip,
-            source_family=payload.source_family,
+            source_family=assigned_family,
             linked_evidence_ids=payload.linked_evidence_ids,
             is_authenticated_provider=is_provider,
+            permitted_families=permitted_families,
         )
         return StandardResponse(
             status="success",
