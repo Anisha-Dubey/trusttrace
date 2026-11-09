@@ -1,13 +1,13 @@
 # worker_02 status
 
-**PHASE 01, PHASE 02 & PHASE 8 COMPLETED, HARDENED, MIGRATED & INDEPENDENTLY VERIFIED.**
+**PHASE 01, PHASE 02, PHASE 8 & WORKER 01+02 INTEGRATION COMPLETED, HARDENED, MIGRATED & INDEPENDENTLY VERIFIED.**
 
 - **Phase 01 (Evidence Intelligence, Provenance Engine, Persistence & Finding Linkage)**: Complete and verified (`tests/test_evidence_intelligence.py` and `tests/test_evidence_adapters.py`).
 - **Phase 02 (Collaborative Threat Intelligence, Deduplication, Moderation & Audit History)**: Complete and verified (`tests/test_community_intelligence.py`).
 - **Phase 8, 8.1 & 8.2 Final PostgreSQL Verification & Isolated Database Proof**: Complete and independently verified.
   - **PG-01 / Database URL Configuration**: Unified `resolve_database_url()` resolution contract across `TRUSTTRACE_DB_URL`, `TRUSTTRACE_PG_URL`, `DATABASE_URL`, and SQLite fallback. Preserves explicit programmatic test configurations without env override hijacking.
   - **PG-02 / Real PostgreSQL 15 Integration Suite (11 Tests)**: 11 dedicated integration tests in `tests/test_postgres_integration.py` running against live PostgreSQL 15 service in GitHub Actions CI. Validated isolated empty DB migration to HEAD (PG-MIG-01 with dynamically created/dropped database), downgrade to BASE, re-upgrade, schema/index/constraint inspection, concurrent submissions, source family idempotency, dispute transitions, rollback isolation, and multi-process corroboration.
-  - **PG-MIG-01 / Fresh DB Isolation**: `test_01_postgres_empty_db_to_alembic_head` and `test_02_postgres_migration_downgrade_to_base_and_reupgrade` create, verify empty, migrate, and cleanly drop dedicated temporary PostgreSQL databases (`tt_fresh_mig_<uuid>`) via maintenance connection with `AUTOCOMMIT`, guaranteeing the shared CI database is never mutated, truncated, or dropped.
+  - **PG-MIG-01 / Fresh DB Isolation & Cleanup Hardening**: `test_01_postgres_empty_db_to_alembic_head` and `test_02_postgres_migration_downgrade_to_base_and_reupgrade` create, verify empty, migrate, and cleanly drop dedicated temporary PostgreSQL databases (`tt_fresh_mig_<uuid>`) via maintenance connection with `AUTOCOMMIT`. `_isolated_postgres_database` terminates active backends before `DROP DATABASE`, verifies removal via `pg_database`, always disposes maintenance engine, and surfaces cleanup failures without masking original test errors.
   - **PG-03 / CI Pipeline Green**: GitHub Actions run passes 100% on both Python 3.11 and Python 3.12 matrices.
   - **SEC-01 / Task 1**: Production startup authentication validation. Lifespan context halts startup immediately if production credentials are missing, weak, or duplicated across roles. Zero credential leakage in logs.
   - **SEC-02 / Task 2**: Fail-closed Redis rate limiter. Production strictly requires Redis; rejects protected submissions safely with 503 if Redis is unreachable; never silently falls back to process-local memory.
@@ -17,6 +17,12 @@
   - **SEC-06 / Task 6**: Alembic database migrations verified. Clean upgrade from empty database to HEAD and downgrade to BASE verified on PostgreSQL 15 and SQLite.
   - **SEC-07 / Task 7**: GitHub Actions CI verified. Matrix builds on Python 3.11 and 3.12 with live PostgreSQL 15 and Redis 7 service containers pass 100%.
   - **SEC-08 / Task 8**: 18-point adversarial & concurrency regression suite in `tests/test_phase8_adversarial_suite.py` passing 100%.
-- **Overall Suite**: 156+ unit/integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
+- **Worker 01 + Worker 02 End-to-End Integration Suite**: Dedicated suite in `tests/test_e2e_worker01_worker02_integration.py` (6 tests passing):
+  - `test_01_e2e_valid_url_full_lifecycle`: Full path from URL intake -> SSRF validation -> collector output -> contract JSON schema validation -> Worker 02 adapter -> evidence persistence -> SHA-256 provenance fingerprinting -> findings linkage -> coverage metrics -> Worker 03 triage policy.
+  - `test_02_e2e_prohibited_ssrf_rejection_flow`: Loopback, link-local, credentials, and invalid scheme rejections conform to contract schemas and are ingested into Worker 02 persistence with truthful blocked/unavailable status.
+  - `test_03_e2e_partial_collection_and_missingness_handling`: Partial scans with timeouts truthfully report missingness without guessing, and triage engine returns inconclusive.
+  - `test_04_e2e_referential_integrity_and_dangling_evidence_prevention`: Findings linking nonexistent or cross-scan evidence fail transactionally with zero orphaned rows.
+  - `test_05_e2e_community_report_with_persisted_scan_evidence`: Community reports linking scan evidence verify matching domain context; cross-domain evidence linkage is rejected.
+  - `test_06_e2e_duplicate_evidence_idempotency`: Ingesting identical batches is strictly idempotent and does not inflate evidence or corroboration counts.
+- **Overall Suite**: 151+ unit/integration tests in `run_tests.py` + 11 PostgreSQL CI integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
 - **Branch**: `feature/worker-02-evidence-intelligence`.
-- **Latest Remote Commit**: `7a2ecea` (All CI checks GREEN).

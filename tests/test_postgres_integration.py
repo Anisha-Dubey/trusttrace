@@ -112,25 +112,30 @@ class TestPostgresIntegration(unittest.TestCase):
 
         maint_url = parsed.set(database="postgres").render_as_string(hide_password=False)
         maint_engine = None
+        test_exception: Any = None
+
+        # 1. Connect to maintenance DB with autocommit to create temporary DB
+        try:
+            maint_engine = create_engine(maint_url, isolation_level="AUTOCOMMIT")
+            with maint_engine.connect() as conn:
+                conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
+        except Exception:
+            # If 'postgres' maintenance DB is unavailable, fallback to primary configured DB
+            if maint_engine is not None:
+                maint_engine.dispose()
+            maint_engine = create_engine(self.pg_url, isolation_level="AUTOCOMMIT")
+            with maint_engine.connect() as conn:
+                conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
+
+        tmp_db_url = parsed.set(database=tmp_db_name).render_as_string(hide_password=False)
 
         try:
-            # 1. Connect to maintenance DB with autocommit to create temporary DB
-            try:
-                maint_engine = create_engine(maint_url, isolation_level="AUTOCOMMIT")
-                with maint_engine.connect() as conn:
-                    conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
-            except Exception:
-                # If 'postgres' maintenance DB is unavailable, fallback to primary configured DB
-                if maint_engine is not None:
-                    maint_engine.dispose()
-                maint_engine = create_engine(self.pg_url, isolation_level="AUTOCOMMIT")
-                with maint_engine.connect() as conn:
-                    conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
-
-            tmp_db_url = parsed.set(database=tmp_db_name).render_as_string(hide_password=False)
             yield tmp_db_name, tmp_db_url
-
+        except BaseException as e:
+            test_exception = e
+            raise
         finally:
+            cleanup_exception: Any = None
             if maint_engine is not None:
                 try:
                     with maint_engine.connect() as conn:
@@ -143,10 +148,38 @@ class TestPostgresIntegration(unittest.TestCase):
                             {"dbname": tmp_db_name},
                         )
                         conn.execute(text(f'DROP DATABASE IF EXISTS "{tmp_db_name}"'))
-                except Exception as cleanup_err:
-                    print(f"Warning: Failed to cleanup temporary database '{tmp_db_name}': {cleanup_err}")
+
+                        # Verify the temporary database is actually removed after the test
+                        remaining = conn.execute(
+                            text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
+                            {"dbname": tmp_db_name},
+                        ).scalar()
+                        if remaining is not None:
+                            raise RuntimeError(
+                                f"Temporary database '{tmp_db_name}' was not removed; still present in pg_database."
+                            )
+                except Exception as err:
+                    cleanup_exception = err
                 finally:
+                    # Always dispose of the maintenance engine
                     maint_engine.dispose()
+
+            if cleanup_exception is not None:
+                if test_exception is not None:
+                    # Preserve original test failure and attach cleanup failure
+                    if hasattr(test_exception, "add_note"):
+                        test_exception.add_note(
+                            f"Temporary database cleanup failed for '{tmp_db_name}': {cleanup_exception}"
+                        )
+                    print(
+                        f"\n[CRITICAL ERROR] Test failed and cleanup of temporary database '{tmp_db_name}' also failed: {cleanup_exception}",
+                        file=sys.stderr,
+                    )
+                else:
+                    # A cleanup failure must be visible as a test failure when there is no earlier test failure
+                    raise RuntimeError(
+                        f"Temporary database cleanup failed for '{tmp_db_name}': {cleanup_exception}"
+                    ) from cleanup_exception
 
     def test_01_postgres_empty_db_to_alembic_head(self):
         """PG-MIG-01: Empty PostgreSQL database migrates cleanly to Alembic HEAD."""
