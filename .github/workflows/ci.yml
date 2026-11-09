@@ -8,15 +8,41 @@ on:
   pull_request:
     branches:
       - main
+      - 'feature/**'
 
 jobs:
   test-and-validate:
-    name: Test Suite & Contract Invariants
+    name: Test Suite, Invariants & Security Gates
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: trusttrace
+          POSTGRES_PASSWORD: trusttrace_password
+          POSTGRES_DB: trusttrace_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Check out repository
@@ -34,6 +60,16 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
+      - name: Execute Alembic Migrations on PostgreSQL
+        env:
+          TRUSTTRACE_DB_URL: postgresql://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
+        run: |
+          python -m alembic upgrade head
+          python -m alembic current
+
       - name: Run Full Test Suite & Contract Checks
+        env:
+          TRUSTTRACE_REDIS_URL: redis://localhost:6379/0
+          TRUSTTRACE_PG_URL: postgresql://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
         run: |
           python run_tests.py
