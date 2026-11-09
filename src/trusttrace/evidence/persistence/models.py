@@ -11,7 +11,7 @@ from sqlalchemy import (
     Index,
     UniqueConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from .database import Base
 
@@ -21,21 +21,21 @@ class ScanEntity(Base):
 
     __tablename__ = "scans"
 
-    scan_id: str = Column(String(128), primary_key=True)  # type: ignore
-    submitted_url_redacted: str = Column(Text, nullable=False)  # type: ignore
-    normalized_host: Optional[str] = Column(String(255), nullable=True, index=True)  # type: ignore
-    status: str = Column(String(32), nullable=False, default="queued")  # type: ignore
-    decision: str = Column(String(32), nullable=False, default="inconclusive")  # type: ignore
-    policy_version: str = Column(String(64), nullable=False, default="1.0")  # type: ignore
-    created_at: str = Column(String(64), nullable=False)  # type: ignore
-    completed_at: Optional[str] = Column(String(64), nullable=True)  # type: ignore
-    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
+    scan_id: Mapped[str] = Column(String(128), primary_key=True)
+    submitted_url_redacted: Mapped[str] = Column(Text, nullable=False)
+    normalized_host: Mapped[Optional[str]] = Column(String(255), nullable=True, index=True)
+    status: Mapped[str] = Column(String(32), nullable=False, default="queued")
+    decision: Mapped[str] = Column(String(32), nullable=False, default="inconclusive")
+    policy_version: Mapped[str] = Column(String(64), nullable=False, default="1.0")
+    created_at: Mapped[str] = Column(String(64), nullable=False)
+    completed_at: Mapped[Optional[str]] = Column(String(64), nullable=True)
+    limitations_json: Mapped[str] = Column(Text, nullable=False, default="[]")
     
     # Pre-calculated coverage cached on scan
-    coverage_total: int = Column(Integer, nullable=False, default=0)  # type: ignore
-    coverage_observed: int = Column(Integer, nullable=False, default=0)  # type: ignore
-    coverage_failed: int = Column(Integer, nullable=False, default=0)  # type: ignore
-    coverage_not_run: int = Column(Integer, nullable=False, default=0)  # type: ignore
+    coverage_total: Mapped[int] = Column(Integer, nullable=False, default=0)
+    coverage_observed: Mapped[int] = Column(Integer, nullable=False, default=0)
+    coverage_failed: Mapped[int] = Column(Integer, nullable=False, default=0)
+    coverage_not_run: Mapped[int] = Column(Integer, nullable=False, default=0)
 
     # Relationships
     evidence_items = relationship("EvidenceEntity", back_populates="scan", cascade="all, delete-orphan")
@@ -47,21 +47,21 @@ class EvidenceEntity(Base):
 
     __tablename__ = "evidence_records"
 
-    evidence_id: str = Column(String(128), primary_key=True)  # type: ignore
-    scan_id: str = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
-    kind: str = Column(String(64), nullable=False, index=True)  # type: ignore
-    value_json: Optional[str] = Column(Text, nullable=True)  # type: ignore
-    source: str = Column(String(128), nullable=False, index=True)  # type: ignore
-    source_type: str = Column(String(64), nullable=False, default="internal_collector")  # type: ignore
-    observed_at: str = Column(String(64), nullable=False)  # type: ignore
-    ingested_at: str = Column(String(64), nullable=False)  # type: ignore
-    status: str = Column(String(32), nullable=False)  # observed, unavailable, failed, not_run, blocked  # type: ignore
-    reliability: Optional[str] = Column(String(64), nullable=True)  # direct_observation, provider_assertion, etc.  # type: ignore
-    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
-    schema_version: str = Column(String(16), nullable=False, default="1.0")  # type: ignore
+    evidence_id: Mapped[str] = Column(String(128), primary_key=True)
+    scan_id: Mapped[str] = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)
+    kind: Mapped[str] = Column(String(64), nullable=False, index=True)
+    value_json: Mapped[Optional[str]] = Column(Text, nullable=True)
+    source: Mapped[str] = Column(String(128), nullable=False, index=True)
+    source_type: Mapped[str] = Column(String(64), nullable=False, default="internal_collector")
+    observed_at: Mapped[str] = Column(String(64), nullable=False)
+    ingested_at: Mapped[str] = Column(String(64), nullable=False)
+    status: Mapped[str] = Column(String(32), nullable=False)  # observed, unavailable, failed, not_run, blocked
+    reliability: Mapped[Optional[str]] = Column(String(64), nullable=True)  # direct_observation, provider_assertion, etc.
+    limitations_json: Mapped[str] = Column(Text, nullable=False, default="[]")
+    schema_version: Mapped[str] = Column(String(16), nullable=False, default="1.0")
     
     # Idempotency fingerprint: sha256(scan_id + kind + source + observed_at + status + canonical_value)
-    fingerprint: str = Column(String(64), nullable=False)  # type: ignore
+    fingerprint: Mapped[str] = Column(String(64), nullable=False)
 
     scan = relationship("ScanEntity", back_populates="evidence_items")
     finding_links = relationship("FindingEvidenceLinkEntity", back_populates="evidence", cascade="all, delete-orphan")
@@ -82,15 +82,15 @@ class FindingEntity(Base):
 
     __tablename__ = "findings"
 
-    finding_id: str = Column(String(128), primary_key=True)  # type: ignore
-    scan_id: str = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
-    kind: str = Column(String(64), nullable=False)  # type: ignore
-    severity: str = Column(String(32), nullable=False)  # type: ignore
-    summary: str = Column(Text, nullable=False)  # type: ignore
-    rule_id: str = Column(String(64), nullable=False)  # type: ignore
-    rule_version: str = Column(String(32), nullable=False)  # type: ignore
-    created_at: str = Column(String(64), nullable=False)  # type: ignore
-    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
+    finding_id: Mapped[str] = Column(String(128), primary_key=True)
+    scan_id: Mapped[str] = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)
+    kind: Mapped[str] = Column(String(64), nullable=False)
+    severity: Mapped[str] = Column(String(32), nullable=False)
+    summary: Mapped[str] = Column(Text, nullable=False)
+    rule_id: Mapped[str] = Column(String(64), nullable=False)
+    rule_version: Mapped[str] = Column(String(32), nullable=False)
+    created_at: Mapped[str] = Column(String(64), nullable=False)
+    limitations_json: Mapped[str] = Column(Text, nullable=False, default="[]")
 
     scan = relationship("ScanEntity", back_populates="findings")
     evidence_links = relationship("FindingEvidenceLinkEntity", back_populates="finding", cascade="all, delete-orphan")
@@ -101,9 +101,9 @@ class FindingEvidenceLinkEntity(Base):
 
     __tablename__ = "finding_evidence_links"
 
-    id: int = Column(Integer, primary_key=True, autoincrement=True)  # type: ignore
-    finding_id: str = Column(String(128), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
-    evidence_id: str = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False, index=True)  # type: ignore
+    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
+    finding_id: Mapped[str] = Column(String(128), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True)
+    evidence_id: Mapped[str] = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False, index=True)
 
     finding = relationship("FindingEntity", back_populates="evidence_links")
     evidence = relationship("EvidenceEntity", back_populates="finding_links")
@@ -118,19 +118,19 @@ class CommunityReportEntity(Base):
 
     __tablename__ = "community_reports"
 
-    report_id: str = Column(String(128), primary_key=True)  # type: ignore
-    normalized_domain: str = Column(String(255), nullable=False, index=True)  # type: ignore
-    claim_type: str = Column(String(64), nullable=False)  # type: ignore
-    note_redacted: Optional[str] = Column(String(1000), nullable=True)  # type: ignore
-    submitted_at: str = Column(String(64), nullable=False)  # type: ignore
-    verification_state: str = Column(String(32), nullable=False, default="unverified", index=True)  # type: ignore
-    independent_source_count: int = Column(Integer, nullable=False, default=1)  # type: ignore
-    source_family: str = Column(String(128), nullable=False, default="community_user")  # type: ignore
+    report_id: Mapped[str] = Column(String(128), primary_key=True)
+    normalized_domain: Mapped[str] = Column(String(255), nullable=False, index=True)
+    claim_type: Mapped[str] = Column(String(64), nullable=False)
+    note_redacted: Mapped[Optional[str]] = Column(String(1000), nullable=True)
+    submitted_at: Mapped[str] = Column(String(64), nullable=False)
+    verification_state: Mapped[str] = Column(String(32), nullable=False, default="unverified", index=True)
+    independent_source_count: Mapped[int] = Column(Integer, nullable=False, default=1)
+    source_family: Mapped[str] = Column(String(128), nullable=False, default="community_user")
     
     # Salted hash of reporter metadata (IP/user ID). Raw identity is NEVER stored.
-    reporter_hash: str = Column(String(64), nullable=False)  # type: ignore
+    reporter_hash: Mapped[str] = Column(String(64), nullable=False)
     
-    reviewed_at: Optional[str] = Column(String(64), nullable=True)  # type: ignore
+    reviewed_at: Mapped[Optional[str]] = Column(String(64), nullable=True)
 
     evidence_links = relationship("CommunityReportEvidenceLinkEntity", back_populates="report", cascade="all, delete-orphan")
     audit_events = relationship("ReportAuditEntity", back_populates="report", cascade="all, delete-orphan")
@@ -145,9 +145,9 @@ class CommunityReportEvidenceLinkEntity(Base):
 
     __tablename__ = "community_report_evidence_links"
 
-    id: int = Column(Integer, primary_key=True, autoincrement=True)  # type: ignore
-    report_id: str = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False)  # type: ignore
-    evidence_id: str = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False)  # type: ignore
+    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
+    report_id: Mapped[str] = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False)
+    evidence_id: Mapped[str] = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False)
 
     report = relationship("CommunityReportEntity", back_populates="evidence_links")
     evidence = relationship("EvidenceEntity")
@@ -162,13 +162,13 @@ class ReportAuditEntity(Base):
 
     __tablename__ = "community_report_audit_events"
 
-    event_id: str = Column(String(128), primary_key=True)  # type: ignore
-    report_id: str = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
-    previous_state: Optional[str] = Column(String(32), nullable=True)  # type: ignore
-    new_state: str = Column(String(32), nullable=False)  # type: ignore
-    action: str = Column(String(64), nullable=False)  # type: ignore
-    reason: str = Column(Text, nullable=False)  # type: ignore
-    actor_ref: str = Column(String(128), nullable=False)  # type: ignore
-    timestamp: str = Column(String(64), nullable=False)  # type: ignore
+    event_id: Mapped[str] = Column(String(128), primary_key=True)
+    report_id: Mapped[str] = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False, index=True)
+    previous_state: Mapped[Optional[str]] = Column(String(32), nullable=True)
+    new_state: Mapped[str] = Column(String(32), nullable=False)
+    action: Mapped[str] = Column(String(64), nullable=False)
+    reason: Mapped[str] = Column(Text, nullable=False)
+    actor_ref: Mapped[str] = Column(String(128), nullable=False)
+    timestamp: Mapped[str] = Column(String(64), nullable=False)
 
     report = relationship("CommunityReportEntity", back_populates="audit_events")
