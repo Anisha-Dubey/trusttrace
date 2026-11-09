@@ -127,15 +127,17 @@ class CommunityIntelligenceService:
 
             # Case D: Independent Source -> Increments independent count across domain reports
             elif dedup_res.category == DeduplicationCategory.INDEPENDENT_SOURCE:
+                # Calculate authoritative distinct canonical source families
+                existing_domain_entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
                 existing_families = {
                     SourceFamilyAnalyzer.canonicalize_family(e.source_family)
-                    for e in existing_entities
+                    for e in existing_domain_entities
                 }
                 existing_families.add(family)
                 independent_count = len(existing_families)
 
-                # Update existing reports with new independent source count
-                for e in existing_entities:
+                # Update existing reports with authoritative independent count
+                for e in existing_domain_entities:
                     self.repo.update_community_report_state(
                         session=session,
                         report_id=e.report_id,
