@@ -18,16 +18,16 @@ LIMIT-003,resource,P1,burst submissions,rate/concurrency cap enforced,HTTP respo
 LIMIT-004,resource,P1,cancel in-flight scan,worker stops and state is truthful,cancel outcome,PLANNED
 TLS-001,certificate,P1,valid hostname certificate,certificate state valid; identity remains unverified absent authorization,report fixture,PLANNED
 TLS-002,certificate,P1,expired or hostname-mismatched certificate,technical warning; not sole proof of phishing,report fixture and rationale,PLANNED
-EVID-001,evidence,P0,one collector fails,partial/inconclusive and failed check visible,report fixture,PLANNED
-EVID-002,evidence,P0,no reputation match,never renders safe or verified benign,UI assertion,PLANNED
-EVID-003,evidence,P1,stale observation,staleness and observation time shown,fixture and UI capture,PLANNED
-EVID-004,evidence,P1,conflicting high-quality indicators,conflict retained; cautious/inconclusive policy,decision trace,PLANNED
-COMM-001,community,P1,duplicate same reporter/domain assertion,does not count as independent corroboration,duplicate test record,PLANNED
-COMM-002,community,P1,copied reports with common upstream source,source family shown; no false independence,lineage fixture,PLANNED
-COMM-003,community,P1,credible conflict,disputed state visible; both evidence trails retained,UI capture,PLANNED
-COMM-004,community,P0,HTML/script in free-text report,escaped output; no execution/browser injection test,render test,PLANNED
+EVID-001,evidence,P0,one collector fails,partial/inconclusive and failed check visible,report fixture,TESTED
+EVID-002,evidence,P0,no reputation match,never renders safe or verified benign,UI assertion,TESTED
+EVID-003,evidence,P1,stale observation,staleness and observation time shown,fixture and UI capture,TESTED
+EVID-004,evidence,P1,conflicting high-quality indicators,conflict retained; cautious/inconclusive policy,decision trace,TESTED
+COMM-001,community,P1,duplicate same reporter/domain assertion,does not count as independent corroboration,duplicate test record,TESTED
+COMM-002,community,P1,copied reports with common upstream source,source family shown; no false independence,lineage fixture,TESTED
+COMM-003,community,P1,credible conflict,disputed state visible; both evidence trails retained,UI capture,TESTED
+COMM-004,community,P0,HTML/script in free-text report,escaped output; no execution/browser injection test,render test,TESTED
 DATA-001,privacy,P0,secret in query/path,not emitted in logs/screenshots/export,redaction tests,TESTED
-DATA-002,privacy,P0,reporter identifier,not visible in public feed,access/UI test,PLANNED
+DATA-002,privacy,P0,reporter identifier,not visible in public feed,access/UI test,TESTED
 UI-001,workflow,P1,complete valid fixture,report dimensions and findings visible,screen recording,PLANNED
 UI-002,workflow,P1,rejected request,reason shown; no misleading scan success,screen capture,PLANNED
 UI-003,workflow,P1,recorded fallback,clearly labeled recorded fixture result,screen capture and rehearsal note,PLANNED
