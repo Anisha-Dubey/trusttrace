@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from typing import Generator, Optional
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 Base = declarative_base()
@@ -26,9 +27,14 @@ class DatabaseManager:
             db_url = os.environ.get("DATABASE_URL", "sqlite:///trusttrace.db")
         self.db_url = db_url
         connect_args = {}
+        kwargs = {}
         if self.db_url.startswith("sqlite"):
             connect_args["check_same_thread"] = False
-        self.engine = create_engine(self.db_url, connect_args=connect_args)
+            if ":memory:" in self.db_url:
+                kwargs["poolclass"] = StaticPool
+        kwargs["connect_args"] = connect_args
+
+        self.engine = create_engine(self.db_url, **kwargs)
         self.session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     def init_db(self):
