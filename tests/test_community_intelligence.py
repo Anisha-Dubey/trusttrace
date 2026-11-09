@@ -1,5 +1,12 @@
 """Tests for Community Intelligence, Deduplication, Moderation, and Audit History."""
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 import unittest
 
 from trusttrace.evidence.persistence.database import DatabaseManager

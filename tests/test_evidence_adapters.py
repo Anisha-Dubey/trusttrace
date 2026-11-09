@@ -1,7 +1,12 @@
 """Tests for Worker 02 Adapters and Worker 01 Decoupling."""
 
+import sys
 import unittest
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
 
 from trusttrace.evidence.persistence.database import DatabaseManager
 from trusttrace.evidence.services.evidence_service import EvidenceService
