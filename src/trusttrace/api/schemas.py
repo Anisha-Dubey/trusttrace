@@ -48,11 +48,13 @@ class SubmitCommunityReportRequest(BaseModel):
 
 
 class ReviewCommunityReportRequest(BaseModel):
-    """Payload for moderating or transitioning a community report."""
+    """Payload for moderating or transitioning a community report.
+    
+    Moderator identity is derived exclusively from the authenticated session token.
+    Independent corroboration counts are strictly computed server-side.
+    """
     target_state: VerificationState
     reason: str = Field(..., min_length=5)
-    moderator_ref: str
-    independent_count_override: Optional[int] = None
 
 
 class StandardResponse(BaseModel):

@@ -29,9 +29,12 @@ class ModerationService:
         target_state: VerificationState,
         reason: str,
         moderator_ref: str,
-        independent_count_override: Optional[int] = None,
     ) -> CommunityReportModel:
-        """Execute a formal moderator review action with audit logging."""
+        """Execute a formal moderator review action with audit logging.
+        
+        The independent corroboration count is strictly derived from server-side evidence
+        and source identities; client overrides are completely prohibited.
+        """
         if not reason or len(reason.strip()) < 5:
             raise ValueError("A formal moderation action requires an explanatory reason of at least 5 characters.")
 
@@ -43,7 +46,6 @@ class ModerationService:
             target_state=target_state,
             reason=reason.strip(),
             actor_ref=safe_actor,
-            independent_count=independent_count_override,
         )
 
     def resolve_dispute(
@@ -76,7 +78,6 @@ class ModerationService:
         """Fetch all audit events associated with any report filed for the given domain."""
         clean_domain = normalized_domain.strip().lower()
         with self.db.session_scope() as session:
-            # Query all report IDs for this domain
             report_ids = session.execute(
                 select(CommunityReportEntity.report_id).where(
                     CommunityReportEntity.normalized_domain == clean_domain
