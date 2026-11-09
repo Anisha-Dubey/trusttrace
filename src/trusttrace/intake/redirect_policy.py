@@ -114,3 +114,4 @@ class RedirectPolicy:
                 filtered.pop(sensitive_header, None)
                 filtered.pop(sensitive_header.lower(), None)
         return filtered
+

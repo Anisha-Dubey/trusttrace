@@ -213,3 +213,4 @@ def classify_ip(ip_val: Union[str, ipaddress.IPv4Address, ipaddress.IPv6Address]
         rejection_reason="non_global_ip_target",
         ip_obj=ip
     )
+

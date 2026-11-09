@@ -136,3 +136,4 @@ class SafeDNSResolver:
             return True
         cls = classify_ip(current_ip)
         return cls.is_safe
+
