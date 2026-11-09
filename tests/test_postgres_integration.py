@@ -288,7 +288,7 @@ class TestPostgresIntegration(unittest.TestCase):
     def test_06_postgres_concurrent_independent_source_families(self):
         """PG-CONC-03: Concurrent submissions from distinct source families count correctly to 4."""
         domain = f"pg-distinct-families-{uuid.uuid4().hex[:8]}.com"
-        families = ["phishtank", "urlhaus", "openphish", "cert_stream"]
+        families = ["phishtank", "urlhaus", "openphish", "cert_feed"]
         barrier = threading.Barrier(len(families))
         errors = []
 
@@ -354,7 +354,7 @@ class TestPostgresIntegration(unittest.TestCase):
                 errors.append(e)
 
         t1 = threading.Thread(target=worker, args=("phishing", "reporter_a"))
-        t2 = threading.Thread(target=worker, args=("legitimate", "reporter_b"))
+        t2 = threading.Thread(target=worker, args=("malware_delivery", "reporter_b"))
         t1.start()
         t2.start()
         t1.join()
