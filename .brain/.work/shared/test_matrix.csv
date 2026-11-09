@@ -1,17 +1,17 @@
 case_id,area,priority,input_or_setup,expected_result,required_evidence,status
-URL-001,URL parsing,P0,https URL with normal hostname,normalized host and accepted scheme,unit-test output,PLANNED
-URL-002,URL parsing,P0,URL contains username and password,rejected without network call,request result and no-egress proof,PLANNED
-URL-003,URL parsing,P1,URL query contains token,token redacted from logs and report export,redaction test output,PLANNED
-URL-004,URL parsing,P1,Unicode confusable hostname,IDNA and display form preserved as evidence; no malicious verdict from feature alone,normalizer fixture,PLANNED
-URL-005,URL parsing,P0,unsupported file/javascript/data scheme,rejected before resolution,API response and mocked resolver untouched,PLANNED
-SSRF-001,egress,P0,127.0.0.1 / ::1,blocked before connection,unit/integration result,PLANNED
-SSRF-002,egress,P0,RFC1918 IPv4 / IPv6 ULA,blocked before connection,unit/integration result,PLANNED
-SSRF-003,egress,P0,link-local and metadata IP ranges,blocked before connection,unit/integration result,PLANNED
-SSRF-004,egress,P0,hostname resolves to prohibited IP,blocked after resolution before connect,resolver mock and egress assertion,PLANNED
-SSRF-005,egress,P0,public first resolution then prohibited second resolution,connection-time validation blocks second result,rebinding simulation output,PLANNED
-REDIR-001,redirect,P0,public host redirects to prohibited address,redirect blocked and scan partial/rejected,redirect test log,PLANNED
-REDIR-002,redirect,P1,redirect loop or excessive hops,stops at configured cap with reason,hop count and result,PLANNED
-REDIR-003,redirect,P1,HTTPS redirects to unsupported scheme,blocked with explicit limitation,redirect trace fixture,PLANNED
+URL-001,URL parsing,P0,https URL with normal hostname,normalized host and accepted scheme,unit-test output,TESTED
+URL-002,URL parsing,P0,URL contains username and password,rejected without network call,request result and no-egress proof,TESTED
+URL-003,URL parsing,P1,URL query contains token,token redacted from logs and report export,redaction test output,TESTED
+URL-004,URL parsing,P1,Unicode confusable hostname,IDNA and display form preserved as evidence; no malicious verdict from feature alone,normalizer fixture,TESTED
+URL-005,URL parsing,P0,unsupported file/javascript/data scheme,rejected before resolution,API response and mocked resolver untouched,TESTED
+SSRF-001,egress,P0,127.0.0.1 / ::1,blocked before connection,unit/integration result,TESTED
+SSRF-002,egress,P0,RFC1918 IPv4 / IPv6 ULA,blocked before connection,unit/integration result,TESTED
+SSRF-003,egress,P0,link-local and metadata IP ranges,blocked before connection,unit/integration result,TESTED
+SSRF-004,egress,P0,hostname resolves to prohibited IP,blocked after resolution before connect,resolver mock and egress assertion,TESTED
+SSRF-005,egress,P0,public first resolution then prohibited second resolution,connection-time validation blocks second result,rebinding simulation output,TESTED
+REDIR-001,redirect,P0,public host redirects to prohibited address,redirect blocked and scan partial/rejected,redirect test log,TESTED
+REDIR-002,redirect,P1,redirect loop or excessive hops,stops at configured cap with reason,hop count and result,TESTED
+REDIR-003,redirect,P1,HTTPS redirects to unsupported scheme,blocked with explicit limitation,redirect trace fixture,TESTED
 LIMIT-001,resource,P0,slow response,timeout within configured budget and partial result,elapsed time record,PLANNED
 LIMIT-002,resource,P0,oversized response,body capped; no unbounded allocation,bytes-read assertion,PLANNED
 LIMIT-003,resource,P1,burst submissions,rate/concurrency cap enforced,HTTP responses and queue count,PLANNED
@@ -26,7 +26,7 @@ COMM-001,community,P1,duplicate same reporter/domain assertion,does not count as
 COMM-002,community,P1,copied reports with common upstream source,source family shown; no false independence,lineage fixture,PLANNED
 COMM-003,community,P1,credible conflict,disputed state visible; both evidence trails retained,UI capture,PLANNED
 COMM-004,community,P0,HTML/script in free-text report,escaped output; no execution/browser injection test,render test,PLANNED
-DATA-001,privacy,P0,secret in query/path,not emitted in logs/screenshots/export,redaction tests,PLANNED
+DATA-001,privacy,P0,secret in query/path,not emitted in logs/screenshots/export,redaction tests,TESTED
 DATA-002,privacy,P0,reporter identifier,not visible in public feed,access/UI test,PLANNED
 UI-001,workflow,P1,complete valid fixture,report dimensions and findings visible,screen recording,PLANNED
 UI-002,workflow,P1,rejected request,reason shown; no misleading scan success,screen capture,PLANNED
