@@ -205,11 +205,28 @@ class EvidenceRepository:
         entity = session.get(EvidenceEntity, evidence_id)
         return self._entity_to_evidence_model(entity) if entity else None
 
-    def get_evidence_by_scan(self, session: Session, scan_id: str) -> List[EvidenceModel]:
-        """Fetch all evidence records associated with a scan."""
+    def get_evidence_by_scan(
+        self,
+        session: Session,
+        scan_id: str,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[EvidenceModel]:
+        """Fetch evidence records associated with a scan with optional database-level pagination."""
         query = select(EvidenceEntity).where(EvidenceEntity.scan_id == scan_id).order_by(EvidenceEntity.observed_at)
+        if offset is not None:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
         entities = session.execute(query).scalars().all()
         return [self._entity_to_evidence_model(e) for e in entities]
+
+    def count_evidence_by_scan(self, session: Session, scan_id: str) -> int:
+        """Count total evidence records associated with a scan at database level."""
+        from sqlalchemy import func
+        return session.execute(
+            select(func.count()).select_from(EvidenceEntity).where(EvidenceEntity.scan_id == scan_id)
+        ).scalar() or 0
 
     # --- Finding Methods with Referential Integrity ---
 
@@ -296,7 +313,39 @@ class EvidenceRepository:
         source_family: str,
         reporter_hash: str,
     ) -> CommunityReportModel:
-        """Persist a community report with evidence links."""
+        """Persist a community report with validated evidence links.
+        
+        Strict referential integrity checks:
+        1. Duplicate evidence references are rejected.
+        2. Every referenced evidence record MUST exist.
+        3. Linked evidence MUST belong to a scan matching the report's normalized domain context.
+        4. Cross-record reference injection is rejected with zero partial writes.
+        """
+        # 1. Check duplicate evidence references
+        if report.linked_evidence_ids:
+            seen_ids = set()
+            for ev_id in report.linked_evidence_ids:
+                if ev_id in seen_ids:
+                    raise ValueError(f"Duplicate linked evidence reference detected: '{ev_id}'.")
+                seen_ids.add(ev_id)
+
+            # 2. Validate existence and domain context for each evidence item
+            report_domain = report.normalized_domain.strip().lower()
+            for ev_id in report.linked_evidence_ids:
+                ev = session.get(EvidenceEntity, ev_id)
+                if not ev:
+                    raise ValueError(f"Referenced evidence ID '{ev_id}' does not exist.")
+                
+                # Verify domain/host context matches report
+                scan = session.get(ScanEntity, ev.scan_id)
+                if scan and scan.normalized_host:
+                    host = scan.normalized_host.strip().lower()
+                    if host != report_domain and not host.endswith("." + report_domain) and not report_domain.endswith("." + host):
+                        raise ValueError(
+                            f"Cross-record context violation: Evidence '{ev_id}' is from scan '{scan.scan_id}' "
+                            f"with host '{host}', which does not match report domain '{report_domain}'."
+                        )
+
         entity = CommunityReportEntity(
             report_id=report.report_id,
             normalized_domain=report.normalized_domain,
@@ -312,16 +361,13 @@ class EvidenceRepository:
         session.add(entity)
         session.flush()
 
-        # Link evidence if any
+        # 3. Create junction links
         for ev_id in report.linked_evidence_ids:
-            # Check if evidence exists
-            ev = session.get(EvidenceEntity, ev_id)
-            if ev:
-                link = CommunityReportEvidenceLinkEntity(
-                    report_id=report.report_id,
-                    evidence_id=ev_id,
-                )
-                session.add(link)
+            link = CommunityReportEvidenceLinkEntity(
+                report_id=report.report_id,
+                evidence_id=ev_id,
+            )
+            session.add(link)
         session.flush()
         return report
 
@@ -353,8 +399,10 @@ class EvidenceRepository:
         normalized_domain: Optional[str] = None,
         verification_state: Optional[VerificationState] = None,
         claim_type: Optional[ClaimType] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> List[CommunityReportEntity]:
-        """Query community report entities with optional filters."""
+        """Query community report entities with optional filters and database-level pagination."""
         query = select(CommunityReportEntity)
         conditions = []
         if normalized_domain:
@@ -365,7 +413,32 @@ class EvidenceRepository:
             conditions.append(CommunityReportEntity.claim_type == claim_type.value)
         if conditions:
             query = query.where(and_(*conditions))
+        if offset is not None:
+            query = query.offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
         return list(session.execute(query).scalars().all())
+
+    def count_community_reports(
+        self,
+        session: Session,
+        normalized_domain: Optional[str] = None,
+        verification_state: Optional[VerificationState] = None,
+        claim_type: Optional[ClaimType] = None,
+    ) -> int:
+        """Count community report entities matching filters at database level."""
+        from sqlalchemy import func
+        query = select(func.count()).select_from(CommunityReportEntity)
+        conditions = []
+        if normalized_domain:
+            conditions.append(CommunityReportEntity.normalized_domain == normalized_domain)
+        if verification_state:
+            conditions.append(CommunityReportEntity.verification_state == verification_state.value)
+        if claim_type:
+            conditions.append(CommunityReportEntity.claim_type == claim_type.value)
+        if conditions:
+            query = query.where(and_(*conditions))
+        return session.execute(query).scalar() or 0
 
     def update_community_report_state(
         self,

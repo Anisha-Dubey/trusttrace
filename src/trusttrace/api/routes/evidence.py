@@ -44,11 +44,15 @@ def get_scan_evidence(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    """Retrieve all evidence observations linked to a specific scan."""
+    """Retrieve evidence observations linked to a specific scan with database-level pagination."""
     with evidence_service.db.session_scope() as session:
-        items = evidence_service.repo.get_evidence_by_scan(session, scan_id)
-        total = len(items)
-        paginated = items[offset : offset + limit]
+        total = evidence_service.repo.count_evidence_by_scan(session, scan_id)
+        paginated = evidence_service.repo.get_evidence_by_scan(
+            session=session,
+            scan_id=scan_id,
+            limit=limit,
+            offset=offset,
+        )
         return PaginatedResponse(
             items=[e.to_v1_contract_dict() for e in paginated],
             total=total,

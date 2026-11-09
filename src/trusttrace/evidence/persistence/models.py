@@ -149,6 +149,11 @@ class CommunityReportEvidenceLinkEntity(Base):
     evidence_id = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False)
 
     report = relationship("CommunityReportEntity", back_populates="evidence_links")
+    evidence = relationship("EvidenceEntity")
+
+    __table_args__ = (
+        UniqueConstraint("report_id", "evidence_id", name="uq_comm_report_evidence"),
+    )
 
 
 class ReportAuditEntity(Base):
