@@ -1,0 +1,3 @@
+# Post-hackathon / production planning gate
+
+Only revisit after MVP evaluation and explicit scope approval. Candidate follow-on work: isolated Playwright worker; authenticated workflow and tenancy; authorised organisation/service delegation; runtime canary flow tests in controlled targets; CT monitoring; approved historical DNS source; data cards and leakage-resistant evaluation; calibration and drift; analyst adjudication and export interoperability. Each proposal needs prior-art review, data/terms gate, threat model, baseline, measurable hypothesis, owner and validation plan. Do not treat this list as committed roadmap or move unfinished MVP safety work into “production.”

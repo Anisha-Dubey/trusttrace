@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "scan_id": "fixture-complete-001",
+  "submitted_url_redacted": "https://example.test/login",
+  "normalized_host": "example.test",
+  "status": "completed",
+  "decision": "caution",
+  "created_at": "2026-11-09T09:00:00Z",
+  "completed_at": "2026-11-09T09:00:02Z",
+  "policy_version": "demo-v1",
+  "dimensions": {
+    "identity": "unverified",
+    "certificate": "valid_for_hostname",
+    "behavior": "unknown",
+    "evidence_quality": "partial"
+  },
+  "coverage": {
+    "checks_total": 4,
+    "checks_observed": 3,
+    "checks_failed": 0,
+    "checks_not_run": 1
+  },
+  "evidence": [
+    {
+      "evidence_id": "ev-tls-001",
+      "kind": "tls_hostname_validation",
+      "value": {
+        "result": "valid_for_hostname"
+      },
+      "source": "fixture_adapter",
+      "observed_at": "2026-11-09T09:00:01Z",
+      "status": "observed",
+      "reliability": "direct_observation",
+      "limitations": [
+        "Fixture only; does not verify organizational authorization."
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "f-identity-001",
+      "kind": "identity_unverified",
+      "severity": "info",
+      "summary": "No approved organization authorization evidence is available in this fixture.",
+      "evidence_ids": [
+        "ev-tls-001"
+      ],
+      "rule_id": "identity-no-authorization",
+      "rule_version": "1.0",
+      "created_at": "2026-11-09T09:00:02Z",
+      "limitations": [
+        "Absence of authorization data is not proof of impersonation."
+      ]
+    }
+  ],
+  "limitations": [
+    "Synthetic fixture; not a live reputation check."
+  ]
+}

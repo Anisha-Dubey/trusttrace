@@ -1,0 +1,27 @@
+flowchart TB
+  subgraph I[Versioned research inputs]
+    A[Phishing dataset A: source, label and date]
+    B[Dataset B or proxy cohort: terms and limits]
+    M[Manifest: URL, hash, version, license, label semantics]
+  end
+  A --> P[Ingest without visiting live URLs]
+  B --> P
+  M --> P
+  P --> N[Normalize URL and IDNA; preserve original]
+  N --> D[Deduplicate and group by registrable domain]
+  D --> S[Split generator: random reference / domain-held-out / source-held-out / temporal if valid]
+  S --> F[Feature builder: character n-grams / lexical / lookalike rules]
+  F --> L[Baseline A: TF-IDF + logistic regression]
+  F --> T[Baseline B: lexical features + tree model]
+  F --> R[Baseline C: rule-only lookalike generator]
+  L --> V[Validation-only calibration and fixed review threshold]
+  T --> V
+  R --> E[Evaluation and error analysis]
+  V --> E
+  S --> E
+  E --> U[Results UI: metrics, split manifest, per-case evidence]
+  E --> X[Export: metrics, confidence intervals, hashes and reproducibility manifest]
+  subgraph Q[Test isolation]
+    Tst[Test labels isolated until scoring]
+  end
+  Tst --> E

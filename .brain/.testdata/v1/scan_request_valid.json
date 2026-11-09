@@ -1,0 +1,6 @@
+{
+  "url": "https://example.test/login",
+  "profile": "fixture",
+  "client_request_id": "demo-request-001",
+  "consent_to_external_lookup": false
+}

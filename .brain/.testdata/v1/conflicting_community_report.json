@@ -1,0 +1,13 @@
+{
+  "report_id": "fixture-community-001",
+  "normalized_domain": "example.test",
+  "claim_type": "phishing",
+  "note_redacted": "Synthetic example for UI test.",
+  "submitted_at": "2026-11-09T09:20:00Z",
+  "verification_state": "disputed",
+  "independent_source_count": 1,
+  "linked_evidence_ids": [
+    "ev-tls-001"
+  ],
+  "reviewed_at": null
+}

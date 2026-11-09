@@ -1,0 +1,3 @@
+# MVP integration gate
+
+The integration owner (W04) coordinates; each subsystem owner signs off their contract. Do not call the MVP complete until: (1) a clean setup yields fixture end-to-end journey; (2) safe URL checks pass or live scanning is disabled; (3) reports expose timestamps/source/limitations and missingness; (4) certificate and identity states remain separate; (5) community report duplicates/conflicts are handled honestly; (6) partial/failure/inconclusive states render; (7) testers close critical/high blockers or scope the feature off; (8) demo fallback is labeled and rehearsed; (9) README/setup/known limits match behavior. This is a planned checklist; no items are signed off yet.

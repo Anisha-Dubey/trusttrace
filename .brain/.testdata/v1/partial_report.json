@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "scan_id": "fixture-partial-001",
+  "submitted_url_redacted": "https://partial.example.test/",
+  "normalized_host": "partial.example.test",
+  "status": "partial",
+  "decision": "inconclusive",
+  "created_at": "2026-11-09T09:10:00Z",
+  "completed_at": "2026-11-09T09:10:05Z",
+  "policy_version": "demo-v1",
+  "dimensions": {
+    "identity": "unknown",
+    "certificate": "unavailable",
+    "behavior": "unknown",
+    "evidence_quality": "weak"
+  },
+  "coverage": {
+    "checks_total": 4,
+    "checks_observed": 1,
+    "checks_failed": 2,
+    "checks_not_run": 1
+  },
+  "evidence": [
+    {
+      "evidence_id": "ev-dns-001",
+      "kind": "dns_lookup",
+      "value": null,
+      "source": "fixture_adapter",
+      "observed_at": "2026-11-09T09:10:01Z",
+      "status": "failed",
+      "reliability": "direct_observation",
+      "limitations": [
+        "Timeout in synthetic fixture."
+      ]
+    }
+  ],
+  "findings": [],
+  "limitations": [
+    "TLS and redirect checks unavailable; no safety conclusion."
+  ]
+}

@@ -1,0 +1,5 @@
+provider_id,provider,capability,access_status,terms_url,rate_limit,retention_or_redistribution,output_semantics,required_before_enablement,decision
+P-001,Fixture adapter,controlled demo evidence,available,internal fixture,local,synthetic only,known fixture assertions,label and hash fixtures,enabled for local demo
+P-002,Threat reputation feed,TBD,not verified,TBD,TBD,TBD,feed assertion not ground truth,terms access freshness and provenance review,disabled
+P-003,Certificate Transparency source,TBD,not selected,TBD,TBD,TBD,certificate observation not maliciousness,coverage and source rate limits,disabled
+P-004,Passive DNS provider,TBD,not selected,TBD,TBD,TBD,provider-vantage observation,license history availability cost and retention,disabled

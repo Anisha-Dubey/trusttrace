@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "community_report.schema.json",
+  "title": "TRUSTTRACE Community Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "normalized_domain",
+    "claim_type",
+    "submitted_at",
+    "verification_state",
+    "independent_source_count",
+    "linked_evidence_ids"
+  ],
+  "properties": {
+    "report_id": {
+      "type": "string"
+    },
+    "normalized_domain": {
+      "type": "string"
+    },
+    "claim_type": {
+      "enum": [
+        "phishing",
+        "impersonation",
+        "malware_delivery",
+        "suspicious_redirect",
+        "other"
+      ]
+    },
+    "note_redacted": {
+      "type": "string",
+      "maxLength": 1000
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verification_state": {
+      "enum": [
+        "unverified",
+        "corroborated",
+        "disputed",
+        "reviewed"
+      ]
+    },
+    "independent_source_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "linked_evidence_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reviewed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    }
+  }
+}

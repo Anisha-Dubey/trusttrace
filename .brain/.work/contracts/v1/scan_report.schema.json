@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scan_report.schema.json",
+  "title": "TRUSTTRACE Scan Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scan_id",
+    "submitted_url_redacted",
+    "normalized_host",
+    "status",
+    "decision",
+    "created_at",
+    "policy_version",
+    "dimensions",
+    "coverage",
+    "evidence",
+    "findings",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "scan_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "submitted_url_redacted": {
+      "type": "string"
+    },
+    "normalized_host": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "validating",
+        "collecting",
+        "analyzing",
+        "completed",
+        "partial",
+        "failed",
+        "rejected"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "high_risk",
+        "caution",
+        "no_threat_observed",
+        "inconclusive",
+        "rejected",
+        "failed"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "policy_version": {
+      "type": "string"
+    },
+    "dimensions": {
+      "$ref": "#/$defs/dimensions"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "certificate",
+        "behavior",
+        "evidence_quality"
+      ],
+      "properties": {
+        "identity": {
+          "enum": [
+            "supported",
+            "unverified",
+            "contradicted",
+            "unknown"
+          ]
+        },
+        "certificate": {
+          "enum": [
+            "valid_for_hostname",
+            "invalid_or_expired",
+            "unavailable",
+            "not_checked"
+          ]
+        },
+        "behavior": {
+          "enum": [
+            "suspicious",
+            "no_threat_observed",
+            "malicious_evidence",
+            "unknown"
+          ]
+        },
+        "evidence_quality": {
+          "enum": [
+            "strong",
+            "partial",
+            "weak",
+            "unavailable"
+          ]
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checks_total",
+        "checks_observed",
+        "checks_failed",
+        "checks_not_run"
+      ],
+      "properties": {
+        "checks_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_observed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks_not_run": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "kind",
+        "source",
+        "observed_at",
+        "status",
+        "limitations"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "value": {},
+        "source": {
+          "type": "string"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "unavailable",
+            "failed",
+            "not_run",
+            "blocked"
+          ]
+        },
+        "reliability": {
+          "enum": [
+            "provider_assertion",
+            "direct_observation",
+            "derived_signal",
+            "user_report",
+            "unknown"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "kind",
+        "severity",
+        "summary",
+        "evidence_ids",
+        "rule_id",
+        "rule_version",
+        "created_at",
+        "limitations"
+      ],
+      "properties": {
+        "finding_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
