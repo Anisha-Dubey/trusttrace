@@ -3,11 +3,43 @@
 import os
 import secrets
 from dataclasses import dataclass
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Set
 from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 security_bearer = HTTPBearer(auto_error=False)
+
+# Known insecure/default tokens strictly forbidden in production
+INSECURE_DEFAULT_TOKENS: Set[str] = {
+    "mod-secret-token-key-2026",
+    "admin-secret-token-key-2026",
+    "collector-secret-token-key-2026",
+    "viewer-secret-token-key-2026",
+    "secret",
+    "password",
+    "admin",
+    "123456",
+    "changeme",
+}
+
+# Explicit development/test fallback tokens (ONLY valid when NOT in production)
+DEV_TEST_TOKENS: Dict[str, str] = {
+    "moderator": "mod-secret-token-key-2026",
+    "admin": "admin-secret-token-key-2026",
+    "collector": "collector-secret-token-key-2026",
+    "viewer": "viewer-secret-token-key-2026",
+}
+
+
+def is_production_environment() -> bool:
+    """Determine whether the application is running in production mode."""
+    env = (
+        os.environ.get("TRUSTTRACE_ENV")
+        or os.environ.get("ENV")
+        or os.environ.get("ENVIRONMENT")
+        or ""
+    ).strip().lower()
+    return env == "production"
 
 
 @dataclass
@@ -18,40 +50,96 @@ class AuthenticatedUser:
     roles: List[str]
 
     def has_role(self, role: str) -> bool:
-        return role in self.roles or "admin" in self.roles
+        if "admin" in self.roles:
+            return True
+        return role in self.roles
 
 
-# Server-managed token registry
-# In production, tokens are loaded from secret store / environment variables
-def get_token_registry() -> Dict[str, AuthenticatedUser]:
-    """Retrieve the authoritative token-to-user registry."""
-    mod_token = os.environ.get("TRUSTTRACE_MODERATOR_TOKEN", "mod-secret-token-key-2026")
-    admin_token = os.environ.get("TRUSTTRACE_ADMIN_TOKEN", "admin-secret-token-key-2026")
-    collector_token = os.environ.get("TRUSTTRACE_COLLECTOR_TOKEN", "collector-secret-token-key-2026")
-    viewer_token = os.environ.get("TRUSTTRACE_VIEWER_TOKEN", "viewer-secret-token-key-2026")
+def validate_token_configuration() -> Dict[str, AuthenticatedUser]:
+    """Validate token credentials from environment and build the authoritative registry.
+    
+    Security rules enforced:
+    - Production requires explicit, high-entropy tokens from environment.
+    - Default/insecure credentials cause immediate failure in production.
+    - Empty or whitespace-only tokens are rejected in all environments.
+    - Duplicate tokens mapping to multiple roles are strictly rejected.
+    - Token values are never logged or exposed.
+    """
+    is_prod = is_production_environment()
+
+    env_mod = os.environ.get("TRUSTTRACE_MODERATOR_TOKEN")
+    env_admin = os.environ.get("TRUSTTRACE_ADMIN_TOKEN")
+    env_collector = os.environ.get("TRUSTTRACE_COLLECTOR_TOKEN")
+    env_viewer = os.environ.get("TRUSTTRACE_VIEWER_TOKEN")
+
+    raw_tokens = {
+        "moderator": env_mod,
+        "admin": env_admin,
+        "collector": env_collector,
+        "viewer": env_viewer,
+    }
+
+    resolved_tokens: Dict[str, str] = {}
+
+    for role, token_val in raw_tokens.items():
+        if token_val is not None:
+            stripped = token_val.strip()
+            if not stripped:
+                raise ValueError(
+                    f"Authentication token for role '{role}' cannot be empty or whitespace only."
+                )
+            if is_prod:
+                if stripped in INSECURE_DEFAULT_TOKENS or len(stripped) < 32:
+                    raise RuntimeError(
+                        f"Production configuration error: Insecure or weak token detected for role '{role}'. "
+                        f"Production requires high-entropy secrets of at least 32 characters."
+                    )
+            resolved_tokens[role] = stripped
+        else:
+            if is_prod:
+                raise RuntimeError(
+                    f"Production configuration error: Missing required authentication token for role '{role}'. "
+                    f"Set environment variable TRUSTTRACE_{role.upper()}_TOKEN with a secure secret."
+                )
+            # In development/test mode, fall back to explicit dev/test token
+            resolved_tokens[role] = DEV_TEST_TOKENS[role]
+
+    # Validate against duplicate credentials mapping to multiple roles
+    seen_tokens: Dict[str, str] = {}
+    for role, token_val in resolved_tokens.items():
+        if token_val in seen_tokens:
+            raise ValueError(
+                f"Duplicate credentials error: Role '{role}' shares the exact same token with '{seen_tokens[token_val]}'."
+            )
+        seen_tokens[token_val] = role
 
     return {
-        mod_token: AuthenticatedUser(
+        resolved_tokens["moderator"]: AuthenticatedUser(
             user_id="usr-mod-001",
             username="security_moderator",
-            roles=["moderator"],
+            roles=["moderator", "viewer"],
         ),
-        admin_token: AuthenticatedUser(
+        resolved_tokens["admin"]: AuthenticatedUser(
             user_id="usr-admin-001",
             username="security_admin",
-            roles=["admin", "moderator"],
+            roles=["admin", "moderator", "viewer"],
         ),
-        collector_token: AuthenticatedUser(
+        resolved_tokens["collector"]: AuthenticatedUser(
             user_id="usr-collector-001",
             username="internal_collector_agent",
             roles=["collector"],
         ),
-        viewer_token: AuthenticatedUser(
+        resolved_tokens["viewer"]: AuthenticatedUser(
             user_id="usr-viewer-001",
             username="auditor_viewer",
             roles=["viewer"],
         ),
     }
+
+
+def get_token_registry() -> Dict[str, AuthenticatedUser]:
+    """Retrieve the authoritative token-to-user registry."""
+    return validate_token_configuration()
 
 
 def verify_bearer_token(token: str) -> Optional[AuthenticatedUser]:
