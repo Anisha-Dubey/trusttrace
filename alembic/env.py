@@ -30,10 +30,12 @@ target_metadata = Base.metadata
 existing_url = config.get_main_option("sqlalchemy.url")
 env_url = os.environ.get("TRUSTTRACE_DB_URL") or os.environ.get("TRUSTTRACE_PG_URL") or os.environ.get("DATABASE_URL")
 
-if env_url:
-    db_url = resolve_database_url(env_url)
-elif existing_url and "driver://user:pass" not in existing_url:
+if existing_url and "driver://user:pass" not in existing_url:
+    # Explicit programmatic override from caller
     db_url = resolve_database_url(existing_url)
+elif env_url:
+    # Environment variable override (CI / production)
+    db_url = resolve_database_url(env_url)
 else:
     db_url = resolve_database_url()
 
