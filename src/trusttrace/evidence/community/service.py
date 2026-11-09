@@ -6,7 +6,12 @@ from datetime import datetime, timezone
 
 from .sanitizer import sanitize_text, hash_reporter_identity
 from .state_machine import validate_transition, InvalidStateTransitionError
-from .deduplicator import ReportDeduplicator, SourceFamilyAnalyzer, DeduplicationCategory, DeduplicationResult
+from .deduplicator import (
+    ReportDeduplicator,
+    SourceFamilyAnalyzer,
+    DeduplicationCategory,
+    DeduplicationResult,
+)
 from ..domain.models import CommunityReportModel, ReportAuditEntry, utc_now_iso
 from ..domain.enums import VerificationState, ClaimType
 from ..persistence.database import DatabaseManager, default_db
@@ -36,8 +41,9 @@ class CommunityIntelligenceService:
         raw_reporter_identifier: str = "anonymous",
         source_family: Optional[str] = None,
         linked_evidence_ids: Optional[List[str]] = None,
+        is_authenticated_provider: bool = False,
     ) -> Tuple[CommunityReportModel, DeduplicationResult]:
-        """Intake a community report safely with deduplication and source-family analysis.
+        """Intake a community report safely with deduplication and source-family validation.
         
         Returns:
             Tuple[CommunityReportModel, DeduplicationResult]
@@ -45,7 +51,9 @@ class CommunityIntelligenceService:
         clean_domain = normalized_domain.strip().lower()
         clean_note = sanitize_text(note, max_length=1000)
         reporter_hash = hash_reporter_identity(raw_reporter_identifier)
-        family = SourceFamilyAnalyzer.canonicalize_family(source_family)
+        family = SourceFamilyAnalyzer.validate_and_canonicalize(
+            source_family, is_authenticated_provider=is_authenticated_provider
+        )
         claim = ClaimType(claim_type)
         now = utc_now_iso()
 
@@ -60,6 +68,7 @@ class CommunityIntelligenceService:
                 new_reporter_hash=reporter_hash,
                 new_source_family=family,
                 existing_reports=existing_entities,
+                is_authenticated_provider=is_authenticated_provider,
             )
 
             # Case A: Exact duplicate submission
@@ -87,7 +96,6 @@ class CommunityIntelligenceService:
 
             if dedup_res.category == DeduplicationCategory.CONFLICTING_REPORT:
                 initial_state = VerificationState.DISPUTED
-                # Transition the conflicting existing report to DISPUTED
                 matched_id = dedup_res.matched_report_id
                 if matched_id:
                     matched_report = self.repo.get_community_report(session, matched_id)
@@ -114,13 +122,11 @@ class CommunityIntelligenceService:
 
             # Case C: Copied/Shared Source -> Does NOT increment independent count
             elif dedup_res.category == DeduplicationCategory.COPIED_SOURCE:
-                # Retain the independent count of existing reports
                 if existing_entities:
                     independent_count = existing_entities[0].independent_source_count
 
             # Case D: Independent Source -> Increments independent count across domain reports
             elif dedup_res.category == DeduplicationCategory.INDEPENDENT_SOURCE:
-                # Calculate distinct source families
                 existing_families = {
                     SourceFamilyAnalyzer.canonicalize_family(e.source_family)
                     for e in existing_entities
@@ -196,9 +202,12 @@ class CommunityIntelligenceService:
         target_state: VerificationState,
         reason: str,
         actor_ref: str,
-        independent_count: Optional[int] = None,
     ) -> CommunityReportModel:
-        """Execute a validated state transition with an append-only audit event."""
+        """Execute a validated state transition with an append-only audit event.
+        
+        Independent corroboration counts are strictly computed server-side
+        from distinct verified source families. Client overrides are completely prohibited.
+        """
         with self.db.session_scope() as session:
             current = self.repo.get_community_report(session, report_id)
             if not current:
@@ -208,11 +217,21 @@ class CommunityIntelligenceService:
             validate_transition(current.verification_state, target_state)
 
             now = utc_now_iso()
+
+            # Server-side derivation of independent source count
+            entities = self.repo.find_community_reports(session, normalized_domain=current.normalized_domain)
+            distinct_families = {
+                SourceFamilyAnalyzer.canonicalize_family(e.source_family)
+                for e in entities
+                if e.verification_state != VerificationState.DISPUTED.value
+            }
+            derived_count = max(1, len(distinct_families))
+
             self.repo.update_community_report_state(
                 session=session,
                 report_id=report_id,
                 new_state=target_state,
-                independent_count=independent_count,
+                independent_count=derived_count,
                 reviewed_at=now,
             )
 

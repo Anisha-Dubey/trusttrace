@@ -32,6 +32,16 @@ class DeduplicationResult:
 class SourceFamilyAnalyzer:
     """Normalizes and maps threat-intelligence sources to canonical source families."""
 
+    # Authoritative feed provider families that require authenticated provider status
+    VERIFIED_PROVIDER_FAMILIES: Set[str] = {
+        "phishtank",
+        "openphish",
+        "urlhaus",
+        "virustotal",
+        "cert_feed",
+        "internal_collector",
+    }
+
     # Known syndication / feed family aliases
     FAMILY_ALIASES: Dict[str, str] = {
         "phishtank": "phishtank",
@@ -53,6 +63,27 @@ class SourceFamilyAnalyzer:
         cleaned = raw_family.strip().lower()
         return cls.FAMILY_ALIASES.get(cleaned, cleaned)
 
+    @classmethod
+    def validate_and_canonicalize(
+        cls,
+        raw_family: Optional[str],
+        is_authenticated_provider: bool = False,
+    ) -> str:
+        """Validate and map source family, rejecting unauthorized client claims of provider identities."""
+        if not raw_family or raw_family.strip().lower() == "community_user":
+            return "community_user"
+
+        cleaned = raw_family.strip().lower()
+        canonical = cls.FAMILY_ALIASES.get(cleaned, cleaned)
+
+        # Untrusted client attempting to claim an authoritative feed provider
+        if canonical in cls.VERIFIED_PROVIDER_FAMILIES and not is_authenticated_provider:
+            raise ValueError(
+                f"Unauthorized source family claim: '{raw_family}'. "
+                f"Unauthenticated or public clients cannot claim verified provider identities."
+            )
+        return canonical
+
 
 class ReportDeduplicator:
     """Evaluates incoming community reports for duplication, syndication, and conflict."""
@@ -67,9 +98,12 @@ class ReportDeduplicator:
         new_reporter_hash: str,
         new_source_family: str,
         existing_reports: List[CommunityReportEntity],
+        is_authenticated_provider: bool = False,
     ) -> DeduplicationResult:
-        """Evaluate submission against existing reports for the same domain."""
-        canonical_family = SourceFamilyAnalyzer.canonicalize_family(new_source_family)
+        """Evaluate submission against existing reports for the same domain with source verification."""
+        canonical_family = SourceFamilyAnalyzer.validate_and_canonicalize(
+            new_source_family, is_authenticated_provider=is_authenticated_provider
+        )
 
         if not existing_reports:
             return DeduplicationResult(
@@ -83,8 +117,6 @@ class ReportDeduplicator:
             )
 
         # 1. Check for Conflicting Report
-        # e.g., existing claim is "phishing" or "malware_delivery", but new report claims "other" / non-malicious
-        # or mutually exclusive categories
         conflicting = None
         for rep in existing_reports:
             rep_claim = ClaimType(rep.claim_type)
@@ -107,7 +139,6 @@ class ReportDeduplicator:
             )
 
         # 2. Check for Exact Duplicate
-        # Same domain + same claim + same reporter_hash
         for rep in existing_reports:
             if rep.claim_type == new_claim.value and rep.reporter_hash == new_reporter_hash:
                 return DeduplicationResult(
@@ -121,7 +152,6 @@ class ReportDeduplicator:
                 )
 
         # 3. Check for Copied/Shared Source
-        # Different reporter, but same canonical source family
         for rep in existing_reports:
             rep_family = SourceFamilyAnalyzer.canonicalize_family(rep.source_family)
             if rep_family == canonical_family:
@@ -139,7 +169,6 @@ class ReportDeduplicator:
                 )
 
         # 4. Independent Source
-        # Different reporter AND different source family
         return DeduplicationResult(
             category=DeduplicationCategory.INDEPENDENT_SOURCE,
             matched_report_id=None,
@@ -153,7 +182,6 @@ class ReportDeduplicator:
     @staticmethod
     def _is_contradictory_claim(claim_a: ClaimType, claim_b: ClaimType) -> bool:
         """Determine if two claims logically contradict each other."""
-        # 'other' or contradictory categorizations
         severe_threats = {ClaimType.PHISHING, ClaimType.MALWARE_DELIVERY, ClaimType.IMPERSONATION}
         if (claim_a in severe_threats and claim_b == ClaimType.OTHER) or (
             claim_b in severe_threats and claim_a == ClaimType.OTHER

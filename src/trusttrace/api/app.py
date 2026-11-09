@@ -1,10 +1,37 @@
 """FastAPI application factory and route registration for TRUSTTRACE."""
 
+import os
+from typing import List, Tuple
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.evidence import router as evidence_router
 from .routes.community import router as community_router
+
+
+def get_cors_configuration() -> Tuple[List[str], bool]:
+    """Derive safe CORS origins and credentials policy from environment.
+    
+    Security rule: Never allow wildcard '*' with credentials enabled!
+    """
+    raw_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "")
+    if raw_origins:
+        origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    else:
+        origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ]
+
+    # If wildcard is present, credentials MUST be False to comply with CORS security specifications
+    if "*" in origins:
+        allow_credentials = False
+    else:
+        allow_credentials = True
+
+    return origins, allow_credentials
 
 
 def create_app() -> FastAPI:
@@ -17,13 +44,15 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # CORS configuration
+    origins, allow_credentials = get_cors_configuration()
+
+    # CORS configuration with strict explicit origins
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=origins,
+        allow_credentials=allow_credentials,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     # Register routers
@@ -40,6 +69,8 @@ def create_app() -> FastAPI:
                 "persistence": "operational",
                 "provenance_engine": "operational",
                 "community_intelligence": "operational",
+                "rate_limiter": "operational",
+                "rbac_authorization": "operational",
             },
         }
 
