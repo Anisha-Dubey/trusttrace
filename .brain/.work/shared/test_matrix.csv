@@ -12,12 +12,12 @@ SSRF-005,egress,P0,public first resolution then prohibited second resolution,con
 REDIR-001,redirect,P0,public host redirects to prohibited address,redirect blocked and scan partial/rejected,redirect test log,TESTED
 REDIR-002,redirect,P1,redirect loop or excessive hops,stops at configured cap with reason,hop count and result,TESTED
 REDIR-003,redirect,P1,HTTPS redirects to unsupported scheme,blocked with explicit limitation,redirect trace fixture,TESTED
-LIMIT-001,resource,P0,slow response,timeout within configured budget and partial result,elapsed time record,PLANNED
-LIMIT-002,resource,P0,oversized response,body capped; no unbounded allocation,bytes-read assertion,PLANNED
-LIMIT-003,resource,P1,burst submissions,rate/concurrency cap enforced,HTTP responses and queue count,PLANNED
-LIMIT-004,resource,P1,cancel in-flight scan,worker stops and state is truthful,cancel outcome,PLANNED
-TLS-001,certificate,P1,valid hostname certificate,certificate state valid; identity remains unverified absent authorization,report fixture,PLANNED
-TLS-002,certificate,P1,expired or hostname-mismatched certificate,technical warning; not sole proof of phishing,report fixture and rationale,PLANNED
+LIMIT-001,resource,P0,slow response,timeout within configured budget and partial result,elapsed time record,TESTED
+LIMIT-002,resource,P0,oversized response,body capped; no unbounded allocation,bytes-read assertion,TESTED
+LIMIT-003,resource,P1,burst submissions,rate/concurrency cap enforced,HTTP responses and queue count,TESTED
+LIMIT-004,resource,P1,cancel in-flight scan,worker stops and state is truthful,cancel outcome,TESTED
+TLS-001,certificate,P1,valid hostname certificate,certificate state valid; identity remains unverified absent authorization,report fixture,TESTED
+TLS-002,certificate,P1,expired or hostname-mismatched certificate,technical warning; not sole proof of phishing,report fixture and rationale,TESTED
 EVID-001,evidence,P0,one collector fails,partial/inconclusive and failed check visible,report fixture,TESTED
 EVID-002,evidence,P0,no reputation match,never renders safe or verified benign,UI assertion,TESTED
 EVID-003,evidence,P1,stale observation,staleness and observation time shown,fixture and UI capture,TESTED

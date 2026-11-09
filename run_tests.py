@@ -28,7 +28,7 @@ def run():
 
     if not result.wasSuccessful() or proc.returncode != 0:
         sys.exit(1)
-    print("\nALL WORKER 01 PHASE 01 TESTS & CONTRACT INVARIANTS PASSED!")
+    print("\nALL WORKER 01 PHASE 01 & PHASE 02 TESTS & CONTRACT INVARIANTS PASSED!")
 
 if __name__ == "__main__":
     run()
