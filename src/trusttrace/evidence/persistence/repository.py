@@ -77,7 +77,10 @@ class EvidenceRepository:
         policy_version: str = "1.0",
         limitations: Optional[List[str]] = None,
     ) -> ScanEntity:
-        """Create a scan record if not exists, or return the existing one."""
+        """Create a scan record if not exists, or return the existing one.
+        
+        Handles concurrent creation races safely using savepoints.
+        """
         scan = session.get(ScanEntity, scan_id)
         if not scan:
             now = utc_now_iso()
@@ -91,8 +94,12 @@ class EvidenceRepository:
                 created_at=now,
                 limitations_json=json.dumps(limitations or []),
             )
-            session.add(scan)
-            session.flush()
+            try:
+                with session.begin_nested():
+                    session.add(scan)
+                    session.flush()
+            except IntegrityError:
+                scan = session.get(ScanEntity, scan_id)
         return scan
 
     def update_scan(

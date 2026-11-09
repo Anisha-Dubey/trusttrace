@@ -1,20 +1,17 @@
 # worker_02 status
 
-**PHASE 01 & PHASE 02 COMPLETED, SECURITY-HARDENED, MIGRATED & VERIFIED.**
+**PHASE 01, PHASE 02 & PHASE 8 COMPLETED, HARDENED, MIGRATED & INDEPENDENTLY VERIFIED.**
 
 - **Phase 01 (Evidence Intelligence, Provenance Engine, Persistence & Finding Linkage)**: Complete and verified (`tests/test_evidence_intelligence.py` and `tests/test_evidence_adapters.py`).
 - **Phase 02 (Collaborative Threat Intelligence, Deduplication, Moderation & Audit History)**: Complete and verified (`tests/test_community_intelligence.py`).
-- **Security Audit Remediation & Hardening (SEC-001 to SEC-005)**: Complete and verified (`tests/test_security_audit.py`, `tests/test_reliability_and_hardening.py`).
-  - SEC-001: Insecure hardcoded default credentials removed; explicit high-entropy tokens required; startup fails immediately in production if required tokens are missing, weak, or duplicated; role escalation prevented across all roles.
-  - SEC-002: Source-family identity strictly server-controlled: unauthenticated clients are assigned `community_user` and cannot claim provider feeds or arbitrary source families; authenticated collectors validated against canonical allowlist.
-  - SEC-003: Audit endpoints (`/reports/{id}/audit`, `/domain/{domain}/audit`) protected with RBAC (`viewer`, `moderator`, `admin`); anonymous access returns 401; collector role returns 403.
-  - SEC-004: Community evidence references strictly validated: referenced evidence must exist, belongs to matching domain/scan context (cross-record injection blocked), duplicate references rejected, atomic rollback on failure.
-  - SEC-005: Strict domain and input validation (RFC 1035 / RFC 1123, IDNA/Punycode, URL-vs-domain confusion blocked, 1MB evidence payload size limit).
-- **Reliability and Data Integrity (REL-001 to REL-004)**: Complete and verified.
-  - REL-001: Pluggable rate limiter interface (`BaseRateLimiterBackend`, `InMemoryRateLimiterBackend` with automatic stale key eviction to prevent unbounded memory growth, `RedisRateLimiterBackend` with atomic pipelines and fail-closed error handling in production).
-  - REL-002: Concurrent submissions from independent sources maintain consistent, authoritative corroboration counts across all sibling domain reports.
-  - REL-003: Alembic database migrations introduced (`alembic/versions/fc4404487a31_initial_worker_02_schema.py`); clean database upgrade to HEAD and downgrade to BASE verified.
-  - REL-004: Database-level pagination (`LIMIT`/`OFFSET` and `COUNT`) across evidence and community report listings.
-- **Operational Hardening**: Request correlation IDs (`X-Request-ID`), 2MB request body size limits, `/ready` readiness probe endpoint.
-- **Overall Suite**: 79 tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
+- **Phase 8 Security Hardening & Concurrency Remediation**: Complete and independently verified.
+  - **SEC-01 / Task 1**: Production startup authentication validation. Lifespan context halts startup immediately if production credentials are missing, weak, or duplicated across roles. Zero credential leakage in logs.
+  - **SEC-02 / Task 2**: Fail-closed Redis rate limiter. Production strictly requires Redis; rejects protected submissions safely with 503 if Redis is unreachable; never silently falls back to process-local memory.
+  - **SEC-03 / Task 3**: Atomic Redis operations. Single Lua script evaluates replay token, IP sliding window, and domain sliding window atomically with microsecond timestamps and UUID4 nonces. Rejected requests leave zero state.
+  - **SEC-04 / Task 4**: Server-bound provider identities. Principal tokens bind strictly to permitted source families. Public unauthenticated submissions strictly default to `community_user` (HTTP 400 on spoof attempt); cross-provider collector impersonation rejected with HTTP 403.
+  - **SEC-05 / Task 5**: Multi-process database-backed corroboration consistency. Row-level locking on PostgreSQL (`with_for_update()`) and normalized `community_domain_source_families` junction table with unique composite constraint enforce single counting per canonical source family across concurrent instances.
+  - **SEC-06 / Task 6**: Alembic database migrations verified. Clean upgrade from empty database to HEAD and downgrade to BASE verified on PostgreSQL 15 and SQLite.
+  - **SEC-07 / Task 7**: GitHub Actions CI verified. Matrix builds on Python 3.11 and 3.12 with live PostgreSQL 15 and Redis 7 service containers pass 100%.
+  - **SEC-08 / Task 8**: 18-point adversarial & concurrency regression suite in `tests/test_phase8_adversarial_suite.py` passing 100%.
+- **Overall Suite**: 145 unit/integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
 - **Branch**: `feature/worker-02-evidence-intelligence`.

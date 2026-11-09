@@ -24,6 +24,7 @@ import time
 import uuid
 import unittest
 import threading
+import ast
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -48,6 +49,10 @@ from trusttrace.evidence.community.rate_limiter import (
 from trusttrace.evidence.persistence.database import DatabaseManager, Base
 from trusttrace.evidence.persistence.repository import EvidenceRepository
 from trusttrace.evidence.community.service import CommunityIntelligenceService
+from trusttrace.evidence.community.moderation import ModerationService
+from trusttrace.evidence.services.evidence_service import EvidenceService
+from trusttrace.evidence.domain.models import EvidenceModel
+from trusttrace.evidence.domain.enums import EvidenceStatus, Reliability, VerificationState, ClaimType
 from trusttrace.intake.boundary import IntakeBoundary
 
 
@@ -519,6 +524,156 @@ class TestPhase8AdversarialRegressionSuite(unittest.TestCase):
             report = boundary.build_rejected_report(scan_id=f"adv-{reason}", evaluation=eval_res)
             errors = list(validator.iter_errors(report))
             self.assertEqual(len(errors), 0, f"Rejected report failed contract schema validation: {errors}")
+
+    # -------------------------------------------------------------------------
+    # 15. Concurrent duplicate evidence ingestion
+    # -------------------------------------------------------------------------
+    def test_15_concurrent_duplicate_evidence_ingestion(self):
+        """SEC-ADV-15: Concurrent duplicate evidence ingestion creates exactly 1 record without crashing."""
+        from trusttrace.evidence.adapters.base import EvidenceBatch
+        ev_service = EvidenceService(db_manager=self.db, repository=self.repo)
+        scan_id = f"scan-concurrent-{uuid.uuid4().hex[:6]}"
+        ev_id = f"ev-{uuid.uuid4().hex[:8]}"
+        now = "2026-11-10T00:00:00Z"
+
+        evidence = EvidenceModel(
+            evidence_id=ev_id,
+            scan_id=scan_id,
+            kind="dns_lookup",
+            value={"resolved_ip": "1.2.3.4"},
+            source="worker01_dns",
+            source_type="internal_collector",
+            observed_at=now,
+            status=EvidenceStatus.OBSERVED,
+            reliability=Reliability.DIRECT_OBSERVATION,
+            limitations=[],
+            schema_version="1.0",
+        )
+        batch = EvidenceBatch(scan_id=scan_id, items=[evidence])
+
+        results = []
+        errors = []
+
+        def worker():
+            try:
+                res = ev_service.ingest_batch(batch)
+                results.append(res)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(errors), 0, f"Concurrent ingestion encountered errors: {errors}")
+        with self.db.session_scope() as session:
+            records = self.repo.get_evidence_by_scan(session, scan_id=scan_id)
+            self.assertEqual(len(records), 1, "Exactly one evidence record should exist after concurrent duplicate ingestion")
+
+    # -------------------------------------------------------------------------
+    # 16. Concurrent moderation state changes
+    # -------------------------------------------------------------------------
+    def test_16_concurrent_moderation_state_transitions(self):
+        """SEC-ADV-16: Concurrent moderation reviews on a report maintain consistent terminal state and audit trail."""
+        comm_service = CommunityIntelligenceService(db_manager=self.db, repository=self.repo)
+        mod_service = ModerationService(community_service=comm_service, db_manager=self.db)
+        domain = f"mod-target-{uuid.uuid4().hex[:6]}.com"
+        report, _ = comm_service.submit_report(
+            normalized_domain=domain,
+            claim_type="phishing",
+            note="Initial report",
+            raw_reporter_identifier="192.168.1.1",
+        )
+
+        outcomes = []
+
+        def mod_worker(idx):
+            try:
+                updated = mod_service.review_report(
+                    report_id=report.report_id,
+                    target_state=VerificationState.REVIEWED,
+                    reason=f"Concurrent review by moderator {idx}",
+                    moderator_ref=f"moderator_{idx}",
+                )
+                outcomes.append(("ok", updated))
+            except Exception as e:
+                outcomes.append(("err", e))
+
+        threads = [threading.Thread(target=mod_worker, args=(i,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        successes = [o for o in outcomes if o[0] == "ok"]
+        self.assertGreaterEqual(len(successes), 1)
+        final_report = comm_service.get_report(report.report_id)
+        self.assertIsNotNone(final_report)
+        self.assertEqual(final_report.verification_state, VerificationState.REVIEWED)
+
+        audit_trail = mod_service.get_audit_trail(report.report_id)
+        self.assertGreaterEqual(len(audit_trail), 2)  # Initial submission + at least 1 moderation action
+
+    # -------------------------------------------------------------------------
+    # 17. Client cannot fabricate independent corroboration count
+    # -------------------------------------------------------------------------
+    def test_17_client_cannot_fabricate_independent_count(self):
+        """SEC-ADV-17: Client-supplied independent count overrides or fake counts in API requests are strictly ignored."""
+        client = TestClient(create_app())
+        domain = f"spoofed-count-{uuid.uuid4().hex[:6]}.com"
+
+        resp = client.post(
+            "/api/v1/community/reports",
+            json={
+                "normalized_domain": domain,
+                "claim_type": "phishing",
+                "note": "Malicious site",
+                "independent_source_count": 999,
+                "independent_count_override": 500,
+            },
+        )
+        self.assertEqual(resp.status_code, 201)
+        data = resp.json()["data"]["report"]
+        self.assertEqual(data["independent_source_count"], 1, "Server must compute count, ignoring client payload overrides")
+
+    # -------------------------------------------------------------------------
+    # 18. Worker 02 isolation — no Worker 01 networking or raw socket imports
+    # -------------------------------------------------------------------------
+    def test_18_worker02_isolation_no_worker01_network_imports(self):
+        """SEC-ADV-18: Worker 02 modules never import Worker 01 networking or raw socket/request libraries."""
+        prohibited_modules = {
+            "socket",
+            "urllib",
+            "urllib.request",
+            "requests",
+            "httpx",
+            "aiohttp",
+            "trusttrace.intake.dns_resolver",
+            "trusttrace.intake.ip_classifier",
+            "trusttrace.intake.redirect_policy",
+        }
+
+        evidence_dir = ROOT / "src" / "trusttrace" / "evidence"
+        for py_file in evidence_dir.rglob("*.py"):
+            code = py_file.read_text(encoding="utf-8")
+            tree = ast.parse(code, filename=str(py_file))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        for prohibited in prohibited_modules:
+                            self.assertFalse(
+                                alias.name == prohibited or alias.name.startswith(prohibited + "."),
+                                f"Worker 02 file {py_file.name} violates isolation by importing {alias.name}",
+                            )
+                elif isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    for prohibited in prohibited_modules:
+                        self.assertFalse(
+                            mod == prohibited or mod.startswith(prohibited + "."),
+                            f"Worker 02 file {py_file.name} violates isolation by importing from {mod}",
+                        )
 
 
 if __name__ == "__main__":
