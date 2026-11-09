@@ -4,6 +4,7 @@ import os
 import uuid
 import logging
 from typing import List, Tuple
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,11 +12,38 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .routes.evidence import router as evidence_router
 from .routes.community import router as community_router
-from .auth import validate_token_configuration
+from .auth import validate_token_configuration, is_production_environment
 from ..evidence.persistence.database import default_db
-from ..evidence.community.rate_limiter import default_rate_limiter
+from ..evidence.community.rate_limiter import (
+    default_rate_limiter,
+    RedisRateLimiterBackend,
+    RateLimiterBackendError,
+)
 
 logger = logging.getLogger("trusttrace.api")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI application lifespan managing startup validation and fail-closed security gates."""
+    # TASK 1: Production authentication startup validation
+    validate_token_configuration()
+
+    # TASK 2: Production rate limiter fail-closed verification
+    if is_production_environment():
+        backend = default_rate_limiter.backend
+        if not isinstance(backend, RedisRateLimiterBackend):
+            raise RuntimeError(
+                "Production configuration error: Redis rate limiter is strictly required in production mode. "
+                "Set TRUSTTRACE_REDIS_URL."
+            )
+        try:
+            backend.ping()
+        except Exception as e:
+            raise RuntimeError(f"Production startup failed: Redis connection error: {e}")
+
+    yield
+
 
 
 class SecurityAndCorrelationMiddleware(BaseHTTPMiddleware):
@@ -84,6 +112,7 @@ def create_app() -> FastAPI:
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     origins, allow_credentials = get_cors_configuration()

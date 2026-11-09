@@ -2,10 +2,22 @@
 
 import os
 import time
+import uuid
 import threading
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from collections import defaultdict
+
+
+def is_production_environment() -> bool:
+    """Determine whether the application is running in production mode."""
+    env = (
+        os.environ.get("TRUSTTRACE_ENV")
+        or os.environ.get("ENV")
+        or os.environ.get("ENVIRONMENT")
+        or ""
+    ).strip().lower()
+    return env == "production"
 
 
 class RateLimitExceededError(ValueError):
@@ -42,6 +54,10 @@ class BaseRateLimiterBackend(ABC):
     def reset(self) -> None:
         pass
 
+    def ping(self) -> bool:
+        """Verify backend connectivity."""
+        return True
+
 
 class InMemoryRateLimiterBackend(BaseRateLimiterBackend):
     """Thread-safe, bounded in-memory sliding window backend for local and test use."""
@@ -51,6 +67,9 @@ class InMemoryRateLimiterBackend(BaseRateLimiterBackend):
         self._ip_history: Dict[str, List[float]] = defaultdict(list)
         self._domain_history: Dict[str, List[float]] = defaultdict(list)
         self._last_submissions: Dict[Tuple[str, str, str], float] = {}
+
+    def ping(self) -> bool:
+        return True
 
     def check_and_record(
         self,
@@ -101,7 +120,7 @@ class InMemoryRateLimiterBackend(BaseRateLimiterBackend):
                     f"Domain submission rate exceeded: Maximum {domain_limit_per_minute} reports per minute for '{normalized_domain}'."
                 )
 
-            # 5. Record submission
+            # 5. Record submission (atomic under lock)
             self._ip_history[client_ip].append(now)
             self._domain_history[normalized_domain].append(now)
             self._last_submissions[replay_key] = now
@@ -113,16 +132,72 @@ class InMemoryRateLimiterBackend(BaseRateLimiterBackend):
             self._last_submissions.clear()
 
 
+# Atomic Lua script for Redis rate limiting and replay defense (TASK 3)
+# Checks replay, ip limit, and domain limit atomically in a single Redis evaluation.
+# Only updates state when all checks succeed. Rejected requests do not contaminate state.
+ATOMIC_RATE_LIMIT_LUA = """
+local replay_key = KEYS[1]
+local ip_key = KEYS[2]
+local domain_key = KEYS[3]
+
+local now = tonumber(ARGV[1])
+local window_start = tonumber(ARGV[2])
+local ip_limit = tonumber(ARGV[3])
+local domain_limit = tonumber(ARGV[4])
+local burst_ttl = tonumber(ARGV[5])
+local unique_member = ARGV[6]
+local key_ttl = tonumber(ARGV[7])
+
+-- 1. Check replay burst key
+if redis.call('EXISTS', replay_key) == 1 then
+    return {0, 'replay'}
+end
+
+-- 2. Prune sliding window
+redis.call('ZREMRANGEBYSCORE', ip_key, '-inf', window_start)
+redis.call('ZREMRANGEBYSCORE', domain_key, '-inf', window_start)
+
+-- 3. Check IP rate limit
+local ip_count = redis.call('ZCARD', ip_key)
+if ip_count >= ip_limit then
+    return {0, 'ip_limit'}
+end
+
+-- 4. Check domain rate limit
+local domain_count = redis.call('ZCARD', domain_key)
+if domain_count >= domain_limit then
+    return {0, 'domain_limit'}
+end
+
+-- 5. All checks passed: Atomically record accepted request
+redis.call('SET', replay_key, '1', 'EX', burst_ttl)
+redis.call('ZADD', ip_key, now, unique_member)
+redis.call('EXPIRE', ip_key, key_ttl)
+redis.call('ZADD', domain_key, now, unique_member)
+redis.call('EXPIRE', domain_key, key_ttl)
+
+return {1, 'ok'}
+"""
+
+
 class RedisRateLimiterBackend(BaseRateLimiterBackend):
-    """Distributed Redis-backed sliding window rate limiter using atomic pipeline operations."""
+    """Distributed Redis-backed sliding window rate limiter using an atomic Lua script (TASK 3)."""
 
     def __init__(self, redis_url: str):
         self.redis_url = redis_url
         try:
             import redis
-            self.client = redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2.0)
+            self.client = redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=3.0)
+            self._script = self.client.register_script(ATOMIC_RATE_LIMIT_LUA)
         except Exception as e:
             raise RateLimiterBackendError(f"Failed to initialize Redis client: {e}")
+
+    def ping(self) -> bool:
+        """Verify Redis connectivity."""
+        try:
+            return bool(self.client.ping())
+        except Exception as e:
+            raise RateLimiterBackendError(f"Redis ping failure at '{self.redis_url}': {e}")
 
     def check_and_record(
         self,
@@ -141,64 +216,95 @@ class RedisRateLimiterBackend(BaseRateLimiterBackend):
             domain_key = f"rate:domain:{normalized_domain.lower()}"
             replay_key = f"rate:replay:{client_ip}:{normalized_domain.lower()}:{claim_type.lower()}"
 
-            # 1. Atomic Replay check using SET NX EX
-            # If the key already exists, SET with NX returns None
-            was_set = self.client.set(replay_key, "1", ex=replay_burst_seconds, nx=True)
-            if not was_set:
-                raise ReplaySubmissionError(
-                    f"Duplicate claim replayed too rapidly. Please wait {replay_burst_seconds}s before resubmitting."
-                )
+            # Member string contains unique nonce so simultaneous requests don't overwrite
+            unique_member = f"{now}:{uuid.uuid4().hex[:10]}"
 
-            # 2. Sliding window evaluation for IP and Domain via pipeline
-            pipe = self.client.pipeline()
-            pipe.zremrangebyscore(ip_key, "-inf", window_start)
-            pipe.zcard(ip_key)
-            pipe.zremrangebyscore(domain_key, "-inf", window_start)
-            pipe.zcard(domain_key)
-            results = pipe.execute()
+            # Execute single atomic operation
+            res = self._script(
+                keys=[replay_key, ip_key, domain_key],
+                args=[
+                    now,
+                    window_start,
+                    ip_limit_per_minute,
+                    domain_limit_per_minute,
+                    replay_burst_seconds,
+                    unique_member,
+                    120,  # 120s TTL for keys
+                ],
+            )
 
-            ip_count = results[1]
-            domain_count = results[3]
+            success_code = res[0]
+            reason = res[1]
 
-            if ip_count >= ip_limit_per_minute:
-                raise RateLimitExceededError(
-                    f"Rate limit exceeded: Maximum {ip_limit_per_minute} submissions per minute per IP."
-                )
-
-            if domain_count >= domain_limit_per_minute:
-                raise RateLimitExceededError(
-                    f"Domain submission rate exceeded: Maximum {domain_limit_per_minute} reports per minute for '{normalized_domain}'."
-                )
-
-            # 3. Record timestamp into sorted sets with 120s TTL
-            pipe = self.client.pipeline()
-            item_val = f"{now}"
-            pipe.zadd(ip_key, {item_val: now})
-            pipe.expire(ip_key, 120)
-            pipe.zadd(domain_key, {item_val: now})
-            pipe.expire(domain_key, 120)
-            pipe.execute()
+            if success_code == 0:
+                if reason == "replay":
+                    raise ReplaySubmissionError(
+                        f"Duplicate claim replayed too rapidly. Please wait {replay_burst_seconds}s before resubmitting."
+                    )
+                elif reason == "ip_limit":
+                    raise RateLimitExceededError(
+                        f"Rate limit exceeded: Maximum {ip_limit_per_minute} submissions per minute per IP."
+                    )
+                elif reason == "domain_limit":
+                    raise RateLimitExceededError(
+                        f"Domain submission rate exceeded: Maximum {domain_limit_per_minute} reports per minute for '{normalized_domain}'."
+                    )
+                else:
+                    raise RateLimitExceededError(f"Rate boundary triggered: {reason}")
 
         except (RateLimitExceededError, ReplaySubmissionError):
             raise
         except Exception as e:
-            # Under production policy, never silently bypass rate limiting
+            # Under production policy, never silently bypass rate limiting (fail-closed)
             raise RateLimiterBackendError(f"Redis rate limiting failure: {e}")
 
     def reset(self) -> None:
+        """Clean all rate limit keys using iterative scan to prevent blocking production Redis."""
         try:
-            keys = self.client.keys("rate:*")
-            if keys:
-                self.client.delete(*keys)
+            keys_to_delete = []
+            for k in self.client.scan_iter(match="rate:*", count=100):
+                keys_to_delete.append(k)
+                if len(keys_to_delete) >= 500:
+                    self.client.delete(*keys_to_delete)
+                    keys_to_delete.clear()
+            if keys_to_delete:
+                self.client.delete(*keys_to_delete)
         except Exception as e:
             raise RateLimiterBackendError(f"Redis reset failure: {e}")
 
 
 def get_default_backend() -> BaseRateLimiterBackend:
-    """Factory selecting backend from environment configuration."""
+    """Factory selecting backend from environment configuration.
+    
+    Production Requirements (TASK 2):
+    - When TRUSTTRACE_ENV=production, Redis MUST be configured.
+    - If Redis is missing or unavailable, fail startup safely (fail-closed).
+    - Never silently fall back to process-local memory in production.
+    - In-memory backend may remain available for local development and isolated tests.
+    """
+    is_prod = is_production_environment()
     redis_url = os.environ.get("TRUSTTRACE_REDIS_URL") or os.environ.get("REDIS_URL")
+
+    if is_prod:
+        if not redis_url:
+            raise RateLimiterBackendError(
+                "Production configuration error: Redis is strictly required in production mode. "
+                "Set environment variable TRUSTTRACE_REDIS_URL with a valid Redis connection string."
+            )
+        backend = RedisRateLimiterBackend(redis_url=redis_url)
+        backend.ping()
+        return backend
+
+    # Non-production (development or test)
     if redis_url:
-        return RedisRateLimiterBackend(redis_url=redis_url)
+        try:
+            backend = RedisRateLimiterBackend(redis_url=redis_url)
+            backend.ping()
+            return backend
+        except Exception:
+            # Development fallback to memory when local Redis is not running
+            return InMemoryRateLimiterBackend()
+
     return InMemoryRateLimiterBackend()
 
 
