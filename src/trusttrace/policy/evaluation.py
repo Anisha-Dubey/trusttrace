@@ -483,3 +483,4 @@ class ClaimAuditor:
     def has_unsupported_claims(self, entries: List[ClaimAuditEntry]) -> bool:
         """Check if any audited claims are unsupported."""
         return any(e.verdict == ClaimVerdict.UNSUPPORTED for e in entries)
+

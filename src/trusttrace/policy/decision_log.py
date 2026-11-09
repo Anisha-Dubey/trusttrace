@@ -123,3 +123,4 @@ class DecisionLog:
     def clear(self) -> None:
         """Clear the log (useful for tests)."""
         self._entries.clear()
+

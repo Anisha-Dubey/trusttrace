@@ -121,3 +121,4 @@ class DimensionAssessment:
     contributing_signals: List[SignalKind] = field(default_factory=list)
     rationale: str = ""
     abstention_reason: Optional[str] = None
+
