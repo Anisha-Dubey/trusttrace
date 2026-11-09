@@ -10,7 +10,7 @@ from alembic import context
 # Ensure src directory is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from trusttrace.evidence.persistence.database import Base
+from trusttrace.evidence.persistence.database import Base, resolve_database_url
 import trusttrace.evidence.persistence.models  # noqa: F401
 
 # this is the Alembic Config object, which provides
@@ -26,12 +26,20 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
-# Dynamic database URL override from environment
-db_url = os.environ.get("TRUSTTRACE_DB_URL") or os.environ.get("DATABASE_URL")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
-elif not config.get_main_option("sqlalchemy.url") or "driver://user:pass" in config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", "sqlite:///trusttrace.db")
+# Dynamic database URL override from environment using unified resolution
+existing_url = config.get_main_option("sqlalchemy.url")
+env_url = os.environ.get("TRUSTTRACE_DB_URL") or os.environ.get("TRUSTTRACE_PG_URL") or os.environ.get("DATABASE_URL")
+
+if existing_url and "driver://user:pass" not in existing_url:
+    # Explicit programmatic override from caller
+    db_url = resolve_database_url(existing_url)
+elif env_url:
+    # Environment variable override (CI / production)
+    db_url = resolve_database_url(env_url)
+else:
+    db_url = resolve_database_url()
+
+config.set_main_option("sqlalchemy.url", db_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

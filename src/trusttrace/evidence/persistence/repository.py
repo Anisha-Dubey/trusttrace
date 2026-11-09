@@ -4,7 +4,7 @@ import json
 import hashlib
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, distinct, update
 from sqlalchemy.exc import IntegrityError
 
 from .database import DatabaseManager, default_db
@@ -16,6 +16,8 @@ from .models import (
     CommunityReportEntity,
     CommunityReportEvidenceLinkEntity,
     ReportAuditEntity,
+    CommunityDomainSourceFamilyEntity,
+    CommunityDomainCoordinationEntity,
 )
 from ..domain.models import (
     EvidenceModel,
@@ -75,7 +77,10 @@ class EvidenceRepository:
         policy_version: str = "1.0",
         limitations: Optional[List[str]] = None,
     ) -> ScanEntity:
-        """Create a scan record if not exists, or return the existing one."""
+        """Create a scan record if not exists, or return the existing one.
+        
+        Handles concurrent creation races safely using savepoints.
+        """
         scan = session.get(ScanEntity, scan_id)
         if not scan:
             now = utc_now_iso()
@@ -89,8 +94,12 @@ class EvidenceRepository:
                 created_at=now,
                 limitations_json=json.dumps(limitations or []),
             )
-            session.add(scan)
-            session.flush()
+            try:
+                with session.begin_nested():
+                    session.add(scan)
+                    session.flush()
+            except IntegrityError:
+                scan = session.get(ScanEntity, scan_id)
         return scan
 
     def update_scan(
@@ -462,6 +471,115 @@ class EvidenceRepository:
             report.reviewed_at = reviewed_at
         session.flush()
         return report
+
+    # --- Multi-Process Coordination & Source Family Consistency (TASK 5) ---
+
+    def acquire_domain_coordination(
+        self,
+        session: Session,
+        normalized_domain: str,
+        now_iso: str,
+    ) -> CommunityDomainCoordinationEntity:
+        """Acquire database-level coordination for a domain.
+        
+        Uses row-level locking (SELECT ... FOR UPDATE) on PostgreSQL to prevent race conditions
+        across multiple worker processes. On SQLite, transactions provide database-level locking.
+        """
+        dialect_name = ""
+        try:
+            bind = session.get_bind()
+            dialect_name = bind.dialect.name.lower() if bind else ""
+        except Exception:
+            pass
+        supports_for_update = "postgres" in dialect_name
+
+        query = select(CommunityDomainCoordinationEntity).where(
+            CommunityDomainCoordinationEntity.normalized_domain == normalized_domain
+        )
+        if supports_for_update:
+            query = query.with_for_update()
+
+        coord = session.execute(query).scalar_one_or_none()
+        if not coord:
+            coord = CommunityDomainCoordinationEntity(
+                normalized_domain=normalized_domain,
+                active_claim=None,
+                is_disputed=False,
+                updated_at=now_iso,
+            )
+            try:
+                with session.begin_nested():
+                    session.add(coord)
+                    session.flush()
+            except IntegrityError:
+                coord = session.execute(query).scalar_one_or_none()
+                if not coord:
+                    coord = session.get(CommunityDomainCoordinationEntity, normalized_domain)
+
+        return coord
+
+    def register_domain_source_family(
+        self,
+        session: Session,
+        normalized_domain: str,
+        source_family: str,
+        report_id: str,
+        created_at: str,
+    ) -> bool:
+        """Register a source family for a domain.
+        
+        Returns True if newly registered, False if this source family was already registered
+        for this domain (enforced via database uniqueness constraint uq_domain_source_family).
+        """
+        entity = CommunityDomainSourceFamilyEntity(
+            normalized_domain=normalized_domain,
+            source_family=source_family,
+            first_report_id=report_id,
+            created_at=created_at,
+        )
+        try:
+            with session.begin_nested():
+                session.add(entity)
+                session.flush()
+            return True
+        except IntegrityError:
+            return False
+
+    def count_distinct_source_families_for_domain(
+        self,
+        session: Session,
+        normalized_domain: str,
+    ) -> int:
+        """Calculate authoritative count of distinct registered source families for a domain."""
+        query = select(func.count(distinct(CommunityDomainSourceFamilyEntity.source_family))).where(
+            CommunityDomainSourceFamilyEntity.normalized_domain == normalized_domain
+        )
+        return session.execute(query).scalar() or 0
+
+    def get_registered_source_families_for_domain(
+        self,
+        session: Session,
+        normalized_domain: str,
+    ) -> List[str]:
+        """Fetch all unique source families registered for a domain."""
+        query = select(CommunityDomainSourceFamilyEntity.source_family).where(
+            CommunityDomainSourceFamilyEntity.normalized_domain == normalized_domain
+        )
+        return list(session.execute(query).scalars().all())
+
+    def update_all_reports_independent_count(
+        self,
+        session: Session,
+        normalized_domain: str,
+        independent_count: int,
+    ) -> None:
+        """Atomically synchronize independent_source_count across all reports for a domain."""
+        session.execute(
+            update(CommunityReportEntity)
+            .where(CommunityReportEntity.normalized_domain == normalized_domain)
+            .values(independent_source_count=independent_count)
+        )
+        session.flush()
 
     def save_audit_event(self, session: Session, event: ReportAuditEntry):
         """Append an audit event."""

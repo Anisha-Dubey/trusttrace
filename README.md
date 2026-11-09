@@ -132,6 +132,31 @@ python scripts/check_worker_boundaries.py
 python scripts/check_worker_boundaries.py --worker worker_01
 ```
 
+### Running the 18-Point Adversarial & Concurrency Regression Suite
+```bash
+python -m unittest tests/test_phase8_adversarial_suite.py -v
+```
+
+### Running Dedicated PostgreSQL 15 Integration Tests
+```bash
+python -m unittest tests/test_postgres_integration.py -v
+```
+
+### Database Migrations (Alembic)
+```bash
+# Run migrations to head
+python -m alembic upgrade head
+
+# Check current revision
+python -m alembic current
+
+# Downgrade to base (clean teardown)
+python -m alembic downgrade base
+```
+
+### Continuous Integration (CI / CD Pipeline)
+TRUSTTRACE runs automated GitHub Actions CI (`.github/workflows/ci.yml`) on Python 3.11 and 3.12 with dedicated PostgreSQL 15 and Redis 7 service containers. All tests, migrations, and schema invariants are validated automatically on push.
+
 ---
 
 ## 6. Project Documentation & Research Brain
