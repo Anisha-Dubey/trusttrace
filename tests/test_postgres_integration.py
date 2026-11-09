@@ -12,18 +12,21 @@ import os
 import sys
 import json
 import uuid
+import re
 import unittest
 import threading
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List
+from contextlib import contextmanager
 from concurrent.futures import ProcessPoolExecutor
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from sqlalchemy import inspect, text, select
+from sqlalchemy import create_engine, inspect, text, select
+from sqlalchemy.engine import make_url
 from trusttrace.evidence.persistence.database import DatabaseManager, sanitize_db_url
 from trusttrace.evidence.persistence.repository import EvidenceRepository
 from trusttrace.evidence.persistence.models import (
@@ -96,58 +99,191 @@ class TestPostgresIntegration(unittest.TestCase):
     # PART 1: Migration Verification on PostgreSQL
     # =========================================================================
 
+    @contextmanager
+    def _isolated_postgres_database(self):
+        """Context manager to create a temporary, isolated PostgreSQL database and cleanly drop it on exit."""
+        parsed = make_url(self.pg_url)
+        unique_id = uuid.uuid4().hex[:12]
+        tmp_db_name = f"tt_fresh_mig_{unique_id}"
+
+        # Safe identifier validation: strictly alphanumeric + underscores
+        if not re.match(r"^[a-zA-Z0-9_]+$", tmp_db_name):
+            raise ValueError(f"Unsafe database identifier: {tmp_db_name}")
+
+        maint_url = parsed.set(database="postgres").render_as_string(hide_password=False)
+        maint_engine = None
+
+        try:
+            # 1. Connect to maintenance DB with autocommit to create temporary DB
+            try:
+                maint_engine = create_engine(maint_url, isolation_level="AUTOCOMMIT")
+                with maint_engine.connect() as conn:
+                    conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
+            except Exception:
+                # If 'postgres' maintenance DB is unavailable, fallback to primary configured DB
+                if maint_engine is not None:
+                    maint_engine.dispose()
+                maint_engine = create_engine(self.pg_url, isolation_level="AUTOCOMMIT")
+                with maint_engine.connect() as conn:
+                    conn.execute(text(f'CREATE DATABASE "{tmp_db_name}"'))
+
+            tmp_db_url = parsed.set(database=tmp_db_name).render_as_string(hide_password=False)
+            yield tmp_db_name, tmp_db_url
+
+        finally:
+            if maint_engine is not None:
+                try:
+                    with maint_engine.connect() as conn:
+                        # Terminate ONLY connections belonging to this uniquely named temporary database
+                        conn.execute(
+                            text(
+                                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                                "WHERE datname = :dbname AND pid <> pg_backend_pid()"
+                            ),
+                            {"dbname": tmp_db_name},
+                        )
+                        conn.execute(text(f'DROP DATABASE IF EXISTS "{tmp_db_name}"'))
+                except Exception as cleanup_err:
+                    print(f"Warning: Failed to cleanup temporary database '{tmp_db_name}': {cleanup_err}")
+                finally:
+                    maint_engine.dispose()
+
     def test_01_postgres_empty_db_to_alembic_head(self):
         """PG-MIG-01: Empty PostgreSQL database migrates cleanly to Alembic HEAD."""
-        env = os.environ.copy()
-        env["TRUSTTRACE_DB_URL"] = self.pg_url
-        env["TRUSTTRACE_PG_URL"] = self.pg_url
+        with self._isolated_postgres_database() as (tmp_db_name, tmp_db_url):
+            # 1. Connect to isolated database and verify it has NO application tables
+            engine_check = create_engine(tmp_db_url)
+            try:
+                inspector = inspect(engine_check)
+                initial_tables = inspector.get_table_names()
+                self.assertEqual(
+                    len(initial_tables), 0,
+                    f"Expected fresh database '{tmp_db_name}' to be completely empty, but found: {initial_tables}"
+                )
+            finally:
+                engine_check.dispose()
 
-        # Upgrade to head
-        res = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        self.assertEqual(res.returncode, 0, f"Alembic upgrade head failed on PostgreSQL:\n{res.stderr}")
+            # 2. Run alembic upgrade head against the isolated database
+            env = os.environ.copy()
+            env["TRUSTTRACE_DB_URL"] = tmp_db_url
+            env["TRUSTTRACE_PG_URL"] = tmp_db_url
+            env["DATABASE_URL"] = tmp_db_url
 
-        # Verify current revision
-        res_cur = subprocess.run(
-            [sys.executable, "-m", "alembic", "current"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        self.assertEqual(res_cur.returncode, 0)
-        self.assertIn("head", res_cur.stdout.lower())
+            res_up = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(
+                res_up.returncode, 0,
+                f"Alembic upgrade head failed on fresh database '{tmp_db_name}':\n{res_up.stderr}"
+            )
+
+            # 3. Run alembic current against the isolated database
+            res_cur = subprocess.run(
+                [sys.executable, "-m", "alembic", "current"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(
+                res_cur.returncode, 0,
+                f"Alembic current failed on fresh database '{tmp_db_name}':\n{res_cur.stderr}"
+            )
+            self.assertIn("head", res_cur.stdout.lower())
+
+            # 4. Verify all expected Worker 02 schema tables and Alembic version exist
+            post_engine = create_engine(tmp_db_url)
+            try:
+                post_inspector = inspect(post_engine)
+                migrated_tables = set(post_inspector.get_table_names())
+                expected_tables = {
+                    "alembic_version",
+                    "scans",
+                    "evidence_records",
+                    "findings",
+                    "finding_evidence_links",
+                    "community_reports",
+                    "community_domain_coordination",
+                    "community_domain_source_families",
+                    "community_report_evidence_links",
+                    "community_report_audit_events",
+                }
+                self.assertTrue(
+                    expected_tables.issubset(migrated_tables),
+                    f"Missing expected tables in fresh database migration: {expected_tables - migrated_tables}"
+                )
+            finally:
+                post_engine.dispose()
 
     def test_02_postgres_migration_downgrade_to_base_and_reupgrade(self):
         """PG-MIG-02: PostgreSQL schema cleanly downgrades to base and re-upgrades to head."""
-        env = os.environ.copy()
-        env["TRUSTTRACE_DB_URL"] = self.pg_url
-        env["TRUSTTRACE_PG_URL"] = self.pg_url
+        with self._isolated_postgres_database() as (tmp_db_name, tmp_db_url):
+            env = os.environ.copy()
+            env["TRUSTTRACE_DB_URL"] = tmp_db_url
+            env["TRUSTTRACE_PG_URL"] = tmp_db_url
+            env["DATABASE_URL"] = tmp_db_url
 
-        # Downgrade to base
-        res_down = subprocess.run(
-            [sys.executable, "-m", "alembic", "downgrade", "base"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        self.assertEqual(res_down.returncode, 0, f"Alembic downgrade base failed:\n{res_down.stderr}")
+            # 1. Upgrade to head
+            res_up1 = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(res_up1.returncode, 0, f"Alembic upgrade head failed:\n{res_up1.stderr}")
 
-        # Re-upgrade to head
-        res_up = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        self.assertEqual(res_up.returncode, 0, f"Alembic re-upgrade to head failed:\n{res_up.stderr}")
+            # 2. Downgrade to base
+            res_down = subprocess.run(
+                [sys.executable, "-m", "alembic", "downgrade", "base"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(res_down.returncode, 0, f"Alembic downgrade base failed:\n{res_down.stderr}")
+
+            # Verify application tables were dropped
+            engine_down = create_engine(tmp_db_url)
+            try:
+                down_tables = set(inspect(engine_down).get_table_names())
+                app_tables = {
+                    "scans",
+                    "evidence_records",
+                    "findings",
+                    "community_reports",
+                }
+                self.assertFalse(
+                    app_tables.intersection(down_tables),
+                    f"Application tables still present after downgrade: {app_tables.intersection(down_tables)}"
+                )
+            finally:
+                engine_down.dispose()
+
+            # 3. Re-upgrade to head
+            res_up2 = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(res_up2.returncode, 0, f"Alembic re-upgrade to head failed:\n{res_up2.stderr}")
+
+            # Verify tables restored
+            engine_up = create_engine(tmp_db_url)
+            try:
+                restored_tables = set(inspect(engine_up).get_table_names())
+                self.assertTrue(
+                    app_tables.issubset(restored_tables),
+                    f"Application tables not restored after re-upgrade: {app_tables - restored_tables}"
+                )
+            finally:
+                engine_up.dispose()
 
     def test_03_postgres_schema_and_constraints_verification(self):
         """PG-MIG-03: PostgreSQL schema contains all tables, indexes, and unique constraints."""
