@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for TRUSTTRACE Worker 02."""
 
+from typing import Optional, Any
 from sqlalchemy import (
     Column,
     String,
@@ -20,21 +21,21 @@ class ScanEntity(Base):
 
     __tablename__ = "scans"
 
-    scan_id = Column(String(128), primary_key=True)
-    submitted_url_redacted = Column(Text, nullable=False)
-    normalized_host = Column(String(255), nullable=True, index=True)
-    status = Column(String(32), nullable=False, default="queued")
-    decision = Column(String(32), nullable=False, default="inconclusive")
-    policy_version = Column(String(64), nullable=False, default="1.0")
-    created_at = Column(String(64), nullable=False)
-    completed_at = Column(String(64), nullable=True)
-    limitations_json = Column(Text, nullable=False, default="[]")
+    scan_id: str = Column(String(128), primary_key=True)  # type: ignore
+    submitted_url_redacted: str = Column(Text, nullable=False)  # type: ignore
+    normalized_host: Optional[str] = Column(String(255), nullable=True, index=True)  # type: ignore
+    status: str = Column(String(32), nullable=False, default="queued")  # type: ignore
+    decision: str = Column(String(32), nullable=False, default="inconclusive")  # type: ignore
+    policy_version: str = Column(String(64), nullable=False, default="1.0")  # type: ignore
+    created_at: str = Column(String(64), nullable=False)  # type: ignore
+    completed_at: Optional[str] = Column(String(64), nullable=True)  # type: ignore
+    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
     
     # Pre-calculated coverage cached on scan
-    coverage_total = Column(Integer, nullable=False, default=0)
-    coverage_observed = Column(Integer, nullable=False, default=0)
-    coverage_failed = Column(Integer, nullable=False, default=0)
-    coverage_not_run = Column(Integer, nullable=False, default=0)
+    coverage_total: int = Column(Integer, nullable=False, default=0)  # type: ignore
+    coverage_observed: int = Column(Integer, nullable=False, default=0)  # type: ignore
+    coverage_failed: int = Column(Integer, nullable=False, default=0)  # type: ignore
+    coverage_not_run: int = Column(Integer, nullable=False, default=0)  # type: ignore
 
     # Relationships
     evidence_items = relationship("EvidenceEntity", back_populates="scan", cascade="all, delete-orphan")
@@ -46,21 +47,21 @@ class EvidenceEntity(Base):
 
     __tablename__ = "evidence_records"
 
-    evidence_id = Column(String(128), primary_key=True)
-    scan_id = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)
-    kind = Column(String(64), nullable=False, index=True)
-    value_json = Column(Text, nullable=True)
-    source = Column(String(128), nullable=False, index=True)
-    source_type = Column(String(64), nullable=False, default="internal_collector")
-    observed_at = Column(String(64), nullable=False)
-    ingested_at = Column(String(64), nullable=False)
-    status = Column(String(32), nullable=False)  # observed, unavailable, failed, not_run, blocked
-    reliability = Column(String(64), nullable=True)  # direct_observation, provider_assertion, etc.
-    limitations_json = Column(Text, nullable=False, default="[]")
-    schema_version = Column(String(16), nullable=False, default="1.0")
+    evidence_id: str = Column(String(128), primary_key=True)  # type: ignore
+    scan_id: str = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
+    kind: str = Column(String(64), nullable=False, index=True)  # type: ignore
+    value_json: Optional[str] = Column(Text, nullable=True)  # type: ignore
+    source: str = Column(String(128), nullable=False, index=True)  # type: ignore
+    source_type: str = Column(String(64), nullable=False, default="internal_collector")  # type: ignore
+    observed_at: str = Column(String(64), nullable=False)  # type: ignore
+    ingested_at: str = Column(String(64), nullable=False)  # type: ignore
+    status: str = Column(String(32), nullable=False)  # observed, unavailable, failed, not_run, blocked  # type: ignore
+    reliability: Optional[str] = Column(String(64), nullable=True)  # direct_observation, provider_assertion, etc.  # type: ignore
+    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
+    schema_version: str = Column(String(16), nullable=False, default="1.0")  # type: ignore
     
     # Idempotency fingerprint: sha256(scan_id + kind + source + observed_at + status + canonical_value)
-    fingerprint = Column(String(64), nullable=False)
+    fingerprint: str = Column(String(64), nullable=False)  # type: ignore
 
     scan = relationship("ScanEntity", back_populates="evidence_items")
     finding_links = relationship("FindingEvidenceLinkEntity", back_populates="evidence", cascade="all, delete-orphan")
@@ -81,15 +82,15 @@ class FindingEntity(Base):
 
     __tablename__ = "findings"
 
-    finding_id = Column(String(128), primary_key=True)
-    scan_id = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)
-    kind = Column(String(64), nullable=False)
-    severity = Column(String(32), nullable=False)
-    summary = Column(Text, nullable=False)
-    rule_id = Column(String(64), nullable=False)
-    rule_version = Column(String(32), nullable=False)
-    created_at = Column(String(64), nullable=False)
-    limitations_json = Column(Text, nullable=False, default="[]")
+    finding_id: str = Column(String(128), primary_key=True)  # type: ignore
+    scan_id: str = Column(String(128), ForeignKey("scans.scan_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
+    kind: str = Column(String(64), nullable=False)  # type: ignore
+    severity: str = Column(String(32), nullable=False)  # type: ignore
+    summary: str = Column(Text, nullable=False)  # type: ignore
+    rule_id: str = Column(String(64), nullable=False)  # type: ignore
+    rule_version: str = Column(String(32), nullable=False)  # type: ignore
+    created_at: str = Column(String(64), nullable=False)  # type: ignore
+    limitations_json: str = Column(Text, nullable=False, default="[]")  # type: ignore
 
     scan = relationship("ScanEntity", back_populates="findings")
     evidence_links = relationship("FindingEvidenceLinkEntity", back_populates="finding", cascade="all, delete-orphan")
@@ -117,19 +118,19 @@ class CommunityReportEntity(Base):
 
     __tablename__ = "community_reports"
 
-    report_id = Column(String(128), primary_key=True)
-    normalized_domain = Column(String(255), nullable=False, index=True)
-    claim_type = Column(String(64), nullable=False)
-    note_redacted = Column(String(1000), nullable=True)
-    submitted_at = Column(String(64), nullable=False)
-    verification_state = Column(String(32), nullable=False, default="unverified", index=True)
-    independent_source_count = Column(Integer, nullable=False, default=1)
-    source_family = Column(String(128), nullable=False, default="community_user")
+    report_id: str = Column(String(128), primary_key=True)  # type: ignore
+    normalized_domain: str = Column(String(255), nullable=False, index=True)  # type: ignore
+    claim_type: str = Column(String(64), nullable=False)  # type: ignore
+    note_redacted: Optional[str] = Column(String(1000), nullable=True)  # type: ignore
+    submitted_at: str = Column(String(64), nullable=False)  # type: ignore
+    verification_state: str = Column(String(32), nullable=False, default="unverified", index=True)  # type: ignore
+    independent_source_count: int = Column(Integer, nullable=False, default=1)  # type: ignore
+    source_family: str = Column(String(128), nullable=False, default="community_user")  # type: ignore
     
     # Salted hash of reporter metadata (IP/user ID). Raw identity is NEVER stored.
-    reporter_hash = Column(String(64), nullable=False)
+    reporter_hash: str = Column(String(64), nullable=False)  # type: ignore
     
-    reviewed_at = Column(String(64), nullable=True)
+    reviewed_at: Optional[str] = Column(String(64), nullable=True)  # type: ignore
 
     evidence_links = relationship("CommunityReportEvidenceLinkEntity", back_populates="report", cascade="all, delete-orphan")
     audit_events = relationship("ReportAuditEntity", back_populates="report", cascade="all, delete-orphan")
@@ -161,13 +162,13 @@ class ReportAuditEntity(Base):
 
     __tablename__ = "community_report_audit_events"
 
-    event_id = Column(String(128), primary_key=True)
-    report_id = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False, index=True)
-    previous_state = Column(String(32), nullable=True)
-    new_state = Column(String(32), nullable=False)
-    action = Column(String(64), nullable=False)
-    reason = Column(Text, nullable=False)
-    actor_ref = Column(String(128), nullable=False)
-    timestamp = Column(String(64), nullable=False)
+    event_id: str = Column(String(128), primary_key=True)  # type: ignore
+    report_id: str = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
+    previous_state: Optional[str] = Column(String(32), nullable=True)  # type: ignore
+    new_state: str = Column(String(32), nullable=False)  # type: ignore
+    action: str = Column(String(64), nullable=False)  # type: ignore
+    reason: str = Column(Text, nullable=False)  # type: ignore
+    actor_ref: str = Column(String(128), nullable=False)  # type: ignore
+    timestamp: str = Column(String(64), nullable=False)  # type: ignore
 
     report = relationship("CommunityReportEntity", back_populates="audit_events")
