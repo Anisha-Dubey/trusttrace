@@ -36,3 +36,4 @@ class CollectorResult:
             "reliability": self.reliability,
             "limitations": self.limitations
         }
+

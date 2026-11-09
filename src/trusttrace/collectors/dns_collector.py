@@ -108,3 +108,4 @@ class DNSCollector:
                 reliability="direct_observation",
                 limitations=[f"Passive DNS lookup failed: {exc}"]
             )
+
