@@ -2,6 +2,12 @@
 
 from .sanitizer import sanitize_text, hash_reporter_identity
 from .state_machine import validate_transition, InvalidStateTransitionError, ALLOWED_TRANSITIONS
+from .deduplicator import (
+    ReportDeduplicator,
+    SourceFamilyAnalyzer,
+    DeduplicationCategory,
+    DeduplicationResult,
+)
 from .service import CommunityIntelligenceService
 
 __all__ = [
@@ -10,5 +16,9 @@ __all__ = [
     "validate_transition",
     "InvalidStateTransitionError",
     "ALLOWED_TRANSITIONS",
+    "ReportDeduplicator",
+    "SourceFamilyAnalyzer",
+    "DeduplicationCategory",
+    "DeduplicationResult",
     "CommunityIntelligenceService",
 ]
