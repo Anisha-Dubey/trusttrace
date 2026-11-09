@@ -62,7 +62,7 @@ jobs:
 
       - name: Execute Alembic Migrations on PostgreSQL
         env:
-          TRUSTTRACE_DB_URL: postgresql://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
+          TRUSTTRACE_DB_URL: postgresql+psycopg2://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
         run: |
           python -m alembic upgrade head
           python -m alembic current
@@ -70,6 +70,6 @@ jobs:
       - name: Run Full Test Suite & Contract Checks
         env:
           TRUSTTRACE_REDIS_URL: redis://localhost:6379/0
-          TRUSTTRACE_PG_URL: postgresql://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
+          TRUSTTRACE_PG_URL: postgresql+psycopg2://trusttrace:trusttrace_password@localhost:5432/trusttrace_test
         run: |
           python run_tests.py
