@@ -39,7 +39,8 @@ class ModerationService:
             raise ValueError("A formal moderation action requires an explanatory reason of at least 5 characters.")
 
         # Sanitize actor reference (prevent PII leakage)
-        safe_actor = f"moderator:{moderator_ref.strip()}"
+        actor_name = moderator_ref.strip() if moderator_ref and moderator_ref.strip() else "system_moderator"
+        safe_actor = f"moderator:{actor_name}"
 
         return self.community_service.transition_report_state(
             report_id=report_id,

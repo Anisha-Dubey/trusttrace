@@ -176,7 +176,7 @@ class EvidenceRepository:
             ingested_at=evidence.ingested_at or utc_now_iso(),
             status=evidence.status.value,
             reliability=evidence.reliability.value if evidence.reliability else None,
-            limitations_json=json.dumps(evidence.limitations),
+            limitations_json=json.dumps(evidence.limitations or []),
             schema_version=evidence.schema_version,
             fingerprint=fingerprint,
         )
@@ -260,7 +260,7 @@ class EvidenceRepository:
                 rule_id=finding.rule_id,
                 rule_version=finding.rule_version,
                 created_at=finding.created_at,
-                limitations_json=json.dumps(finding.limitations),
+                limitations_json=json.dumps(finding.limitations or []),
             )
             session.add(finding_entity)
             session.flush()
@@ -299,7 +299,7 @@ class EvidenceRepository:
                     rule_id=fe.rule_id,
                     rule_version=fe.rule_version,
                     created_at=fe.created_at,
-                    limitations=json.loads(fe.limitations_json),
+                    limitations=json.loads(fe.limitations_json) if fe.limitations_json else [],
                 )
             )
         return findings
@@ -462,11 +462,16 @@ class EvidenceRepository:
 
     def save_audit_event(self, session: Session, event: ReportAuditEntry):
         """Append an audit event."""
+        prev_state = None
+        if event.previous_state is not None:
+            prev_state = event.previous_state.value if hasattr(event.previous_state, "value") else str(event.previous_state)
+        new_state = event.new_state.value if hasattr(event.new_state, "value") else str(event.new_state)
+
         entity = ReportAuditEntity(
             event_id=event.event_id,
             report_id=event.report_id,
-            previous_state=event.previous_state.value if event.previous_state else None,
-            new_state=event.new_state.value,
+            previous_state=prev_state,
+            new_state=new_state,
             action=event.action,
             reason=event.reason,
             actor_ref=event.actor_ref,
@@ -510,6 +515,6 @@ class EvidenceRepository:
             ingested_at=entity.ingested_at,
             status=EvidenceStatus(entity.status),
             reliability=Reliability(entity.reliability) if entity.reliability else None,
-            limitations=json.loads(entity.limitations_json),
+            limitations=json.loads(entity.limitations_json) if entity.limitations_json else [],
             schema_version=entity.schema_version,
         )

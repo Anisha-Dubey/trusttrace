@@ -1,5 +1,6 @@
 """Provenance tracking and finding linkage engine for Worker 02."""
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -58,6 +59,10 @@ class ProvenanceEngine:
         try:
             obs_dt = datetime.fromisoformat(evidence.observed_at.replace("Z", "+00:00"))
             ing_dt = datetime.fromisoformat((evidence.ingested_at or utc_now_iso()).replace("Z", "+00:00"))
+            if obs_dt.tzinfo is None:
+                obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+            if ing_dt.tzinfo is None:
+                ing_dt = ing_dt.replace(tzinfo=timezone.utc)
             now_dt = datetime.now(timezone.utc)
             latency = max(0.0, (ing_dt - obs_dt).total_seconds())
             age = (now_dt - obs_dt).total_seconds()
@@ -167,7 +172,7 @@ class ProvenanceEngine:
                         ingested_at=e.ingested_at,
                         status=EvidenceStatus(e.status),
                         reliability=Reliability(e.reliability) if e.reliability else None,
-                        limitations=[],
+                        limitations=json.loads(e.limitations_json) if e.limitations_json else [],
                     )
                 )
                 for e in entities

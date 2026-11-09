@@ -101,9 +101,9 @@ class FindingEvidenceLinkEntity(Base):
 
     __tablename__ = "finding_evidence_links"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    finding_id = Column(String(128), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True)
-    evidence_id = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False, index=True)
+    id: int = Column(Integer, primary_key=True, autoincrement=True)  # type: ignore
+    finding_id: str = Column(String(128), ForeignKey("findings.finding_id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
+    evidence_id: str = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False, index=True)  # type: ignore
 
     finding = relationship("FindingEntity", back_populates="evidence_links")
     evidence = relationship("EvidenceEntity", back_populates="finding_links")
@@ -145,9 +145,9 @@ class CommunityReportEvidenceLinkEntity(Base):
 
     __tablename__ = "community_report_evidence_links"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    report_id = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False)
-    evidence_id = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False)
+    id: int = Column(Integer, primary_key=True, autoincrement=True)  # type: ignore
+    report_id: str = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False)  # type: ignore
+    evidence_id: str = Column(String(128), ForeignKey("evidence_records.evidence_id", ondelete="RESTRICT"), nullable=False)  # type: ignore
 
     report = relationship("CommunityReportEntity", back_populates="evidence_links")
     evidence = relationship("EvidenceEntity")
