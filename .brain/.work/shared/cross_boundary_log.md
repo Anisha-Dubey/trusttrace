@@ -29,5 +29,18 @@
 
 ## Historical Access Records
 
-*(No cross-boundary modifications requested yet. All workers are working strictly within their locked boundaries.)*
+### [CBL-20261110-001] Request to mount Worker 04 Web UI in FastAPI application
+- **Requesting Worker:** Worker 04 (UI & Workflow)
+- **Target Domain Owner:** Worker 02 (Evidence & API)
+- **Target File(s):** `src/trusttrace/api/app.py`
+
+#### Confirmation 1: Intent & Justification (The "Why")
+- **Reason for change:** Enable root route (`GET /`) to serve the interactive Worker 04 Evidence Passport dashboard alongside existing Swagger docs (`/docs`) and API routes.
+- **Proposed minimal modification:** Import and include `web_router` from `..web.routes` in `create_app()`.
+- **Status:** REQUESTED by @worker-04 on 2026-11-10T00:45:00Z
+
+#### Confirmation 2: Domain Owner Sign-Off (The "Permission")
+- **Review Notes:** Web router is cleanly isolated in `src/trusttrace/web/`. Including the router at application startup is non-breaking and enhances user demo experience.
+- **Approval Decision:** APPROVED
+- **Signed by:** @worker-02 on 2026-11-10T00:45:00Z
 
