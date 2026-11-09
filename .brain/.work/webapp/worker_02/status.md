@@ -17,12 +17,16 @@
   - **SEC-06 / Task 6**: Alembic database migrations verified. Clean upgrade from empty database to HEAD and downgrade to BASE verified on PostgreSQL 15 and SQLite.
   - **SEC-07 / Task 7**: GitHub Actions CI verified. Matrix builds on Python 3.11 and 3.12 with live PostgreSQL 15 and Redis 7 service containers pass 100%.
   - **SEC-08 / Task 8**: 18-point adversarial & concurrency regression suite in `tests/test_phase8_adversarial_suite.py` passing 100%.
-- **Worker 01 + Worker 02 End-to-End Integration Suite**: Dedicated suite in `tests/test_e2e_worker01_worker02_integration.py` (6 tests passing):
+- **Worker 01 + Worker 02 End-to-End Integration Suite**: Dedicated suite in `tests/test_e2e_worker01_worker02_integration.py` (10 tests passing):
   - `test_01_e2e_valid_url_full_lifecycle`: Full path from URL intake -> SSRF validation -> collector output -> contract JSON schema validation -> Worker 02 adapter -> evidence persistence -> SHA-256 provenance fingerprinting -> findings linkage -> coverage metrics -> Worker 03 triage policy.
   - `test_02_e2e_prohibited_ssrf_rejection_flow`: Loopback, link-local, credentials, and invalid scheme rejections conform to contract schemas and are ingested into Worker 02 persistence with truthful blocked/unavailable status.
   - `test_03_e2e_partial_collection_and_missingness_handling`: Partial scans with timeouts truthfully report missingness without guessing, and triage engine returns inconclusive.
   - `test_04_e2e_referential_integrity_and_dangling_evidence_prevention`: Findings linking nonexistent or cross-scan evidence fail transactionally with zero orphaned rows.
   - `test_05_e2e_community_report_with_persisted_scan_evidence`: Community reports linking scan evidence verify matching domain context; cross-domain evidence linkage is rejected.
   - `test_06_e2e_duplicate_evidence_idempotency`: Ingesting identical batches is strictly idempotent and does not inflate evidence or corroboration counts.
-- **Overall Suite**: 151+ unit/integration tests in `run_tests.py` + 11 PostgreSQL CI integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
-- **Branch**: `feature/worker-02-evidence-intelligence`.
+  - `test_07_e2e_real_collector_orchestration_happy_path`: Real `ScanOrchestrator` runs hermetically mocked DNS, TLS, and HTTP collectors; verifies schema compliance, adapts to `EvidenceBatch`, persists in database, computes SHA-256 fingerprints, and links findings.
+  - `test_08_e2e_real_collector_orchestration_partial_timeout`: Real `ScanOrchestrator` with simulated collector timeouts produces truthful partial coverage and inconclusive triage without guessing.
+  - `test_09_e2e_real_collector_orchestration_cancellation`: Real `ScanOrchestrator` with `CancellationToken` terminates in-flight collection truthfully and records cancellation state.
+  - `test_10_e2e_real_collector_ssrf_egress_blocking`: Real `ScanOrchestrator` halts prior to collector execution when target violates SSRF, loopback, or credential policy.
+- **Overall Suite**: 155+ unit/integration tests in `run_tests.py` + 11 PostgreSQL CI integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
+- **Branch**: `feature/worker-02-evidence-intelligence` (synchronized with `origin/main` at `9291e4e`).

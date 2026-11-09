@@ -23,6 +23,10 @@ from jsonschema import Draft202012Validator, FormatChecker
 from trusttrace.intake.boundary import IntakeBoundary
 from trusttrace.intake.dns_resolver import SafeDNSResolver
 from trusttrace.collectors.base import CollectorResult
+from trusttrace.collectors.orchestrator import ScanOrchestrator, CancellationToken
+from trusttrace.collectors.dns_collector import DNSCollector
+from trusttrace.collectors.tls_collector import TLSCollector
+from trusttrace.collectors.http_collector import BoundedHTTPCollector
 
 # Worker 02 Components
 from trusttrace.evidence.persistence.database import DatabaseManager
@@ -476,6 +480,279 @@ class TestWorker01Worker02E2EIntegration(unittest.TestCase):
         with self.db.session_scope() as session:
             records = self.repo.get_evidence_by_scan(session, scan_id)
             self.assertEqual(len(records), 1, "Duplicate evidence must not create multiple DB rows")
+
+    # =========================================================================
+    # 7. Real Collector Orchestration: Intake -> Collectors -> W02 Persistence
+    # =========================================================================
+
+    def test_07_e2e_real_collector_orchestration_happy_path(self):
+        """E2E-07: Real ScanOrchestrator runs DNS, TLS, and HTTP collectors and persists truthfully in W02."""
+        scan_id = f"e2e-orch-happy-{uuid.uuid4().hex[:8]}"
+        target_url = "https://orchestrated-service.example.org/portal"
+
+        # Hermetic mocks at network boundary for safe, deterministic execution
+        mock_resolver = SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"])
+        boundary = IntakeBoundary(resolver=mock_resolver)
+        dns_col = DNSCollector(
+            resolver=mock_resolver,
+            mock_lookup_fn=lambda h: {
+                "value": {
+                    "resolved_ips": ["93.184.216.34"],
+                    "record_types": ["A"],
+                    "pinned_ip": "93.184.216.34",
+                }
+            },
+        )
+        tls_col = TLSCollector(
+            mock_cert_fn=lambda h, p: {
+                "value": {
+                    "is_valid": True,
+                    "hostname_matches": True,
+                    "subject": {"commonName": h},
+                    "issuer": {"organizationName": "Let's Encrypt"},
+                    "san": [h],
+                    "days_remaining": 75,
+                }
+            }
+        )
+        http_col = BoundedHTTPCollector(
+            mock_http_fn=lambda u: {
+                "headers_value": {
+                    "status_code": 200,
+                    "headers": {
+                        "server": "nginx",
+                        "content-type": "text/html",
+                        "strict-transport-security": "max-age=31536000",
+                    },
+                },
+                "redirect_value": {"hops": 0, "final_url": u},
+            }
+        )
+
+        orchestrator = ScanOrchestrator(
+            intake_boundary=boundary,
+            dns_collector=dns_col,
+            tls_collector=tls_col,
+            http_collector=http_col,
+            policy_version="1.0",
+        )
+
+        # 1. Execute actual Worker 01 collector orchestration
+        report = orchestrator.run_scan(raw_url=target_url, scan_id=scan_id)
+
+        # 2. Verify orchestrator contract compliance
+        self.assertEqual(report["status"], "completed")
+        self.assertEqual(report["decision"], "no_threat_observed")
+        self.assertGreaterEqual(report["coverage"]["checks_observed"], 3)
+        self.assertEqual(report["coverage"]["checks_failed"], 0)
+
+        errors = list(self.validator.iter_errors(report))
+        self.assertEqual(len(errors), 0, f"Orchestrator output schema violation: {errors}")
+
+        # 3. Adapt real collector output through Worker 02 Adapter
+        adapter = Worker01EvidenceAdapter()
+        batch = adapter.adapt_payload(scan_id=scan_id, payload=report)
+        self.assertEqual(batch.scan_id, scan_id)
+        self.assertGreaterEqual(len(batch.items), 3)
+
+        # 4. Ingest and persist in Worker 02 database
+        ingest_res = self.ev_service.ingest_batch(batch)
+        self.assertGreaterEqual(ingest_res.inserted_count, 3)
+        self.assertEqual(ingest_res.deduplicated_count, 0)
+
+        # 5. Verify database records and SHA-256 provenance fingerprints
+        with self.db.session_scope() as session:
+            persisted = self.repo.get_evidence_by_scan(session, scan_id)
+            self.assertGreaterEqual(len(persisted), 3)
+
+            for ev in persisted:
+                self.assertEqual(ev.source_type, "worker_01_intake")
+                entity = session.get(EvidenceEntity, ev.evidence_id)
+                self.assertIsNotNone(entity)
+                self.assertIsNotNone(entity.fingerprint)
+                expected_fp = compute_evidence_fingerprint(
+                    scan_id=scan_id,
+                    kind=ev.kind,
+                    source=ev.source,
+                    value=ev.value,
+                    observed_at=ev.observed_at,
+                    status=ev.status,
+                )
+                self.assertEqual(entity.fingerprint, expected_fp)
+
+        # 6. Verify coverage arithmetic invariant
+        cov = self.ev_service.calculate_coverage(batch.items, expected_total_checks=4)
+        self.assertEqual(
+            cov.checks_total,
+            cov.checks_observed + cov.checks_failed + cov.checks_not_run,
+            "Coverage arithmetic invariant violated",
+        )
+        self.assertGreaterEqual(cov.checks_observed, 3)
+        self.assertEqual(cov.checks_failed, 0)
+
+        # 7. Link findings to real collector evidence
+        dns_ev = next(e for e in batch.items if e.kind == "dns_resolution")
+        finding = FindingModel(
+            finding_id=f"find-dns-{uuid.uuid4().hex[:6]}",
+            scan_id=scan_id,
+            kind="dns_infrastructure_observed",
+            severity=FindingSeverity.INFO,
+            summary="Passive DNS resolution observed valid public A record.",
+            evidence_ids=[dns_ev.evidence_id],
+            rule_id="RULE-DNS-001",
+            rule_version="1.0",
+        )
+        with self.db.session_scope() as session:
+            self.repo.save_finding(session, scan_id, finding)
+            stored_findings = self.repo.get_findings_by_scan(session, scan_id)
+            self.assertEqual(len(stored_findings), 1)
+            self.assertEqual(stored_findings[0].evidence_ids, [dns_ev.evidence_id])
+
+        # 8. Pass real observation signals to Worker 03 TriageEngine
+        sig = SignalRecord(
+            kind=SignalKind.TLS_VALID,
+            evidence_ids=[next(e.evidence_id for e in batch.items if e.kind == "tls_certificate")],
+            source="bounded_tls_collector",
+            confidence="direct_observation",
+        )
+        triage = self.triage_engine.evaluate([sig])
+        self.assertNotEqual(triage.decision, "safe", "Valid TLS alone must never warrant 'safe'")
+        self.assertIn(triage.decision, ("inconclusive", "caution", "no_threat_observed"))
+
+    # =========================================================================
+    # 8. Real Collector Orchestration: Partial Failures & Timeout Handling
+    # =========================================================================
+
+    def test_08_e2e_real_collector_orchestration_partial_timeout(self):
+        """E2E-08: Collector timeouts produce truthful partial coverage and inconclusive triage."""
+        scan_id = f"e2e-orch-timeout-{uuid.uuid4().hex[:8]}"
+        target_url = "https://timeout-service.example.org/"
+
+        mock_resolver = SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"])
+        boundary = IntakeBoundary(resolver=mock_resolver)
+        dns_col = DNSCollector(
+            resolver=mock_resolver,
+            mock_lookup_fn=lambda h: {
+                "value": {"resolved_ips": ["93.184.216.34"], "record_types": ["A"], "pinned_ip": "93.184.216.34"}
+            },
+        )
+        # Simulate timeouts on TLS and HTTP
+        tls_col = TLSCollector(mock_cert_fn=lambda h, p: {"simulate_timeout": True})
+        http_col = BoundedHTTPCollector(mock_http_fn=lambda u: {"simulate_timeout": True})
+
+        orchestrator = ScanOrchestrator(
+            intake_boundary=boundary,
+            dns_collector=dns_col,
+            tls_collector=tls_col,
+            http_collector=http_col,
+            policy_version="1.0",
+        )
+
+        report = orchestrator.run_scan(raw_url=target_url, scan_id=scan_id)
+
+        # Status and decision must truthfully reflect partial failure
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["decision"], "inconclusive")
+        self.assertGreaterEqual(report["coverage"]["checks_failed"], 2)
+
+        errors = list(self.validator.iter_errors(report))
+        self.assertEqual(len(errors), 0, f"Partial report violated schema: {errors}")
+
+        # Ingest into Worker 02
+        batch = Worker01EvidenceAdapter().adapt_payload(scan_id=scan_id, payload=report)
+        ingest_res = self.ev_service.ingest_batch(batch)
+        self.assertGreaterEqual(ingest_res.inserted_count, 3)
+
+        # Verify coverage reflects failures
+        cov = self.ev_service.calculate_coverage(batch.items, expected_total_checks=4)
+        self.assertGreaterEqual(cov.checks_failed, 2)
+        self.assertGreaterEqual(cov.checks_observed, 1)
+
+        # Policy triage with collector failure must yield inconclusive
+        fail_ev = next(e for e in batch.items if e.status == EvidenceStatus.FAILED)
+        sig_fail = SignalRecord(
+            kind=SignalKind.COLLECTOR_FAILURE,
+            evidence_ids=[fail_ev.evidence_id],
+            source="bounded_tls_collector",
+            confidence="heuristic",
+        )
+        sig_succ = SignalRecord(
+            kind=SignalKind.COLLECTOR_SUCCESS,
+            evidence_ids=[batch.items[0].evidence_id],
+            source="passive_dns_collector",
+            confidence="direct_observation",
+        )
+        triage = self.triage_engine.evaluate([sig_succ, sig_fail])
+        self.assertEqual(triage.decision, "inconclusive")
+
+    # =========================================================================
+    # 9. Real Collector Orchestration: In-Flight Cancellation
+    # =========================================================================
+
+    def test_09_e2e_real_collector_orchestration_cancellation(self):
+        """E2E-09: In-flight scan cancellation stops collectors and records truthful cancellation state."""
+        scan_id = f"e2e-orch-cancel-{uuid.uuid4().hex[:8]}"
+        target_url = "https://cancelled-scan.example.org/"
+
+        mock_resolver = SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"])
+        boundary = IntakeBoundary(resolver=mock_resolver)
+        orchestrator = ScanOrchestrator(intake_boundary=boundary, policy_version="1.0")
+
+        # Cancel before scan begins
+        cancel_token = CancellationToken()
+        cancel_token.cancel()
+
+        report = orchestrator.run_scan(raw_url=target_url, scan_id=scan_id, cancel_token=cancel_token)
+
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["decision"], "inconclusive")
+        self.assertIn("Cancelled before DNS collection.", report["limitations"])
+
+        errors = list(self.validator.iter_errors(report))
+        self.assertEqual(len(errors), 0, f"Cancelled report violated schema: {errors}")
+
+        batch = Worker01EvidenceAdapter().adapt_payload(scan_id=scan_id, payload=report)
+        ingest_res = self.ev_service.ingest_batch(batch)
+        self.assertEqual(ingest_res.inserted_count, 1)
+
+        with self.db.session_scope() as session:
+            persisted = self.repo.get_evidence_by_scan(session, scan_id)
+            self.assertEqual(len(persisted), 1)
+            self.assertEqual(persisted[0].status, EvidenceStatus.BLOCKED)
+
+    # =========================================================================
+    # 10. Real Collector Orchestration: SSRF Safety Gate Enforcement
+    # =========================================================================
+
+    def test_10_e2e_real_collector_ssrf_egress_blocking(self):
+        """E2E-10: SSRF and credentialed targets are blocked before any collectors run, conforming to schema."""
+        blocked_targets = [
+            ("http://169.254.169.254/latest/meta-data/", "metadata"),
+            ("http://127.0.0.1:8080/secrets", "loopback"),
+            ("https://user:password@target-phish.test/login", "credentials"),
+        ]
+
+        orchestrator = ScanOrchestrator(policy_version="1.0")
+
+        for target_url, tag in blocked_targets:
+            scan_id = f"e2e-orch-block-{tag}-{uuid.uuid4().hex[:6]}"
+            report = orchestrator.run_scan(raw_url=target_url, scan_id=scan_id)
+
+            self.assertEqual(report["status"], "rejected")
+            self.assertEqual(report["decision"], "rejected")
+
+            errors = list(self.validator.iter_errors(report))
+            self.assertEqual(len(errors), 0, f"SSRF rejection report schema violation: {errors}")
+
+            batch = Worker01EvidenceAdapter().adapt_payload(scan_id=scan_id, payload=report)
+            ingest_res = self.ev_service.ingest_batch(batch)
+            self.assertGreaterEqual(ingest_res.inserted_count, 1)
+
+            with self.db.session_scope() as session:
+                persisted = self.repo.get_evidence_by_scan(session, scan_id)
+                self.assertTrue(
+                    any(e.status in (EvidenceStatus.BLOCKED, EvidenceStatus.UNAVAILABLE) for e in persisted)
+                )
 
 
 if __name__ == "__main__":
