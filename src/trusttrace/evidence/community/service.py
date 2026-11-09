@@ -127,14 +127,14 @@ class CommunityIntelligenceService:
                 # Case C: Copied/Shared Source -> Does NOT increment independent count
                 elif dedup_res.category == DeduplicationCategory.COPIED_SOURCE:
                     if existing_entities:
-                        independent_count = int(existing_entities[0].independent_source_count)
+                        independent_count = existing_entities[0].independent_source_count
 
                 # Case D: Independent Source -> Increments independent count across domain reports
                 elif dedup_res.category == DeduplicationCategory.INDEPENDENT_SOURCE:
                     # Calculate authoritative distinct canonical source families
                     existing_domain_entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
                     existing_families = {
-                        SourceFamilyAnalyzer.canonicalize_family(str(e.source_family) if e.source_family is not None else None)
+                        SourceFamilyAnalyzer.canonicalize_family(e.source_family)
                         for e in existing_domain_entities
                     }
                     existing_families.add(family)
@@ -144,8 +144,8 @@ class CommunityIntelligenceService:
                     for e in existing_domain_entities:
                         self.repo.update_community_report_state(
                             session=session,
-                            report_id=str(e.report_id),
-                            new_state=VerificationState(str(e.verification_state)),
+                            report_id=e.report_id,
+                            new_state=VerificationState(e.verification_state),
                             independent_count=independent_count,
                         )
 
@@ -197,7 +197,7 @@ class CommunityIntelligenceService:
             entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
             reports = []
             for e in entities:
-                rep = self.repo.get_community_report(session, str(e.report_id))
+                rep = self.repo.get_community_report(session, e.report_id)
                 if rep:
                     reports.append(rep)
             return reports
@@ -228,9 +228,9 @@ class CommunityIntelligenceService:
                 # Server-side derivation of independent source count
                 entities = self.repo.find_community_reports(session, normalized_domain=current.normalized_domain)
                 distinct_families = {
-                    SourceFamilyAnalyzer.canonicalize_family(str(e.source_family) if e.source_family is not None else None)
+                    SourceFamilyAnalyzer.canonicalize_family(e.source_family)
                     for e in entities
-                    if str(e.verification_state) != VerificationState.DISPUTED.value
+                    if e.verification_state != VerificationState.DISPUTED.value
                 }
                 derived_count = max(1, len(distinct_families))
 
