@@ -8,7 +8,15 @@ Covers cases:
 - URL-005: Unsupported scheme rejection
 """
 
+import sys
 import unittest
+from pathlib import Path
+
+# Ensure src is in sys.path when running standalone
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from trusttrace.intake.url_policy import parse_and_validate_url, redact_sensitive_tokens
 
 

@@ -8,7 +8,14 @@ Covers cases:
 - SSRF-005: DNS rebinding blocked at connection-time revalidation
 """
 
+import sys
 import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from trusttrace.intake.ip_classifier import classify_ip, IPStatus
 from trusttrace.intake.dns_resolver import SafeDNSResolver, DNSResolutionResult
 from trusttrace.intake.boundary import IntakeBoundary

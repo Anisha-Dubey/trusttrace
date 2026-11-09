@@ -10,9 +10,15 @@ Covers cases:
 - EVID-001: Partial/inconclusive report when a collector fails
 """
 
+import sys
 import unittest
 from pathlib import Path
 import json
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from jsonschema import Draft202012Validator, FormatChecker
 
 from trusttrace.collectors.dns_collector import DNSCollector

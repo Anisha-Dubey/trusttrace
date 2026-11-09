@@ -1,10 +1,18 @@
 """Comprehensive Security Hardening and Reliability Verification Suite for TRUSTTRACE Worker 02."""
 
 import os
+import sys
 import unittest
 import tempfile
 import threading
+from pathlib import Path
 from unittest.mock import MagicMock
+
+# Ensure src is in sys.path when running standalone
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from fastapi.testclient import TestClient
 
 from trusttrace.api.app import app
@@ -445,7 +453,8 @@ class TestSecurityHardeningAndReliability(unittest.TestCase):
 
         def submit_source(sf, claim):
             try:
-                res = self.client.post(
+                client = TestClient(app)
+                res = client.post(
                     "/api/v1/community/reports",
                     json={
                         "normalized_domain": domain,

@@ -6,7 +6,15 @@ Covers cases:
 - REDIR-003: HTTPS redirects to unsupported scheme -> blocked with explicit limitation
 """
 
+import sys
 import unittest
+from pathlib import Path
+
+# Ensure src is in sys.path when running standalone
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from trusttrace.intake.dns_resolver import SafeDNSResolver
 from trusttrace.intake.redirect_policy import RedirectPolicy
 

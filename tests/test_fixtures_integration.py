@@ -6,9 +6,16 @@ Tests:
 - Coverage arithmetic and evidence IDs cross-record validity
 """
 
+import sys
 import unittest
 from pathlib import Path
 import json
+
+# Ensure src is in sys.path when running standalone
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
 from jsonschema import Draft202012Validator, FormatChecker
 
 from trusttrace.intake.boundary import IntakeBoundary
