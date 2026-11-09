@@ -4,7 +4,7 @@ import json
 import hashlib
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.exc import IntegrityError
 
 from .database import DatabaseManager, default_db
@@ -44,9 +44,10 @@ def compute_evidence_fingerprint(
 ) -> str:
     """Hash an observation identity while preserving time- and status-distinct records."""
     serialized_val = json.dumps(value, sort_keys=True, default=str)
+    status_str = status.value if hasattr(status, "value") else str(status)
     raw = (
         f"{scan_id}:{kind}:{source}:{observed_at}:"
-        f"{status.value}:{serialized_val}"
+        f"{status_str}:{serialized_val}"
     ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
@@ -174,8 +175,8 @@ class EvidenceRepository:
             source_type=evidence.source_type or "internal_collector",
             observed_at=evidence.observed_at,
             ingested_at=evidence.ingested_at or utc_now_iso(),
-            status=evidence.status.value,
-            reliability=evidence.reliability.value if evidence.reliability else None,
+            status=evidence.status.value if hasattr(evidence.status, "value") else str(evidence.status),
+            reliability=evidence.reliability.value if hasattr(evidence.reliability, "value") else (str(evidence.reliability) if evidence.reliability else None),
             limitations_json=json.dumps(evidence.limitations or []),
             schema_version=evidence.schema_version,
             fingerprint=fingerprint,
@@ -223,7 +224,6 @@ class EvidenceRepository:
 
     def count_evidence_by_scan(self, session: Session, scan_id: str) -> int:
         """Count total evidence records associated with a scan at database level."""
-        from sqlalchemy import func
         return session.execute(
             select(func.count()).select_from(EvidenceEntity).where(EvidenceEntity.scan_id == scan_id)
         ).scalar() or 0
@@ -255,7 +255,7 @@ class EvidenceRepository:
                 finding_id=finding.finding_id,
                 scan_id=scan_id,
                 kind=finding.kind,
-                severity=finding.severity.value,
+                severity=finding.severity.value if hasattr(finding.severity, "value") else str(finding.severity),
                 summary=finding.summary,
                 rule_id=finding.rule_id,
                 rule_version=finding.rule_version,
@@ -293,7 +293,7 @@ class EvidenceRepository:
                     finding_id=fe.finding_id,
                     scan_id=fe.scan_id,
                     kind=fe.kind,
-                    severity=FindingSeverity(fe.severity),
+                    severity=FindingSeverity(fe.severity) if not isinstance(fe.severity, FindingSeverity) else fe.severity,
                     summary=fe.summary,
                     evidence_ids=list(ev_links),
                     rule_id=fe.rule_id,
@@ -349,10 +349,10 @@ class EvidenceRepository:
         entity = CommunityReportEntity(
             report_id=report.report_id,
             normalized_domain=report.normalized_domain,
-            claim_type=report.claim_type.value,
-            note_redacted=report.note_redacted,
+            claim_type=report.claim_type.value if hasattr(report.claim_type, "value") else str(report.claim_type),
+            note_redacted=report.note_redacted or "",
             submitted_at=report.submitted_at,
-            verification_state=report.verification_state.value,
+            verification_state=report.verification_state.value if hasattr(report.verification_state, "value") else str(report.verification_state),
             independent_source_count=report.independent_source_count,
             source_family=source_family,
             reporter_hash=reporter_hash,
@@ -384,10 +384,10 @@ class EvidenceRepository:
         return CommunityReportModel(
             report_id=entity.report_id,
             normalized_domain=entity.normalized_domain,
-            claim_type=ClaimType(entity.claim_type),
-            note_redacted=entity.note_redacted,
+            claim_type=ClaimType(entity.claim_type) if not isinstance(entity.claim_type, ClaimType) else entity.claim_type,
+            note_redacted=entity.note_redacted or "",
             submitted_at=entity.submitted_at,
-            verification_state=VerificationState(entity.verification_state),
+            verification_state=VerificationState(entity.verification_state) if not isinstance(entity.verification_state, VerificationState) else entity.verification_state,
             independent_source_count=entity.independent_source_count,
             linked_evidence_ids=list(ev_ids),
             reviewed_at=entity.reviewed_at,
@@ -408,9 +408,11 @@ class EvidenceRepository:
         if normalized_domain:
             conditions.append(CommunityReportEntity.normalized_domain == normalized_domain)
         if verification_state:
-            conditions.append(CommunityReportEntity.verification_state == verification_state.value)
+            state_val = verification_state.value if hasattr(verification_state, "value") else str(verification_state)
+            conditions.append(CommunityReportEntity.verification_state == state_val)
         if claim_type:
-            conditions.append(CommunityReportEntity.claim_type == claim_type.value)
+            claim_val = claim_type.value if hasattr(claim_type, "value") else str(claim_type)
+            conditions.append(CommunityReportEntity.claim_type == claim_val)
         if conditions:
             query = query.where(and_(*conditions))
         if offset is not None:
@@ -427,15 +429,16 @@ class EvidenceRepository:
         claim_type: Optional[ClaimType] = None,
     ) -> int:
         """Count community report entities matching filters at database level."""
-        from sqlalchemy import func
         query = select(func.count()).select_from(CommunityReportEntity)
         conditions = []
         if normalized_domain:
             conditions.append(CommunityReportEntity.normalized_domain == normalized_domain)
         if verification_state:
-            conditions.append(CommunityReportEntity.verification_state == verification_state.value)
+            state_val = verification_state.value if hasattr(verification_state, "value") else str(verification_state)
+            conditions.append(CommunityReportEntity.verification_state == state_val)
         if claim_type:
-            conditions.append(CommunityReportEntity.claim_type == claim_type.value)
+            claim_val = claim_type.value if hasattr(claim_type, "value") else str(claim_type)
+            conditions.append(CommunityReportEntity.claim_type == claim_val)
         if conditions:
             query = query.where(and_(*conditions))
         return session.execute(query).scalar() or 0
@@ -452,7 +455,7 @@ class EvidenceRepository:
         report = session.get(CommunityReportEntity, report_id)
         if not report:
             return None
-        report.verification_state = new_state.value
+        report.verification_state = new_state.value if hasattr(new_state, "value") else str(new_state)
         if independent_count is not None:
             report.independent_source_count = independent_count
         if reviewed_at is not None:
@@ -491,7 +494,7 @@ class EvidenceRepository:
                 event_id=e.event_id,
                 report_id=e.report_id,
                 previous_state=VerificationState(e.previous_state) if e.previous_state else None,
-                new_state=VerificationState(e.new_state),
+                new_state=VerificationState(e.new_state) if not isinstance(e.new_state, VerificationState) else e.new_state,
                 action=e.action,
                 reason=e.reason,
                 actor_ref=e.actor_ref,
@@ -513,7 +516,7 @@ class EvidenceRepository:
             source_type=entity.source_type,
             observed_at=entity.observed_at,
             ingested_at=entity.ingested_at,
-            status=EvidenceStatus(entity.status),
+            status=EvidenceStatus(entity.status) if not isinstance(entity.status, EvidenceStatus) else entity.status,
             reliability=Reliability(entity.reliability) if entity.reliability else None,
             limitations=json.loads(entity.limitations_json) if entity.limitations_json else [],
             schema_version=entity.schema_version,
