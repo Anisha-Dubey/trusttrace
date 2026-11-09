@@ -125,7 +125,11 @@ class TestSecurityAudit(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
 
         # Inspect audit history: Actor MUST be bound to authenticated token username, NOT spoofed name
-        audit_res = self.client.get(f"/api/v1/community/reports/{report_id}/audit")
+        audit_res = self.client.get(
+            f"/api/v1/community/reports/{report_id}/audit",
+            headers={"Authorization": "Bearer viewer-secret-token-key-2026"},
+        )
+        self.assertEqual(audit_res.status_code, 200)
         audit_events = audit_res.json()["data"]
         review_event = [e for e in audit_events if e["action"] == "transition_to_reviewed"][0]
         self.assertEqual(review_event["actor_ref"], "moderator:security_moderator")

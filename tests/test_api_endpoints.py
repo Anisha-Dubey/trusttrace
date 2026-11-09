@@ -181,13 +181,25 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(res_review.status_code, 200)
         self.assertEqual(res_review.json()["data"]["verification_state"], "reviewed")
 
-        # 4. Fetch audit trail
-        res_audit = self.client.get(f"/api/v1/community/reports/{report_id}/audit")
+        # 4. Fetch audit trail (unauthenticated should be 401, authenticated viewer 200)
+        res_audit_unauth = self.client.get(f"/api/v1/community/reports/{report_id}/audit")
+        self.assertEqual(res_audit_unauth.status_code, 401)
+
+        res_audit = self.client.get(
+            f"/api/v1/community/reports/{report_id}/audit",
+            headers={"Authorization": "Bearer viewer-secret-token-key-2026"},
+        )
         self.assertEqual(res_audit.status_code, 200)
         audit_events = res_audit.json()["data"]
         self.assertEqual(len(audit_events), 2)
         self.assertEqual(audit_events[0]["action"], "submitted")
         self.assertEqual(audit_events[1]["new_state"], "reviewed")
+
+        # 5. Verify correlation ID middleware and readiness probe
+        self.assertIn("x-request-id", res_audit.headers)
+        res_ready = self.client.get("/ready")
+        self.assertEqual(res_ready.status_code, 200)
+        self.assertEqual(res_ready.json()["status"], "ready")
 
 
 if __name__ == "__main__":
