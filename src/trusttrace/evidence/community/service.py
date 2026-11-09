@@ -2,7 +2,7 @@
 
 import uuid
 import threading
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Set
 from datetime import datetime, timezone
 
 from .sanitizer import sanitize_text, hash_reporter_identity
