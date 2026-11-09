@@ -13,6 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from .routes.evidence import router as evidence_router
 from .routes.community import router as community_router
 from .auth import validate_token_configuration, is_production_environment
+from ..web.routes import router as web_router
 from ..evidence.persistence.database import default_db
 from ..evidence.community.rate_limiter import (
     default_rate_limiter,
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityAndCorrelationMiddleware)
 
     # Register routers
+    app.include_router(web_router)
     app.include_router(evidence_router)
     app.include_router(community_router)
 
