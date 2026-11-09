@@ -44,8 +44,10 @@ class CommunityIntelligenceService:
         source_family: Optional[str] = None,
         linked_evidence_ids: Optional[List[str]] = None,
         is_authenticated_provider: bool = False,
+        permitted_families: Optional[Set[str]] = None,
     ) -> Tuple[CommunityReportModel, DeduplicationResult]:
-        """Intake a community report safely with deduplication and source-family validation.
+        """Intake a community report safely with deduplication, source-family validation,
+        and multi-process database coordination (TASK 4 & TASK 5).
         
         Returns:
             Tuple[CommunityReportModel, DeduplicationResult]
@@ -55,16 +57,23 @@ class CommunityIntelligenceService:
             clean_note = sanitize_text(note, max_length=1000)
             reporter_hash = hash_reporter_identity(raw_reporter_identifier)
             family = SourceFamilyAnalyzer.validate_and_canonicalize(
-                source_family, is_authenticated_provider=is_authenticated_provider
+                source_family,
+                is_authenticated_provider=is_authenticated_provider,
+                permitted_families=permitted_families,
             )
             claim = ClaimType(claim_type)
             now = utc_now_iso()
 
             with self.db.session_scope() as session:
-                # 1. Fetch existing reports for this domain
+                # 1. Database-level coordination lock (TASK 5)
+                # Acquires row-level lock on PostgreSQL (SELECT ... FOR UPDATE)
+                # or database-level transaction lock on SQLite.
+                coord = self.repo.acquire_domain_coordination(session, clean_domain, now)
+
+                # 2. Fetch existing reports for this domain under coordination lock
                 existing_entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
 
-                # 2. Run deduplication and source lineage analysis
+                # 3. Run deduplication and source lineage analysis
                 dedup_res = self.deduplicator.analyze(
                     new_domain=clean_domain,
                     new_claim=claim,
@@ -72,6 +81,7 @@ class CommunityIntelligenceService:
                     new_source_family=family,
                     existing_reports=existing_entities,
                     is_authenticated_provider=is_authenticated_provider,
+                    permitted_families=permitted_families,
                 )
 
                 # Case A: Exact duplicate submission
@@ -94,12 +104,11 @@ class CommunityIntelligenceService:
                     self.repo.save_audit_event(session, audit_event)
                     return existing_model, dedup_res
 
-                # Case B: Conflicting Report -> Marks both as DISPUTED
+                # Determine initial state and handle conflicts
                 initial_state = VerificationState.UNVERIFIED
-                independent_count = 1
-
-                if dedup_res.category == DeduplicationCategory.CONFLICTING_REPORT:
+                if coord.is_disputed or dedup_res.category == DeduplicationCategory.CONFLICTING_REPORT:
                     initial_state = VerificationState.DISPUTED
+                    coord.is_disputed = True
                     matched_id = dedup_res.matched_report_id
                     if matched_id:
                         matched_report = self.repo.get_community_report(session, matched_id)
@@ -123,31 +132,12 @@ class CommunityIntelligenceService:
                                     timestamp=now,
                                 ),
                             )
-
-                # Case C: Copied/Shared Source -> Does NOT increment independent count
-                elif dedup_res.category == DeduplicationCategory.COPIED_SOURCE:
-                    if existing_entities:
-                        independent_count = existing_entities[0].independent_source_count
-
-                # Case D: Independent Source -> Increments independent count across domain reports
-                elif dedup_res.category == DeduplicationCategory.INDEPENDENT_SOURCE:
-                    # Calculate authoritative distinct canonical source families
-                    existing_domain_entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
-                    existing_families = {
-                        SourceFamilyAnalyzer.canonicalize_family(e.source_family)
-                        for e in existing_domain_entities
-                    }
-                    existing_families.add(family)
-                    independent_count = len(existing_families)
-
-                    # Update existing reports with authoritative independent count
-                    for e in existing_domain_entities:
-                        self.repo.update_community_report_state(
-                            session=session,
-                            report_id=e.report_id,
-                            new_state=VerificationState(e.verification_state),
-                            independent_count=independent_count,
-                        )
+                else:
+                    if coord.active_claim is None:
+                        coord.active_claim = claim.value
+                    elif coord.active_claim != claim.value:
+                        coord.is_disputed = True
+                        initial_state = VerificationState.DISPUTED
 
                 # Persist new community report
                 report_id = f"cr-{uuid.uuid4().hex[:10]}"
@@ -158,7 +148,7 @@ class CommunityIntelligenceService:
                     note_redacted=clean_note,
                     submitted_at=now,
                     verification_state=initial_state,
-                    independent_source_count=independent_count,
+                    independent_source_count=1,
                     linked_evidence_ids=linked_evidence_ids or [],
                     reviewed_at=now if initial_state == VerificationState.DISPUTED else None,
                 )
@@ -169,6 +159,25 @@ class CommunityIntelligenceService:
                     source_family=family,
                     reporter_hash=reporter_hash,
                 )
+
+                # Register distinct source family under database uniqueness constraint (TASK 5)
+                # Guarantees identical source families never inflate counts across concurrent processes
+                self.repo.register_domain_source_family(
+                    session=session,
+                    normalized_domain=clean_domain,
+                    source_family=family,
+                    report_id=report_id,
+                    created_at=now,
+                )
+
+                # Authoritative calculation of distinct source families across domain
+                distinct_family_count = max(
+                    1, self.repo.count_distinct_source_families_for_domain(session, clean_domain)
+                )
+
+                # Synchronize authoritative independent_source_count across all reports for this domain
+                self.repo.update_all_reports_independent_count(session, clean_domain, distinct_family_count)
+                persisted.independent_source_count = distinct_family_count
 
                 # Audit event for submission
                 audit_event = ReportAuditEntry(
@@ -183,6 +192,7 @@ class CommunityIntelligenceService:
                 )
                 self.repo.save_audit_event(session, audit_event)
 
+                coord.updated_at = now
                 return persisted, dedup_res
 
     def get_report(self, report_id: str) -> Optional[CommunityReportModel]:
@@ -225,14 +235,18 @@ class CommunityIntelligenceService:
 
                 now = utc_now_iso()
 
-                # Server-side derivation of independent source count
-                entities = self.repo.find_community_reports(session, normalized_domain=current.normalized_domain)
-                distinct_families = {
-                    SourceFamilyAnalyzer.canonicalize_family(e.source_family)
-                    for e in entities
-                    if e.verification_state != VerificationState.DISPUTED.value
-                }
-                derived_count = max(1, len(distinct_families))
+                # Server-side derivation of independent source count using normalized registry
+                reg_count = self.repo.count_distinct_source_families_for_domain(session, current.normalized_domain)
+                if reg_count > 0:
+                    derived_count = reg_count
+                else:
+                    entities = self.repo.find_community_reports(session, normalized_domain=current.normalized_domain)
+                    distinct_families = {
+                        SourceFamilyAnalyzer.canonicalize_family(e.source_family)
+                        for e in entities
+                        if e.verification_state != VerificationState.DISPUTED.value
+                    }
+                    derived_count = max(1, len(distinct_families))
 
                 self.repo.update_community_report_state(
                     session=session,

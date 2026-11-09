@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     UniqueConstraint,
+    Boolean,
 )
 from sqlalchemy.orm import relationship, Mapped
 
@@ -172,3 +173,41 @@ class ReportAuditEntity(Base):
     timestamp: Mapped[str] = Column(String(64), nullable=False)
 
     report = relationship("CommunityReportEntity", back_populates="audit_events")
+
+
+class CommunityDomainSourceFamilyEntity(Base):
+    """Normalized registry binding domains to distinct verified source families.
+    
+    Database-level uniqueness constraint guarantees that concurrent submissions
+    from the same source family can never artificially inflate independent counts (TASK 5).
+    """
+
+    __tablename__ = "community_domain_source_families"
+
+    id: Mapped[int] = Column(Integer, primary_key=True, autoincrement=True)
+    normalized_domain: Mapped[str] = Column(String(255), nullable=False, index=True)
+    source_family: Mapped[str] = Column(String(128), nullable=False)
+    first_report_id: Mapped[str] = Column(String(128), ForeignKey("community_reports.report_id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[str] = Column(String(64), nullable=False)
+
+    report = relationship("CommunityReportEntity")
+
+    __table_args__ = (
+        UniqueConstraint("normalized_domain", "source_family", name="uq_domain_source_family"),
+    )
+
+
+class CommunityDomainCoordinationEntity(Base):
+    """Domain-level coordination entity providing multi-process consistency across workers.
+    
+    Supports row-level locking (SELECT ... FOR UPDATE) on PostgreSQL and transactional
+    coordination on SQLite (TASK 5).
+    """
+
+    __tablename__ = "community_domain_coordination"
+
+    normalized_domain: Mapped[str] = Column(String(255), primary_key=True)
+    active_claim: Mapped[Optional[str]] = Column(String(64), nullable=True)
+    is_disputed: Mapped[bool] = Column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[str] = Column(String(64), nullable=False)
+
