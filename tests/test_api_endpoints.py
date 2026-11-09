@@ -7,6 +7,7 @@ from trusttrace.api.app import app
 from trusttrace.evidence.persistence.database import DatabaseManager
 from trusttrace.api.routes.evidence import evidence_service, provenance_engine
 from trusttrace.api.routes.community import community_service, moderation_service
+from trusttrace.evidence.community.rate_limiter import default_rate_limiter
 
 
 class TestAPIEndpoints(unittest.TestCase):
@@ -27,6 +28,9 @@ class TestAPIEndpoints(unittest.TestCase):
         moderation_service.community_service.db = self.test_db
         moderation_service.community_service.repo.db = self.test_db
 
+        # Reset rate limiter
+        default_rate_limiter.reset()
+
         self.client = TestClient(app)
 
     def test_health_check_endpoint(self):
@@ -36,6 +40,7 @@ class TestAPIEndpoints(unittest.TestCase):
         json_data = response.json()
         self.assertEqual(json_data["status"], "ok")
         self.assertEqual(json_data["service"], "trusttrace_worker_02")
+        self.assertEqual(json_data["subsystems"]["rbac_authorization"], "operational")
 
     def test_evidence_ingestion_and_retrieval_api(self):
         """Test POST /api/v1/evidence/ingest and GET /api/v1/scans/{scan_id}/evidence."""
@@ -143,13 +148,13 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(prov_data["evidence_count"], 1)
 
     def test_community_reports_api_lifecycle(self):
-        """Test community report submission, listing, review, and audit trail via REST."""
-        # 1. Submit community report
+        """Test community report submission, listing, authenticated review, and audit trail via REST."""
+        # 1. Submit community report as a community user
         submit_payload = {
             "normalized_domain": "api-phish.test",
             "claim_type": "phishing",
             "note": "Credential harvester observed on login page",
-            "source_family": "openphish",
+            "source_family": "community_user",
         }
         res_submit = self.client.post("/api/v1/community/reports", json=submit_payload)
         self.assertEqual(res_submit.status_code, 201)
@@ -162,13 +167,16 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(res_list.status_code, 200)
         self.assertEqual(res_list.json()["total"], 1)
 
-        # 3. Moderation review
+        # 3. Moderation review with valid Bearer token
         review_payload = {
             "target_state": "reviewed",
             "reason": "Confirmed against threat feed logs",
-            "moderator_ref": "sec-ops-analyst-07",
         }
-        res_review = self.client.post(f"/api/v1/community/reports/{report_id}/review", json=review_payload)
+        res_review = self.client.post(
+            f"/api/v1/community/reports/{report_id}/review",
+            json=review_payload,
+            headers={"Authorization": "Bearer mod-secret-token-key-2026"},
+        )
         self.assertEqual(res_review.status_code, 200)
         self.assertEqual(res_review.json()["data"]["verification_state"], "reviewed")
 

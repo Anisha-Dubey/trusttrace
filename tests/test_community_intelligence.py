@@ -89,12 +89,13 @@ class TestCommunityIntelligence(unittest.TestCase):
 
     def test_copied_source_detection_comm_002(self):
         """COMM-002: Copied or shared threat feeds (same source family) do NOT inflate independent count."""
-        # Reporter 1 submits from PhishTank API
+        # Reporter 1 submits from PhishTank API (authenticated feed provider)
         rep1, res1 = self.service.submit_report(
             normalized_domain="syndicated-threat.test",
             claim_type="phishing",
             raw_reporter_identifier="reporter-01",
             source_family="phishtank_api",
+            is_authenticated_provider=True,
         )
         self.assertEqual(rep1.independent_source_count, 1)
 
@@ -104,27 +105,30 @@ class TestCommunityIntelligence(unittest.TestCase):
             claim_type="phishing",
             raw_reporter_identifier="reporter-02",
             source_family="phishtank_community",
+            is_authenticated_provider=True,
         )
         self.assertEqual(res2.category, DeduplicationCategory.COPIED_SOURCE)
         self.assertEqual(rep2.independent_source_count, 1)  # Stays at 1!
 
     def test_independent_source_corroboration(self):
         """Independent sources from distinct source families safely increment count."""
-        # Source 1: PhishTank
+        # Source 1: PhishTank (authenticated provider)
         rep1, _ = self.service.submit_report(
             normalized_domain="corroborated-phish.test",
             claim_type="phishing",
             raw_reporter_identifier="rep-1",
             source_family="phishtank",
+            is_authenticated_provider=True,
         )
         self.assertEqual(rep1.independent_source_count, 1)
 
-        # Source 2: OpenPhish (independent family)
+        # Source 2: OpenPhish (independent authenticated provider family)
         rep2, res2 = self.service.submit_report(
             normalized_domain="corroborated-phish.test",
             claim_type="phishing",
             raw_reporter_identifier="rep-2",
             source_family="openphish",
+            is_authenticated_provider=True,
         )
         self.assertEqual(res2.category, DeduplicationCategory.INDEPENDENT_SOURCE)
         self.assertEqual(rep2.independent_source_count, 2)
