@@ -302,6 +302,112 @@ class TestEvidenceIntelligence(unittest.TestCase):
             ids = {h.evidence_id for h in history}
             self.assertEqual(ids, {"ev-hist-001", "ev-hist-002"})
 
+    def test_distinct_timestamp_and_status_observations_preserved(self):
+        """Verify 3 observations with identical scan, kind, source, value, but different
+        observed_at and status are all retained as distinct records."""
+        base_value = {"ip": "1.2.3.4", "resolver": "8.8.8.8"}
+        
+        # Observation 1: T1, status: observed
+        obs1 = {
+            "evidence_id": "ev-distinct-001",
+            "kind": "dns_lookup",
+            "value": base_value,
+            "source": "dns_resolver",
+            "observed_at": "2026-11-09T08:00:00Z",
+            "status": "observed",
+        }
+        # Observation 2: T2 (different time), status: observed
+        obs2 = {
+            "evidence_id": "ev-distinct-002",
+            "kind": "dns_lookup",
+            "value": base_value,
+            "source": "dns_resolver",
+            "observed_at": "2026-11-09T09:00:00Z",
+            "status": "observed",
+        }
+        # Observation 3: T3 (different time), status: failed (different status)
+        obs3 = {
+            "evidence_id": "ev-distinct-003",
+            "kind": "dns_lookup",
+            "value": base_value,
+            "source": "dns_resolver",
+            "observed_at": "2026-11-09T10:00:00Z",
+            "status": "failed",
+        }
+
+        m1, created1 = self.service.ingest_single_observation("scan-distinct", obs1)
+        m2, created2 = self.service.ingest_single_observation("scan-distinct", obs2)
+        m3, created3 = self.service.ingest_single_observation("scan-distinct", obs3)
+
+        self.assertTrue(created1, "Observation 1 should be created")
+        self.assertTrue(created2, "Observation 2 (different timestamp) should be created")
+        self.assertTrue(created3, "Observation 3 (different status) should be created")
+
+        with self.db.session_scope() as session:
+            records = self.repo.get_evidence_by_scan(session, "scan-distinct")
+            self.assertEqual(len(records), 3, "All three distinct observations must be retained")
+            ids = {r.evidence_id for r in records}
+            self.assertEqual(ids, {"ev-distinct-001", "ev-distinct-002", "ev-distinct-003"})
+
+            # Verify timestamps and statuses
+            status_map = {r.evidence_id: (r.observed_at, r.status) for r in records}
+            self.assertEqual(status_map["ev-distinct-001"], ("2026-11-09T08:00:00Z", EvidenceStatus.OBSERVED))
+            self.assertEqual(status_map["ev-distinct-002"], ("2026-11-09T09:00:00Z", EvidenceStatus.OBSERVED))
+            self.assertEqual(status_map["ev-distinct-003"], ("2026-11-09T10:00:00Z", EvidenceStatus.FAILED))
+
+    def test_savepoint_handles_uniqueness_race_without_poisoning_outer_transaction(self):
+        """Verify that when a duplicate (scan_id, fingerprint) is encountered, the nested
+        savepoint catches IntegrityError and recovers without invalidating the caller's outer transaction."""
+        with self.db.session_scope() as session:
+            self.repo.ensure_scan(session, "scan-tx-race")
+
+            # First evidence record
+            ev1 = EvidenceModel(
+                evidence_id="ev-tx-orig",
+                kind="http_headers",
+                source="http_probe",
+                value={"server": "nginx"},
+                observed_at="2026-11-09T12:00:00Z",
+                status=EvidenceStatus.OBSERVED,
+            )
+            saved1, created1 = self.repo.save_evidence(session, "scan-tx-race", ev1)
+            self.assertTrue(created1)
+            self.assertEqual(saved1.evidence_id, "ev-tx-orig")
+
+            # Duplicate attempt with different ID but identical scan + fingerprint
+            ev_dup = EvidenceModel(
+                evidence_id="ev-tx-dup-race",
+                kind="http_headers",
+                source="http_probe",
+                value={"server": "nginx"},
+                observed_at="2026-11-09T12:00:00Z",
+                status=EvidenceStatus.OBSERVED,
+            )
+            saved2, created2 = self.repo.save_evidence(session, "scan-tx-race", ev_dup)
+            self.assertFalse(created2, "Duplicate fingerprint must return was_created=False")
+            self.assertEqual(saved2.evidence_id, "ev-tx-orig")
+
+            # Critical check: outer transaction MUST still be valid and unpoisoned.
+            # Inserting a new, distinct evidence record should succeed in the same session.
+            ev_next = EvidenceModel(
+                evidence_id="ev-tx-post-collision",
+                kind="http_headers",
+                source="http_probe",
+                value={"server": "apache"},
+                observed_at="2026-11-09T12:05:00Z",
+                status=EvidenceStatus.OBSERVED,
+            )
+            saved3, created3 = self.repo.save_evidence(session, "scan-tx-race", ev_next)
+            self.assertTrue(created3)
+            self.assertEqual(saved3.evidence_id, "ev-tx-post-collision")
+
+        # After commit, verify both valid records exist in the database
+        with self.db.session_scope() as session:
+            records = self.repo.get_evidence_by_scan(session, "scan-tx-race")
+            self.assertEqual(len(records), 2)
+            ids = {r.evidence_id for r in records}
+            self.assertEqual(ids, {"ev-tx-orig", "ev-tx-post-collision"})
+
 
 if __name__ == "__main__":
     unittest.main()

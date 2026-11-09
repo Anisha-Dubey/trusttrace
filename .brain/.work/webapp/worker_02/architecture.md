@@ -126,7 +126,7 @@ Worker 02 must **never** perform network requests, DNS lookups, or URL fetches. 
    - `reliability` (Enum: `provider_assertion`, `direct_observation`, `derived_signal`, `user_report`, `unknown`)
    - `limitations` (JSON array of strings)
    - `schema_version` (string, default `"1.0"`)
-   - `fingerprint` (Unique hash of `scan_id` + `kind` + `source` + canonicalized `value` for idempotency)
+   - `fingerprint` (SHA-256 of scan_id + kind + source + observed_at + status + canonicalized value; unique together with scan_id)
 2. **`finding_records`**:
    - `finding_id` (PK, string)
    - `scan_id` (Indexed string)
@@ -170,9 +170,11 @@ Worker 02 must **never** perform network requests, DNS lookups, or URL fetches. 
 ## 4. Evidence Ingestion & Coverage Arithmetic
 
 ### Idempotency Strategy
-- Ingestion computes an idempotency fingerprint: `sha256(scan_id + ":" + kind + ":" + source + ":" + json_dumps(value))`.
+- Ingestion computes an idempotency fingerprint:
+  `sha256(scan_id + ":" + kind + ":" + source + ":" + observed_at + ":" + status + ":" + json_dumps(value))`
 - If an evidence record with the same fingerprint already exists for the scan, the existing record is returned without duplicating database rows.
-- If an existing record has different observation time, historical observations are preserved; records are append-only.
+- Observations with different timestamps or statuses are preserved as separate records; historical observations are append-only.
+- Unique constraint `(scan_id, fingerprint)` enforces uniqueness per scan, and uniqueness races are caught via savepoints (`session.begin_nested()`) without invalidating the caller's outer transaction.
 
 ### Coverage Semantics
 Contracts require:

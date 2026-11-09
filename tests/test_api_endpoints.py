@@ -49,6 +49,7 @@ class TestAPIEndpoints(unittest.TestCase):
             "kind": "tls_hostname_validation",
             "value": {"subject": "api-test.test"},
             "source": "api_test_collector",
+            "observed_at": "2026-11-09T10:00:00Z",
             "status": "observed",
             "reliability": "direct_observation",
             "limitations": ["API test observation"],

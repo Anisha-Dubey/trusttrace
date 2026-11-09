@@ -59,15 +59,20 @@ class EvidenceEntity(Base):
     limitations_json = Column(Text, nullable=False, default="[]")
     schema_version = Column(String(16), nullable=False, default="1.0")
     
-    # Idempotency fingerprint: sha256(scan_id + kind + source + canonical_value)
-    fingerprint = Column(String(64), nullable=False, index=True)
+    # Idempotency fingerprint: sha256(scan_id + kind + source + observed_at + status + canonical_value)
+    fingerprint = Column(String(64), nullable=False)
 
     scan = relationship("ScanEntity", back_populates="evidence_items")
     finding_links = relationship("FindingEvidenceLinkEntity", back_populates="evidence", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_evidence_scan_kind", "scan_id", "kind"),
-        Index("ix_evidence_fingerprint", "scan_id", "fingerprint"),
+        Index(
+            "uq_evidence_scan_fingerprint",
+            "scan_id",
+            "fingerprint",
+            unique=True,
+        ),
     )
 
 

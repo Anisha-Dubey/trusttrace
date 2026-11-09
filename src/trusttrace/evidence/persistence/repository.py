@@ -5,6 +5,7 @@ import hashlib
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
+from sqlalchemy.exc import IntegrityError
 
 from .database import DatabaseManager, default_db
 from .models import (
@@ -33,10 +34,20 @@ from ..domain.enums import (
 )
 
 
-def compute_evidence_fingerprint(scan_id: str, kind: str, source: str, value: Any) -> str:
-    """Compute a deterministic hash for idempotency checking."""
+def compute_evidence_fingerprint(
+    scan_id: str,
+    kind: str,
+    source: str,
+    value: Any,
+    observed_at: str,
+    status: EvidenceStatus,
+) -> str:
+    """Hash an observation identity while preserving time- and status-distinct records."""
     serialized_val = json.dumps(value, sort_keys=True, default=str)
-    raw = f"{scan_id}:{kind}:{source}:{serialized_val}".encode("utf-8")
+    raw = (
+        f"{scan_id}:{kind}:{source}:{observed_at}:"
+        f"{status.value}:{serialized_val}"
+    ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
 
 
@@ -134,6 +145,8 @@ class EvidenceRepository:
             kind=evidence.kind,
             source=evidence.source,
             value=evidence.value,
+            observed_at=evidence.observed_at,
+            status=evidence.status,
         )
 
         # Check for existing evidence by ID
@@ -167,8 +180,24 @@ class EvidenceRepository:
             schema_version=evidence.schema_version,
             fingerprint=fingerprint,
         )
-        session.add(entity)
-        session.flush()
+        try:
+            with session.begin_nested():
+                session.add(entity)
+                session.flush()
+        except IntegrityError:
+            existing = session.get(EvidenceEntity, evidence.evidence_id)
+            if existing is None:
+                existing = session.execute(
+                    select(EvidenceEntity).where(
+                        and_(
+                            EvidenceEntity.scan_id == scan_id,
+                            EvidenceEntity.fingerprint == fingerprint,
+                        )
+                    )
+                ).scalar_one_or_none()
+            if existing is not None:
+                return self._entity_to_evidence_model(existing), False
+            raise
         return self._entity_to_evidence_model(entity), True
 
     def get_evidence_by_id(self, session: Session, evidence_id: str) -> Optional[EvidenceModel]:
