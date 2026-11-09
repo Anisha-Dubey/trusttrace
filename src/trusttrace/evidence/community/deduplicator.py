@@ -42,6 +42,17 @@ class SourceFamilyAnalyzer:
         "internal_collector",
     }
 
+    # Complete canonical allowlist of legitimate source families
+    CANONICAL_FAMILIES: Set[str] = {
+        "community_user",
+        "phishtank",
+        "openphish",
+        "urlhaus",
+        "virustotal",
+        "cert_feed",
+        "internal_collector",
+    }
+
     # Known syndication / feed family aliases
     FAMILY_ALIASES: Dict[str, str] = {
         "phishtank": "phishtank",
@@ -53,6 +64,8 @@ class SourceFamilyAnalyzer:
         "abuse_ch_urlhaus": "urlhaus",
         "virustotal": "virustotal",
         "vt_feed": "virustotal",
+        "cert_feed": "cert_feed",
+        "internal_collector": "internal_collector",
     }
 
     @classmethod
@@ -61,7 +74,8 @@ class SourceFamilyAnalyzer:
         if not raw_family:
             return "community_user"
         cleaned = raw_family.strip().lower()
-        return cls.FAMILY_ALIASES.get(cleaned, cleaned)
+        canonical = cls.FAMILY_ALIASES.get(cleaned, cleaned)
+        return canonical if canonical in cls.CANONICAL_FAMILIES else "community_user"
 
     @classmethod
     def validate_and_canonicalize(
@@ -69,19 +83,29 @@ class SourceFamilyAnalyzer:
         raw_family: Optional[str],
         is_authenticated_provider: bool = False,
     ) -> str:
-        """Validate and map source family, rejecting unauthorized client claims of provider identities."""
-        if not raw_family or raw_family.strip().lower() == "community_user":
+        """Validate and map source family, rejecting unauthorized client claims of provider identities
+        or arbitrary strings trying to inflate corroboration."""
+        if not raw_family or raw_family.strip().lower() in ("", "community_user"):
             return "community_user"
 
         cleaned = raw_family.strip().lower()
         canonical = cls.FAMILY_ALIASES.get(cleaned, cleaned)
 
-        # Untrusted client attempting to claim an authoritative feed provider
-        if canonical in cls.VERIFIED_PROVIDER_FAMILIES and not is_authenticated_provider:
+        # Public / unauthenticated clients MUST NOT claim provider identities or arbitrary source families
+        if not is_authenticated_provider:
             raise ValueError(
                 f"Unauthorized source family claim: '{raw_family}'. "
-                f"Unauthenticated or public clients cannot claim verified provider identities."
+                f"Public submissions receive server-assigned 'community_user' and cannot claim "
+                f"provider identities or arbitrary source families."
             )
+
+        # Authenticated provider validation against canonical allowlist
+        if canonical not in cls.CANONICAL_FAMILIES or canonical == "community_user":
+            raise ValueError(
+                f"Unknown or unauthorized provider family: '{raw_family}'. "
+                f"Permitted provider families: {sorted(list(cls.VERIFIED_PROVIDER_FAMILIES))}"
+            )
+
         return canonical
 
 

@@ -99,14 +99,21 @@ def list_community_reports(
 ):
     """List community reports with optional filtering by domain, verification state, and claim type."""
     with community_service.db.session_scope() as session:
-        entities = community_service.repo.find_community_reports(
+        clean_domain = domain.strip().lower() if domain else None
+        total = community_service.repo.count_community_reports(
             session=session,
-            normalized_domain=domain.lower() if domain else None,
+            normalized_domain=clean_domain,
             verification_state=state,
             claim_type=claim_type,
         )
-        total = len(entities)
-        paginated_entities = entities[offset : offset + limit]
+        paginated_entities = community_service.repo.find_community_reports(
+            session=session,
+            normalized_domain=clean_domain,
+            verification_state=state,
+            claim_type=claim_type,
+            limit=limit,
+            offset=offset,
+        )
 
         reports = []
         for e in paginated_entities:
@@ -163,8 +170,14 @@ def review_community_report(
 
 
 @router.get("/reports/{report_id}/audit", response_model=StandardResponse)
-def get_report_audit_trail(report_id: str):
-    """Retrieve the chronological audit history for a report."""
+def get_report_audit_trail(
+    report_id: str,
+    user: AuthenticatedUser = Security(require_roles(["viewer", "moderator", "admin"])),
+):
+    """Retrieve the chronological audit history for a report.
+    
+    Security control: Protected endpoint requiring authorized audit viewer, moderator, or admin role.
+    """
     trail = moderation_service.get_audit_trail(report_id)
     return StandardResponse(
         status="success",
@@ -173,8 +186,14 @@ def get_report_audit_trail(report_id: str):
 
 
 @router.get("/domain/{domain}/audit", response_model=StandardResponse)
-def get_domain_audit_history(domain: str):
-    """Retrieve the collective audit history across all reports filed for a domain."""
+def get_domain_audit_history(
+    domain: str,
+    user: AuthenticatedUser = Security(require_roles(["viewer", "moderator", "admin"])),
+):
+    """Retrieve the collective audit history across all reports filed for a domain.
+    
+    Security control: Protected endpoint requiring authorized audit viewer, moderator, or admin role.
+    """
     domain_history = moderation_service.get_domain_audit_history(domain)
     return StandardResponse(
         status="success",
