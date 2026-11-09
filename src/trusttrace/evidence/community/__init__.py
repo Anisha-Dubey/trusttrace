@@ -9,6 +9,7 @@ from .deduplicator import (
     DeduplicationResult,
 )
 from .service import CommunityIntelligenceService
+from .moderation import ModerationService
 
 __all__ = [
     "sanitize_text",
@@ -21,4 +22,5 @@ __all__ = [
     "DeduplicationCategory",
     "DeduplicationResult",
     "CommunityIntelligenceService",
+    "ModerationService",
 ]
