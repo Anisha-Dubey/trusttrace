@@ -1,6 +1,6 @@
 # worker_03 status
 
-**PHASES 01, 02, 03, 04, 05, 06 & 07 COMPLETED & VERIFIED.**
+**PHASES 01–10 COMPLETED & VERIFIED.**
 
 - **Phase 01 (Explainable triage policy)**: Deterministic rule engine with 6 named rules, signal taxonomy with 18 signal kinds across 4 dimensions, decision audit log, and conservative disposition ceilings. All policy table invariants enforced.
 - **Phase 02 (Controlled evaluation and claim audit)**: 7 golden evaluation fixtures all passing, honest metrics with sample-size caveats, and pitch claim auditor flagging unsupported accuracy/safety/novelty claims.
@@ -39,6 +39,34 @@
   - Enforced negative threat intelligence discipline and staleness gating (>12h).
   - Reconciled ABL-07: partial DNS with failures strictly withholds clean baseline, enforcing `inconclusive`.
   - 14 ablation unit tests in `TestPhase07MultimodalAblationAndMasking`.
-  - Authored Phase 07 specification (`phases/phase_07.md`).
-- **Test Metrics**: 143 tests passing in `tests/test_triage_policy.py` in 0.152s. Full repo runner: 315 tests discovered (314 passed, 1 skipped, 0 failures). All 8 fixture checks pass. All worker boundaries strictly preserved.
-- **External Dependencies**: COMPLETE. Worker 01, Worker 02, Worker 03, and Worker 04 integration is fully validated and verified on `main`.
+- **Phase 08 (Asymmetric Cost Calibration & Minimax Decision Rules)**:
+  - Implemented `calibration.py` with `AsymmetricCostConfig`, `MinimaxDecisionEngine`, and `CostSensitivePolicyEvaluator`.
+  - Strictly finite cost validation rejecting NaN, +inf, -inf, negative values, zero review cost, and zero denominators ($C_{FP} > C_{TP}$, $C_{FN} > C_{TN}$, $C_A > 0$).
+  - Raw worst-case expected cost evaluation governing minimax decisions; clamped thresholds $\theta_{threat}, \theta_{clean}$ are presentation diagnostics.
+  - Exact boundary equality and unified tolerance tie handling (`math.isclose(rel_tol=1e-9, abs_tol=1e-9)`), deterministic action precedence $D_I > D_M > D_B$ scale-tested from $10^{-6}$ to $10^{6}$.
+  - Continuous statistical probability calibration strictly disabled (`statistical_calibration_active = False`) pending validated statistical models; ordinal confidence bands explicitly rejected from interval calculations.
+  - 20 unit tests in `TestPhase08CostCalibration` (100% pass).
+- **Phase 09 (Deterministic Counterfactual Explanations & Boundary Sensitivity)**:
+  - Implemented `counterfactual.py` with `CounterfactualExplanationEngine`, `PermittedMutationRule`, `CounterfactualPerturbation`, and `CounterfactualResult`.
+  - In-memory ephemeral signal cloning with zero persistent side effects.
+  - Perturbation operation taxonomy: `REPLACE_SIGNAL`, `REMOVE_SIGNAL`, `COORDINATED_MUTATION`. `REMOVED` is strictly an operation, never an invented `SignalKind`.
+  - Feasibility hierarchy: `MUTABLE_CONFIG` (1.0), `REPUTATION_DEPENDENT` (5.0), `IMMUTABLE_INTRINSIC` ($\infty$). Permanent immutability enforced for `SignalKind.IDN_LOOKALIKE`.
+  - Full policy re-evaluation (all 6 rules + availability gates) on simulated vectors.
+  - Deterministic tie-breaking: minimal Hamming distance $k \le 3$, lowest feasibility penalty, lexicographical key tuple.
+  - Mandatory disclaimer `COUNTERFACTUAL_DISCLAIMER` present in all counterfactual outputs.
+  - 18 unit tests in `TestPhase09Counterfactuals` (100% pass).
+- **Phase 10 (Traceable Claim-to-Evidence Matrix & Epistemic Audit)**:
+  - Implemented `claim_matrix.py` with `ClaimEvidenceMatrixGenerator`, `ExtractedClaim`, `ClaimMatrixEntry`, and `ClaimEvidenceMatrixResult`.
+  - Deterministic claim extraction from report `decision`, `findings`, and `dimensions`.
+  - Exact 6-field factual observation verification (target, modality, attribute, value, timestamp, provenance).
+  - Derived assessment 7-field lineage verification against parent evidence IDs.
+  - Source-specific freshness evaluation via `FreshnessPolicy` (DNS 24h, TLS 7d, threat feeds 12h, HTTP headers 24h).
+  - Strict contradiction precedence: contemporaneous contradictions result in `CONTRADICTED` and fail matrix integrity; stale historical contradictions yield `PARTIALLY_SUPPORTED` with caveats.
+  - Non-factual counterfactual text cleanly segregated as `EXPLANATORY_OR_HYPOTHETICAL` with empty supporting evidence IDs.
+  - 22 unit tests in `TestPhase10ClaimMatrix` (100% pass).
+- **Test Metrics**:
+  - `tests/test_triage_policy.py`: 203/203 unit and integration tests passing in 0.16s (143 original + 20 Phase 08 + 18 Phase 09 + 22 Phase 10).
+  - Full repository test runner (`python run_tests.py`): 387/387 tests passing with PostgreSQL 15 active (0 failed, 0 skipped, 8/8 contract checks passing).
+  - PostgreSQL 15 integration suite (`tests.test_postgres_integration`): 11/11 tests passing.
+  - Boundary check (`scripts/check_worker_boundaries.py --worker worker_03`): PASS. All modifications confined to Worker 03 domain.
+- **External Dependencies**: COMPLETE. Full compatibility preserved with Worker 01, Worker 02, and Worker 04. No schema changes made.

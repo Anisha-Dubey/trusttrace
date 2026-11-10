@@ -1,6 +1,6 @@
 # worker_03 handoff
 
-**Status: PHASES 01, 02, 03, 04, 05 & 06 COMPLETED & VERIFIED.**
+**Status: PHASES 01–10 COMPLETED & VERIFIED.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
@@ -10,14 +10,18 @@
   - `diagnostics.py` (structured diagnostic audit records)
   - `signal_taxonomy.py` (18 typed signals across 4 dimensions, `SignalRecord.create()` factory)
   - `signal_extractor.py` (deterministic evidence-to-signal extraction)
-  - `triage_engine.py` (multi-type `evaluate_evidence()`, deterministic finding IDs, orphan suppression)
+  - `fusion.py` (Phase 07: multimodal availability masking & ablation, 32-subset deterministic status aggregation)
+  - `calibration.py` (Phase 08: asymmetric cost profiles, minimax decision engine, tie handling, cost-sensitive evaluator)
+  - `counterfactual.py` (Phase 09: deterministic counterfactual explanations, feasibility lattice, isolated simulation)
+  - `claim_matrix.py` (Phase 10: 6-field factual observation verification, 7-field derived assessment lineage audit, freshness TTLs)
+  - `triage_engine.py` (multi-type `evaluate_evidence()`, deterministic finding IDs, orphan suppression, Phase 08-10 helpers)
   - `uncertainty.py` (UncertaintyType, ConfidenceBand, FreshnessPolicy, AbstentionNotice, UncertaintyEngine)
   - `integrity_auditor.py` (ReportIntegrityAuditor enforcing rules 1-6 and anti-marketing guard)
   - `regression.py` (PolicyRegressionRunner, RegressionDiffReport for zero-false-positive drift detection)
   - `evaluation.py` (FIXTURES_V1, FIXTURES_V2, build_eval_v1_set, build_eval_v2_set, ControlledEvaluationSet, ClaimAuditor)
   - `decision_log.py` (DecisionAuditRecord, DecisionLog with in-memory audit indexing)
   - `__init__.py` (public exports)
-  - `tests/test_triage_policy.py` (129 tests passing)
+  - `tests/test_triage_policy.py` (203 tests passing)
 
 ## Contract Version
 - Policy version: `w03-v1.0`
@@ -26,12 +30,11 @@
 
 ## Test Results
 ```
-Worker 03 Tests: Ran 129 tests in 0.165s — OK (zero regressions, zero errors)
-Full Repository: 291 tests discovered (290 passed, 1 skipped, 0 failures in 16.825s)
-PostgreSQL 15 Integration: Ran 11 tests in 10.307s — OK (11 passed, 0 failures, 0 skipped)
-Web Interface Tests: Ran 10 tests in 0.613s — OK
-Worker 02 Integration Tests: Ran 11 tests in 1.488s — OK
+Worker 03 Tests: Ran 203 tests in 0.156s — OK (zero regressions, zero errors)
+Full Repository: 387 tests run (387 passed, 0 failures, 0 skipped with PG 15 in 27.024s)
+PostgreSQL 15 Integration: Ran 11 tests in 10.651s — OK (11 passed, 0 failures, 0 skipped)
 All 8 schema/negative/cross-record fixture checks passed
+Worker Boundary Checker: PASS (All modifications strictly confined to Worker 03)
 ```
 
 ## Worker 03 Public Interfaces & Integration Points
