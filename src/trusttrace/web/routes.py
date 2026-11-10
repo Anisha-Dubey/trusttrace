@@ -553,11 +553,24 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
 
     # Step 3: Canonical Evidence Interpretation via PolicyInput & TriageEngine
     target_host = eval_res.normalized_host or url.split("//")[-1].split("/")[0].split(":")[0]
+    community_report_dicts = []
+    try:
+        from ..evidence.community.service import CommunityIntelligenceService
+        comm_svc = CommunityIntelligenceService()
+        stored_reports = comm_svc.list_reports_for_domain(target_host)
+        community_report_dicts = [
+            r.model_dump() if hasattr(r, "model_dump") else (r.to_dict() if hasattr(r, "to_dict") else dict(r))
+            for r in stored_reports
+        ]
+    except Exception:
+        community_report_dicts = []
+
     policy_input = PolicyInput.from_components(
         scan_id=scan_id,
         target=target_host,
         evidence=evidence_items,
         coverage=coverage_data,
+        community_reports=community_report_dicts,
         strict=False,
     )
     triage_result = engine.evaluate_evidence(policy_input)
