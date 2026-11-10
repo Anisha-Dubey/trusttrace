@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, useSpring, useMotionValue } from 'motion/react';
 import { ArrowUpRight } from 'lucide-react';
+import { generateHanddrawnCircle, HanddrawnCirclePaths } from '../utils/handdrawn';
 
 export default function CustomCursor() {
   const [visible, setVisible] = useState(false);
@@ -8,6 +9,9 @@ export default function CustomCursor() {
   const [isTextInput, setIsTextInput] = useState(false);
   const [cursorText, setCursorText] = useState<string | null>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
+  // Procedural hand-drawn circle paths (randomized on page load/refresh & on input entry)
+  const [circlePaths, setCirclePaths] = useState<HanddrawnCirclePaths>(() => generateHanddrawnCircle());
+  const wasTextInputRef = useRef(false);
 
   // Osply Fluid spring physics:
   // - cursorX/cursorY: liquid outer aura with soft momentum
@@ -61,6 +65,11 @@ export default function CustomCursor() {
         const isText = Boolean(
           target.closest('input, textarea, [contenteditable="true"], [data-cursor="circle"]')
         );
+        // When pointer enters an input, generate a new randomized hand-drawn circle contour!
+        if (isText && !wasTextInputRef.current) {
+          setCirclePaths(generateHanddrawnCircle());
+        }
+        wasTextInputRef.current = isText;
         setIsTextInput(isText);
 
         const isInteractive = Boolean(
@@ -162,7 +171,7 @@ export default function CustomCursor() {
             >
               {/* Translucent lens fill so background text remains readable through the circle */}
               <path
-                d="M 60.2,32.0 C 60.3,35.8 59.8,39.8 58.3,43.2 C 56.8,46.5 54.1,49.7 51.3,52.1 C 48.5,54.5 45.1,56.5 41.7,57.6 C 38.3,58.6 34.4,58.5 31.0,58.2 C 27.6,57.9 24.2,57.1 21.0,55.9 C 17.9,54.6 14.7,52.9 12.1,50.6 C 9.5,48.3 7.2,45.3 5.7,42.1 C 4.1,38.9 3.1,35.2 2.9,31.5 C 2.7,27.9 3.1,23.9 4.3,20.3 C 5.6,16.8 7.6,13.1 10.2,10.4 C 12.8,7.7 16.3,5.4 19.9,4.2 C 23.4,3.0 27.5,2.4 31.2,2.6 C 34.8,2.8 38.6,3.9 41.9,5.3 C 45.2,6.8 48.6,8.7 51.3,11.2 C 54.0,13.8 56.5,16.9 58.1,20.3 C 59.6,23.7 60.1,27.8 60.2,32.0 Z"
+                d={circlePaths.primaryPath}
                 fill="rgba(246, 246, 246, 0.45)"
                 stroke="#040404"
                 strokeWidth="2.2"
@@ -171,7 +180,7 @@ export default function CustomCursor() {
               />
               {/* Secondary delicate sketchy pen stroke */}
               <path
-                d="M 59.7,31.4 C 59.8,35.3 59.1,39.3 57.5,42.7 C 55.9,46.1 53.3,49.3 50.5,51.7 C 47.7,54.1 44.3,56.1 40.9,57.2 C 37.5,58.2 33.7,58.1 30.3,57.8 C 26.9,57.5 23.5,56.7 20.4,55.4 C 17.3,54.1 14.2,52.4 11.6,50.1 C 9.0,47.8 6.7,44.8 5.2,41.6 C 3.6,38.4 2.6,34.7 2.4,31.0 C 2.2,27.4 2.6,23.4 3.9,19.9 C 5.1,16.3 7.1,12.7 9.7,10.0 C 12.3,7.3 15.8,5.1 19.4,3.8 C 22.9,2.6 27.0,2.1 30.7,2.2 C 34.3,2.4 38.1,3.5 41.4,4.9 C 44.7,6.4 48.1,8.3 50.8,10.8 C 53.5,13.3 56.0,16.4 57.6,19.8 C 59.1,23.1 59.8,27.3 59.7,31.4 Z"
+                d={circlePaths.sketchPath}
                 fill="none"
                 stroke="#040404"
                 strokeWidth="0.8"
