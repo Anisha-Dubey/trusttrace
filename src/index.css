@@ -95,30 +95,30 @@ html, body, button, a, input, textarea, select, [role="button"], .cursor-pointer
 
 /* Hand-drawn Round Card / Bento Box: Generous organic round corners */
 .handdrawn-card {
-  border-radius: 36px 30px 38px 32px / 32px 38px 30px 36px !important;
-  border-width: 1.8px 1.5px 2px 1.6px;
+  border-radius: 34px 28px 36px 30px !important;
+  border-width: 1.8px;
 }
 
 .handdrawn-card:hover {
-  border-radius: 32px 38px 30px 36px / 38px 32px 36px 30px !important;
-  transition: border-radius 0.3s ease-in-out;
+  border-radius: 30px 36px 28px 34px !important;
+  transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Round Box / Telemetry / Modal */
 .handdrawn-box {
-  border-radius: 26px 22px 28px 24px / 24px 28px 22px 26px !important;
-  border-width: 1.6px 1.8px 1.5px 1.7px;
+  border-radius: 26px 22px 28px 24px !important;
+  border-width: 1.6px;
 }
 
 .handdrawn-box:hover {
-  border-radius: 24px 28px 22px 26px / 28px 24px 26px 22px !important;
+  border-radius: 24px 28px 22px 26px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Round Scenario Pills & Badges */
 .handdrawn-pill {
   border-radius: 9999px !important;
-  border-width: 1.5px 1.8px 1.5px 1.6px;
+  border-width: 1.6px;
 }
 
 .handdrawn-pill:hover {
@@ -128,22 +128,23 @@ html, body, button, a, input, textarea, select, [role="button"], .cursor-pointer
 
 /* Hand-drawn Round Buttons & Action Triggers */
 .handdrawn-btn {
-  border-radius: 24px 20px 26px 22px / 22px 26px 20px 24px !important;
+  border-radius: 22px 20px 24px 21px !important;
+  border-width: 1.6px;
 }
 
 .handdrawn-btn:hover {
-  border-radius: 22px 26px 20px 24px / 26px 22px 24px 20px !important;
+  border-radius: 20px 24px 21px 23px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Round Input Field */
 .handdrawn-input {
-  border-radius: 28px 24px 30px 26px / 26px 30px 24px 28px !important;
-  border-width: 1.8px 1.5px 2px 1.6px;
+  border-radius: 22px 24px 21px 23px !important;
+  border-width: 1.6px;
 }
 
 .handdrawn-input:focus {
-  border-radius: 24px 28px 26px 30px / 30px 24px 28px 26px !important;
+  border-radius: 24px 21px 23px 22px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
