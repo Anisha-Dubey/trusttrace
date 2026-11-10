@@ -10,3 +10,8 @@ env/
 *.zip
 HackMatrix26.zip
 nototpushongithub/
+node_modules/
+dist/
+build/
+.vite/
+.aistudio/

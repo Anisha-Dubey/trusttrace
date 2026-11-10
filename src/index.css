@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+:root {
+  --color-background: #ffffff;
+  --color-text: #040404;
+  --color-text-muted: #6b6b6b;
+
+  --color-surface-soft: #f6f6f6;
+  --color-surface-grey: #d9d9d9;
+  --color-surface-mid: #cdcdcd;
+  --color-surface-dark: #101010;
+  --color-surface-deep: #131313;
+
+  --color-border: rgb(0 0 0 / 10%);
+  --color-border-inverse: rgb(255 255 255 / 20%);
+
+  --font-body: "Inter", Helvetica, sans-serif;
+  --font-heading: "Inter Tight", "Inter", sans-serif;
+  --font-accent: "Averia Serif Libre", Georgia, serif;
+
+  --tracking-heading: -0.03em;
+  --leading-display: 0.95;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-body);
+    background-color: var(--color-background);
+    color: var(--color-text);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: var(--tracking-heading);
+  }
+}
+
+.font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: var(--tracking-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-accent {
+  font-family: var(--font-accent);
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.leading-display {
+  line-height: var(--leading-display);
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface-soft);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-mid);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}

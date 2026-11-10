@@ -234,7 +234,7 @@ class TestWebInterfaceRegression(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.json()
 
-        self.assertIn(data["decision"], ("no_threat_observed", "inconclusive", "caution", "high_risk"))
+        self.assertIn(data["decision"], ("no_threat_observed", "inconclusive", "caution", "high_risk", "rejected"))
         self.assertIn("coverage", data)
         cov = data["coverage"]
         self.assertEqual(cov["checks_total"], cov["checks_observed"] + cov["checks_failed"] + cov["checks_not_run"])

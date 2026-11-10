@@ -1,0 +1,6 @@
+{
+  "name": "TRUSTTRACE — Evidence-First Web Trust Triage",
+  "description": "High-end motion graphics and editorial digital trust triage engine unbundling web safety across 4 verifiable dimensions with audited evidence lineage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
