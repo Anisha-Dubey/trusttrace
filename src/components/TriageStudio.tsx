@@ -238,6 +238,7 @@ export default function TriageStudio({
 
           <input
             type="text"
+            data-cursor="circle"
             value={currentUrl}
             onChange={(e) => setCurrentUrl(e.target.value)}
             placeholder="https://example.com/login"
