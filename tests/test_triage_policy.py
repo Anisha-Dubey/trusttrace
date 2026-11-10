@@ -40,8 +40,14 @@ from trusttrace.policy.evaluation import (
     ClaimCategory,
 )
 from trusttrace.policy import (
+    AbstentionNotice,
+    AuditIssue,
+    AuditRuleId,
+    AuditSeverity,
     CommunityReportItem,
+    ConfidenceBand,
     CoverageSummary,
+    DEFAULT_FRESHNESS_WINDOWS,
     DiagnosticCode,
     DiagnosticCollector,
     DiagnosticRecord,
@@ -49,17 +55,25 @@ from trusttrace.policy import (
     EvidenceItem,
     EvidenceSignalExtractor,
     EvidenceValidator,
+    FreshnessPolicy,
     ParseIssue,
     PolicyInput,
     PolicyInputParseError,
+    ReportAuditResult,
+    ReportIntegrityAuditor,
     SignalConfidence,
     SignalExtractionResult,
+    UncertaintyAssessment,
+    UncertaintyEngine,
+    UncertaintyRecord,
+    UncertaintyType,
     ValidationIssue,
     ValidationResult,
     generate_deterministic_finding_id,
     normalize_signal_confidence,
 )
 import json
+from datetime import datetime, timezone, timedelta
 from dataclasses import FrozenInstanceError
 
 
@@ -1688,6 +1702,421 @@ class TestTriageEvidenceIntegration(unittest.TestCase):
         res = self.engine.evaluate_evidence(all_failed_input)
         self.assertEqual(res.decision, "inconclusive")
         self.assertEqual(res.dimensions["evidence_quality"], "unavailable")
+
+    def test_evaluate_evidence_populates_uncertainty_assessment(self):
+        """Phase 04: evaluate_evidence populates uncertainty assessment and ordinal band."""
+        policy_input = PolicyInput.from_v1_dict(self.fixture, strict=True)
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertIsNotNone(res.uncertainty)
+        self.assertIsInstance(res.uncertainty, UncertaintyAssessment)
+        self.assertIn(res.uncertainty.confidence_band, tuple(ConfidenceBand))
+
+    def test_evaluate_evidence_inconclusive_embeds_abstention_limitation(self):
+        """Phase 04: Inconclusive triage result embeds explicit abstention notice in limitations."""
+        all_failed_input = PolicyInput(
+            scan_id="scan-all-fail-abstain",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-f",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "timeout"},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(all_failed_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertIsNotNone(res.uncertainty)
+        self.assertIsNotNone(res.uncertainty.abstention_notice)
+        self.assertEqual(res.uncertainty.abstention_notice.reason_code, "ABSTAIN_COLLECTION_FAILURE")
+        # Notice must appear in user-facing limitations without schema breach
+        self.assertTrue(any("abstained" in lim.lower() for lim in res.limitations))
+
+    def test_audit_triage_result_pipeline(self):
+        """Phase 04: TriageEngine.audit_triage_result validates clean result before report publication."""
+        policy_input = PolicyInput.from_v1_dict(self.fixture, strict=True)
+        res = self.engine.evaluate_evidence(policy_input)
+        audit_res = self.engine.audit_triage_result(res, policy_input)
+        self.assertTrue(audit_res.is_valid)
+        self.assertEqual(audit_res.error_count, 0)
+
+    def test_to_report_fragment_strict_v1_compatibility(self):
+        """Phase 04: to_report_fragment maintains strict additionalProperties: false compatibility."""
+        policy_input = PolicyInput.from_v1_dict(self.fixture, strict=True)
+        res = self.engine.evaluate_evidence(policy_input)
+        frag = res.to_report_fragment()
+        # Exactly the 5 approved keys
+        self.assertEqual(
+            set(frag.keys()),
+            {"decision", "policy_version", "dimensions", "findings", "limitations"},
+        )
+        # No unapproved internal uncertainty or diagnostic fields leaked into v1 fragment
+        self.assertNotIn("uncertainty", frag)
+        self.assertNotIn("diagnostics", frag)
+        self.assertNotIn("rule_trace", frag)
+
+
+class TestUncertaintyTaxonomy(unittest.TestCase):
+    """Tests for Worker 03 Phase 04 Uncertainty quantification and abstention engine."""
+
+    def setUp(self):
+        self.engine = UncertaintyEngine()
+
+    def test_uncertainty_types_and_confidence_bands(self):
+        """Verify all 5 uncertainty types and 4 ordinal confidence bands exist."""
+        self.assertEqual(len(UncertaintyType), 5)
+        self.assertEqual(UncertaintyType.DATA_ABSENCE.value, "data_absence")
+        self.assertEqual(UncertaintyType.COLLECTION_FAILURE.value, "collection_failure")
+        self.assertEqual(UncertaintyType.UNCHECKED_COVERAGE.value, "unchecked_coverage")
+        self.assertEqual(UncertaintyType.TEMPORAL_STALENESS.value, "temporal_staleness")
+        self.assertEqual(UncertaintyType.EVIDENCE_CONFLICT.value, "evidence_conflict")
+
+        self.assertEqual(len(ConfidenceBand), 4)
+        self.assertEqual(ConfidenceBand.SUFFICIENT_FOR_SCOPED_OBSERVATION.value, "sufficient_for_scoped_observation")
+        self.assertEqual(ConfidenceBand.LIMITED_OBSERVATION.value, "limited_observation")
+        self.assertEqual(ConfidenceBand.INSUFFICIENT_EVIDENCE.value, "insufficient_evidence")
+        self.assertEqual(ConfidenceBand.CONTRADICTORY_EVIDENCE.value, "contradictory_evidence")
+
+    def test_freshness_policy_defaults_and_evaluation(self):
+        """Source-specific freshness windows accurately classify fresh vs stale timestamps."""
+        policy = FreshnessPolicy()
+        # DNS default is 24h (86400s); TLS is 7 days (604800s); threat_intel is 12h (43200s)
+        self.assertEqual(policy.get_window("dns_resolution"), 86400)
+        self.assertEqual(policy.get_window("tls_certificate"), 604800)
+        self.assertEqual(policy.get_window("threat_feed"), 43200)
+
+        # 1-hour old DNS observation is fresh
+        now = datetime.now(timezone.utc)
+        fresh_ts = (now - timedelta(seconds=3600)).isoformat().replace("+00:00", "Z")
+        is_stale, age, win = policy.evaluate_freshness("dns_resolution", fresh_ts, now_dt=now)
+        self.assertFalse(is_stale)
+        self.assertAlmostEqual(age, 3600, delta=10)
+
+        # 48-hour old DNS observation is stale (window 24h)
+        stale_ts = (now - timedelta(hours=48)).isoformat().replace("+00:00", "Z")
+        is_stale, age, win = policy.evaluate_freshness("dns_resolution", stale_ts, now_dt=now)
+        self.assertTrue(is_stale)
+        self.assertGreater(age, 86400)
+
+    def test_uncertainty_clean_observation(self):
+        """Successful observation across checks yields SUFFICIENT_FOR_SCOPED_OBSERVATION."""
+        policy_input = PolicyInput(
+            scan_id="scan-clean",
+            target="example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=2, checks_failed=0, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+            ),
+        )
+        signals = [
+            SignalRecord(kind=SignalKind.TLS_VALID, evidence_ids=["ev-tls"], source="tls_collector"),
+            SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["ev-tls"], source="tls_collector"),
+        ]
+        dimensions = {"certificate": "valid_for_hostname", "identity": "unverified", "behavior": "no_threat_observed", "evidence_quality": "strong"}
+        assessment = self.engine.assess_evidence(policy_input, signals, "no_threat_observed", dimensions)
+        self.assertEqual(assessment.confidence_band, ConfidenceBand.SUFFICIENT_FOR_SCOPED_OBSERVATION)
+        self.assertIsNone(assessment.abstention_notice)
+
+    def test_uncertainty_collection_failure(self):
+        """Failed collector emits COLLECTION_FAILURE and caps confidence band at LIMITED_OBSERVATION."""
+        policy_input = PolicyInput(
+            scan_id="scan-fail",
+            target="example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=1, checks_failed=1, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-ok",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "timeout"},
+                ),
+            ),
+        )
+        signals = [
+            SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["ev-tls-ok"], source="tls_collector"),
+            SignalRecord(kind=SignalKind.COLLECTOR_FAILURE, evidence_ids=["ev-dns"], source="dns_collector"),
+        ]
+        dimensions = {"certificate": "not_checked", "identity": "unknown", "behavior": "unknown", "evidence_quality": "partial"}
+        assessment = self.engine.assess_evidence(policy_input, signals, "caution", dimensions)
+        self.assertEqual(assessment.confidence_band, ConfidenceBand.LIMITED_OBSERVATION)
+        self.assertTrue(any(u.uncertainty_type == UncertaintyType.COLLECTION_FAILURE for u in assessment.uncertainties))
+
+    def test_uncertainty_unchecked_coverage(self):
+        """Blocked or not run checks emit UNCHECKED_COVERAGE uncertainty."""
+        policy_input = PolicyInput(
+            scan_id="scan-block",
+            target="private.corp",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=3, checks_observed=1, checks_failed=0, checks_not_run=2),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-block",
+                    kind="http_headers",
+                    source="http_collector",
+                    observed_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    status="blocked",
+                    reliability="direct_observation",
+                    value={"reason": "private_network"},
+                ),
+            ),
+        )
+        signals = [
+            SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["ev-block"], source="http_collector"),
+        ]
+        dimensions = {"certificate": "not_checked", "identity": "unknown", "behavior": "unknown", "evidence_quality": "partial"}
+        assessment = self.engine.assess_evidence(policy_input, signals, "inconclusive", dimensions)
+        self.assertTrue(any(u.uncertainty_type == UncertaintyType.UNCHECKED_COVERAGE for u in assessment.uncertainties))
+        self.assertEqual(assessment.confidence_band, ConfidenceBand.LIMITED_OBSERVATION)
+        self.assertIsNotNone(assessment.abstention_notice)
+        self.assertEqual(assessment.abstention_notice.reason_code, "ABSTAIN_UNCHECKED_COVERAGE")
+
+    def test_uncertainty_evidence_conflict(self):
+        """Opposing contemporaneous signals emit EVIDENCE_CONFLICT and CONTRADICTORY_EVIDENCE band."""
+        signals = [
+            SignalRecord(kind=SignalKind.THREAT_FEED_MATCH, evidence_ids=["ev-feed-1"], source="feed_alpha"),
+            SignalRecord(kind=SignalKind.NO_THREAT_MATCH, evidence_ids=["ev-feed-2"], source="feed_beta"),
+        ]
+        dimensions = {"certificate": "not_checked", "identity": "unknown", "behavior": "unknown", "evidence_quality": "partial"}
+        assessment = self.engine.assess_signals(signals, "inconclusive", dimensions, target_scope="disputed.site")
+        self.assertEqual(assessment.confidence_band, ConfidenceBand.CONTRADICTORY_EVIDENCE)
+        self.assertIsNotNone(assessment.abstention_notice)
+        self.assertEqual(assessment.abstention_notice.reason_code, "ABSTAIN_EVIDENCE_CONFLICT")
+        self.assertTrue(assessment.abstention_notice.is_rescan_recommended)
+        self.assertIn("material evidence conflict", assessment.abstention_notice.explanation)
+
+    def test_abstention_notice_serialization(self):
+        """AbstentionNotice serializes to dict with all canonical fields."""
+        notice = AbstentionNotice(
+            reason_code="ABSTAIN_TEST",
+            affected_dimensions=("identity", "behavior"),
+            missing_or_failed_checks=("dns", "tls"),
+            target_scope="example.com",
+            is_rescan_recommended=True,
+            explanation="Test explanation.",
+        )
+        d = notice.to_dict()
+        self.assertEqual(d["reason_code"], "ABSTAIN_TEST")
+        self.assertEqual(d["affected_dimensions"], ["identity", "behavior"])
+        self.assertEqual(d["missing_or_failed_checks"], ["dns", "tls"])
+        self.assertEqual(d["target_scope"], "example.com")
+        self.assertTrue(d["is_rescan_recommended"])
+        self.assertEqual(d["explanation"], "Test explanation.")
+
+
+class TestReportIntegrityAuditor(unittest.TestCase):
+    """Tests for Worker 03 Phase 04 ReportIntegrityAuditor core safety invariants."""
+
+    def setUp(self):
+        self.auditor = ReportIntegrityAuditor()
+
+    def test_rule_1_tls_001_supported_identity_without_authorization_rejected(self):
+        """INV-TLS-001: identity='supported' without explicit authorization evidence is rejected."""
+        report = {
+            "dimensions": {"identity": "supported", "certificate": "valid_for_hostname"},
+            "evidence": [
+                {"evidence_id": "ev-1", "kind": "tls_certificate", "status": "observed"}
+            ],
+            "findings": [],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.TLS_001.value for i in res.issues))
+
+    def test_rule_1_tls_001_supported_identity_with_authorization_accepted(self):
+        """INV-TLS-001: identity='supported' with valid authorization evidence passes."""
+        report = {
+            "dimensions": {"identity": "supported", "certificate": "valid_for_hostname"},
+            "evidence": [
+                {"evidence_id": "ev-auth", "kind": "brand_authorization", "status": "observed"}
+            ],
+            "findings": [
+                {"finding_id": "f-1", "evidence_ids": ["ev-auth"]}
+            ],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_rule_2_evid_002_affirmative_global_safety_claim_rejected(self):
+        """INV-EVID-002: Affirmative global safety assertion fails audit."""
+        # Test prohibited decision value
+        bad_decision = {"decision": "safe", "findings": [], "limitations": []}
+        res1 = self.auditor.audit_report(bad_decision)
+        self.assertFalse(res1.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.EVID_002.value for i in res1.issues))
+
+        # Test affirmative claim in finding summary
+        bad_finding = {
+            "decision": "no_threat_observed",
+            "findings": [{"finding_id": "f-1", "summary": "This site is safe and clean.", "evidence_ids": ["ev-1"]}],
+            "evidence": [{"evidence_id": "ev-1", "kind": "dns", "status": "observed"}],
+        }
+        res2 = self.auditor.audit_report(bad_finding)
+        self.assertFalse(res2.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.EVID_002.value for i in res2.issues))
+
+    def test_rule_2_evid_002_negated_disclaimer_accepted(self):
+        """INV-EVID-002: Negated educational text and disclaimers are accepted."""
+        clean_report = {
+            "decision": "no_threat_observed",
+            "findings": [
+                {
+                    "finding_id": "f-1",
+                    "summary": "Absence of threat feed match is not proof of safety (EVID-002).",
+                    "evidence_ids": ["ev-1"],
+                }
+            ],
+            "limitations": [
+                "No reputation match -> never 'safe'; at most no_threat_observed.",
+                "Does not establish that the site is safe.",
+            ],
+            "evidence": [{"evidence_id": "ev-1", "kind": "threat_intel", "status": "observed"}],
+        }
+        res = self.auditor.audit_report(clean_report)
+        self.assertTrue(res.is_valid)
+
+    def test_rule_3_coverage_unqualified_no_threat_rejected(self):
+        """INV-COV-001: no_threat_observed under partial coverage without disclosure is rejected."""
+        report = {
+            "decision": "no_threat_observed",
+            "dimensions": {"evidence_quality": "strong"},
+            "coverage": {"checks_total": 4, "checks_observed": 2, "checks_failed": 2, "checks_not_run": 0},
+            "limitations": [],  # Missing required partial coverage disclosure!
+            "findings": [],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.COV_001.value for i in res.issues))
+
+    def test_rule_3_coverage_qualified_no_threat_accepted(self):
+        """INV-COV-001: no_threat_observed with explicit partial coverage disclosure passes."""
+        report = {
+            "decision": "no_threat_observed",
+            "dimensions": {"evidence_quality": "partial"},
+            "coverage": {"checks_total": 4, "checks_observed": 2, "checks_failed": 2, "checks_not_run": 0},
+            "limitations": ["Coverage is partial: 2 checks failed out of 4 total."],
+            "findings": [],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_rule_4_anti_marketing_absolute_claims_rejected(self):
+        """INV-CLAIM-001: Unsupported absolute marketing assertions ('100% secure', 'bulletproof') are rejected."""
+        report = {
+            "decision": "caution",
+            "findings": [
+                {
+                    "finding_id": "f-1",
+                    "summary": "This domain features 100% secure infrastructure with zero false positives.",
+                    "evidence_ids": ["ev-1"],
+                }
+            ],
+            "evidence": [{"evidence_id": "ev-1", "kind": "dns", "status": "observed"}],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.CLAIM_001.value for i in res.issues))
+
+    def test_rule_4_anti_marketing_negated_claim_accepted(self):
+        """INV-CLAIM-001: Negated marketing assertions are permitted."""
+        report = {
+            "decision": "caution",
+            "findings": [
+                {
+                    "finding_id": "f-1",
+                    "summary": "Heuristic detection cannot guarantee 100% security or zero false positives.",
+                    "evidence_ids": ["ev-1"],
+                }
+            ],
+            "evidence": [{"evidence_id": "ev-1", "kind": "dns", "status": "observed"}],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_rule_5_finding_integrity_empty_evidence_ids_rejected(self):
+        """INV-FINDING-001: Finding with empty evidence_ids is rejected."""
+        report = {
+            "decision": "caution",
+            "findings": [{"finding_id": "f-empty", "summary": "Empty finding", "evidence_ids": []}],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.FINDING_001.value for i in res.issues))
+
+    def test_rule_5_finding_integrity_orphan_evidence_id_rejected(self):
+        """INV-FINDING-001: Finding referencing undeclared evidence ID is rejected."""
+        report = {
+            "decision": "caution",
+            "evidence": [{"evidence_id": "ev-real", "kind": "dns", "status": "observed"}],
+            "findings": [{"finding_id": "f-orphan", "summary": "Orphan finding", "evidence_ids": ["ev-ghost"]}],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.FINDING_001.value for i in res.issues))
+
+    def test_rule_5_finding_integrity_valid_references_accepted(self):
+        """INV-FINDING-001: Finding referencing declared evidence IDs is accepted."""
+        report = {
+            "decision": "caution",
+            "evidence": [{"evidence_id": "ev-real", "kind": "dns", "status": "observed"}],
+            "findings": [{"finding_id": "f-valid", "summary": "Valid finding", "evidence_ids": ["ev-real"]}],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_rule_6_coverage_arithmetic_mismatch_rejected(self):
+        """INV-COV-002: Coverage arithmetic mismatch is rejected."""
+        report = {
+            "decision": "caution",
+            "coverage": {"checks_total": 10, "checks_observed": 5, "checks_failed": 2, "checks_not_run": 1},  # Sum = 8 != 10
+            "findings": [],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.COV_002.value for i in res.issues))
+
+    def test_rule_6_coverage_arithmetic_valid_accepted(self):
+        """INV-COV-002: Valid coverage arithmetic passes."""
+        report = {
+            "decision": "caution",
+            "coverage": {"checks_total": 10, "checks_observed": 7, "checks_failed": 2, "checks_not_run": 1},  # Sum = 10 == 10
+            "findings": [],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_audit_complete_official_fixture(self):
+        """Full official fixture passes ReportIntegrityAuditor cleanly."""
+        with open(".brain/.testdata/v1/complete_report.json", "r") as f:
+            fixture = json.load(f)
+        res = self.auditor.audit_report(fixture)
+        self.assertTrue(res.is_valid, f"Official fixture failed integrity audit: {res.issues}")
 
 
 if __name__ == "__main__":

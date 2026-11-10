@@ -1,6 +1,6 @@
 # worker_03 status
 
-**PHASES 01, 02 & 03 COMPLETED & TESTED.**
+**PHASES 01, 02, 03 & 04 COMPLETED & TESTED.**
 
 - **Phase 01 (Explainable triage policy)**: Deterministic rule engine with 6 named rules, signal taxonomy with 18 signal kinds across 4 dimensions, decision audit log, and conservative disposition ceilings. All policy table invariants enforced.
 - **Phase 02 (Controlled evaluation and claim audit)**: 7 golden evaluation fixtures all passing, honest metrics with sample-size caveats, and pitch claim auditor flagging unsupported accuracy/safety/novelty claims.
@@ -11,4 +11,12 @@
   - Signal taxonomy enhancement (`signal_taxonomy.py`) with `SignalConfidence` and strict evidence ID validation.
   - Deterministic signal extraction pipeline (`signal_extractor.py`) enforcing TLS/DNS/threat/community policy invariants.
   - Triage engine integration (`triage_engine.py`) featuring `evaluate_evidence(PolicyInput)`, deterministic SHA-256 finding IDs, zero orphan findings, and positive threat preservation.
-- **Test Metrics**: 69 tests passing in 0.007s with zero regressions. All worker boundaries respected.
+- **Phase 04 (Uncertainty quantification, abstention engine & report integrity auditor)**:
+  - Categorical uncertainty taxonomy (`uncertainty.py`) modeling 5 distinct uncertainty types.
+  - Qualitative ordinal confidence bands (rejecting pseudo-probability scores).
+  - Source-specific freshness policies with calibrated windows (DNS 24h, TLS 7d, threat feeds 12h).
+  - Explicit plain-language abstention notices embedded in report limitations.
+  - Automated report integrity auditor (`integrity_auditor.py`) enforcing 6 core invariants (`INV-TLS-001`, `INV-EVID-002`, `INV-COV-001`, `INV-CLAIM-001`, `INV-FINDING-001`, `INV-COV-002`).
+  - Context-aware anti-marketing assertion detection.
+  - Strict v1 schema compatibility preserved in `to_report_fragment()`.
+- **Test Metrics**: 94 tests passing in 0.010s with zero regressions. Full repo runner passes 220/220 tests. All worker boundaries respected.

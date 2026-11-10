@@ -29,6 +29,13 @@ from .diagnostics import (
     DiagnosticSeverity,
 )
 from .input_validation import EvidenceValidator, ValidationResult
+from .integrity_auditor import (
+    AuditIssue,
+    AuditRuleId,
+    AuditSeverity,
+    ReportAuditResult,
+    ReportIntegrityAuditor,
+)
 from .policy_input import PolicyInput
 from .signal_extractor import EvidenceSignalExtractor, SignalExtractionResult
 from .signal_taxonomy import (
@@ -37,6 +44,15 @@ from .signal_taxonomy import (
     SignalDimension,
     SignalKind,
     SignalRecord,
+)
+from .uncertainty import (
+    AbstentionNotice,
+    ConfidenceBand,
+    FreshnessPolicy,
+    UncertaintyAssessment,
+    UncertaintyEngine,
+    UncertaintyRecord,
+    UncertaintyType,
 )
 
 # Policy version tracks rule changes; bump on any disposition logic change.
@@ -91,6 +107,7 @@ class TriageResult:
     limitations: List[str]
     rationale_summary: str
     diagnostics: Tuple[DiagnosticRecord, ...] = field(default_factory=tuple)
+    uncertainty: Optional[UncertaintyAssessment] = None
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -106,10 +123,62 @@ class TriageResult:
 class TriageEngine:
     """Transparent, rule-based triage engine."""
 
-    def __init__(self, policy_version: str = POLICY_VERSION):
+    def __init__(
+        self,
+        policy_version: str = POLICY_VERSION,
+        freshness_policy: Optional[FreshnessPolicy] = None,
+    ):
         self.policy_version = policy_version
         self.validator = EvidenceValidator()
         self.extractor = EvidenceSignalExtractor()
+        self.uncertainty_engine = UncertaintyEngine(freshness_policy=freshness_policy)
+        self.integrity_auditor = ReportIntegrityAuditor()
+
+    def audit_report(self, report: Dict[str, Any]) -> ReportAuditResult:
+        """Audit a complete report dictionary against TRUSTTRACE safety invariants."""
+        return self.integrity_auditor.audit_report(report)
+
+    def audit_triage_result(
+        self,
+        result: TriageResult,
+        policy_input: Optional[PolicyInput] = None,
+    ) -> ReportAuditResult:
+        """Audit a TriageResult and associated evidence before report publication."""
+        candidate_report: Dict[str, Any] = {
+            "schema_version": "1.0",
+            "scan_id": policy_input.scan_id if policy_input else "scan-audited",
+            "decision": result.decision,
+            "policy_version": result.policy_version,
+            "dimensions": dict(result.dimensions),
+            "findings": list(result.findings),
+            "limitations": list(result.limitations),
+        }
+        if policy_input:
+            if policy_input.coverage:
+                candidate_report["coverage"] = {
+                    "checks_total": policy_input.coverage.checks_total,
+                    "checks_observed": policy_input.coverage.checks_observed,
+                    "checks_failed": policy_input.coverage.checks_failed,
+                    "checks_not_run": policy_input.coverage.checks_not_run,
+                }
+            candidate_report["evidence"] = [
+                {
+                    "evidence_id": item.evidence_id,
+                    "kind": item.kind,
+                    "source": item.source,
+                    "status": item.status,
+                }
+                for item in policy_input.evidence
+            ]
+            candidate_report["community_reports"] = [
+                {
+                    "report_id": r.report_id,
+                    "verification_state": r.verification_state,
+                }
+                for r in policy_input.community_reports
+            ]
+
+        return self.integrity_auditor.audit_report(candidate_report)
 
     def evaluate_evidence(self, policy_input: PolicyInput) -> TriageResult:
         """Evaluate raw PolicyInput through validation, signal extraction, and triage.
@@ -123,6 +192,7 @@ class TriageEngine:
         6. Deterministic finding ID generation.
         7. Positive threat evidence preservation against unrelated collector failures.
         8. Coverage deficit limitations merger.
+        9. Uncertainty quantification & abstention notice generation.
         """
         diagnostics_collector = DiagnosticCollector()
 
@@ -133,6 +203,17 @@ class TriageEngine:
                 severity=DiagnosticSeverity.ERROR,
                 message=f"PolicyInput contains {len(policy_input.parse_issues)} unresolved parse issues",
                 action_taken="Quarantined input; emitted inconclusive triage result",
+            )
+            uncertainty_assessment = self.uncertainty_engine.assess_evidence(
+                policy_input=policy_input,
+                signals=(),
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unknown",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
             )
             return TriageResult(
                 decision="inconclusive",
@@ -150,6 +231,7 @@ class TriageEngine:
                 ],
                 rationale_summary="Input failed canonical parsing validation.",
                 diagnostics=diagnostics_collector.records,
+                uncertainty=uncertainty_assessment,
             )
 
         # Step 2: Input Contract Validation
@@ -157,6 +239,17 @@ class TriageEngine:
         diagnostics_collector.extend(val_result.diagnostics)
 
         if not val_result.is_valid:
+            uncertainty_assessment = self.uncertainty_engine.assess_evidence(
+                policy_input=policy_input,
+                signals=(),
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unknown",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
+            )
             return TriageResult(
                 decision="inconclusive",
                 dimensions={
@@ -173,6 +266,7 @@ class TriageEngine:
                 ],
                 rationale_summary="Input failed contract validation.",
                 diagnostics=diagnostics_collector.records,
+                uncertainty=uncertainty_assessment,
             )
 
         # Step 3: Signal Extraction
@@ -239,6 +333,19 @@ class TriageEngine:
         # Step 7: Compose Final Decision with Positive Threat Preservation
         final_decision = base_result.decision
 
+        # Step 8: Uncertainty Quantification & Abstention Notice Generation
+        uncertainty_assessment = self.uncertainty_engine.assess_evidence(
+            policy_input=policy_input,
+            signals=sig_result.signals,
+            decision=final_decision,
+            dimensions=base_result.dimensions,
+        )
+
+        if uncertainty_assessment.abstention_notice:
+            abstain_text = uncertainty_assessment.abstention_notice.explanation
+            if abstain_text not in combined_limitations:
+                combined_limitations.append(abstain_text)
+
         return TriageResult(
             decision=final_decision,
             dimensions=base_result.dimensions,
@@ -248,6 +355,7 @@ class TriageEngine:
             limitations=combined_limitations,
             rationale_summary=base_result.rationale_summary,
             diagnostics=diagnostics_collector.records,
+            uncertainty=uncertainty_assessment,
         )
 
     def evaluate(
@@ -317,6 +425,18 @@ class TriageEngine:
         rationale_parts = [r.rationale for r in rule_results if r.rationale]
         rationale_summary = " | ".join(rationale_parts) if rationale_parts else "No rules fired."
 
+        # Uncertainty quantification
+        uncertainty_assessment = self.uncertainty_engine.assess_signals(
+            signals=signals,
+            decision=decision,
+            dimensions=dimensions,
+        )
+
+        if uncertainty_assessment.abstention_notice:
+            abstain_text = uncertainty_assessment.abstention_notice.explanation
+            if abstain_text not in all_limitations:
+                all_limitations.append(abstain_text)
+
         return TriageResult(
             decision=decision,
             dimensions=dimensions,
@@ -325,6 +445,7 @@ class TriageEngine:
             policy_version=self.policy_version,
             limitations=all_limitations,
             rationale_summary=rationale_summary,
+            uncertainty=uncertainty_assessment,
         )
 
     # ─── Individual Named Rules ───────────────────────────────────────
