@@ -28,6 +28,12 @@ from jsonschema import Draft202012Validator, FormatChecker
 from trusttrace.collectors.dns_collector import DNSCollector
 from trusttrace.collectors.tls_collector import TLSCollector, parse_der_certificate
 from trusttrace.collectors.http_collector import BoundedHTTPCollector
+
+try:
+    import cryptography
+    _HAS_CRYPTOGRAPHY = True
+except ImportError:
+    _HAS_CRYPTOGRAPHY = False
 from trusttrace.collectors.rate_limiter import RateLimiter
 from trusttrace.collectors.orchestrator import ScanOrchestrator, CancellationToken
 from trusttrace.intake.boundary import IntakeBoundary
@@ -332,6 +338,7 @@ class TestBoundedCollectors(unittest.TestCase):
         cert = builder.sign(key, hashes.SHA256())
         return cert.public_bytes(serialization.Encoding.DER)
 
+    @unittest.skipUnless(_HAS_CRYPTOGRAPHY, "cryptography library required for raw DER tests")
     def test_tls_der_certificate_extraction_valid(self):
         """P0-2: Verify raw DER certificate parsing extracts SANs, issuer, subject, validity."""
         now = datetime.now(timezone.utc)
@@ -349,6 +356,7 @@ class TestBoundedCollectors(unittest.TestCase):
         self.assertEqual(meta["issuer"].get("commonName"), "secure.example.com")
         self.assertFalse(meta["is_expired"])
 
+    @unittest.skipUnless(_HAS_CRYPTOGRAPHY, "cryptography library required for raw DER tests")
     def test_tls_der_certificate_extraction_expired(self):
         """P0-2: Expired DER certificate is reliably detected even with empty ssl dict."""
         now = datetime.now(timezone.utc)
@@ -361,6 +369,7 @@ class TestBoundedCollectors(unittest.TestCase):
         meta = parse_der_certificate(der)
         self.assertTrue(meta["is_expired"])
 
+    @unittest.skipUnless(_HAS_CRYPTOGRAPHY, "cryptography library required for raw DER tests")
     def test_tls_der_certificate_hostname_mismatch(self):
         """P0-2: Certificate with mismatched SANs fails hostname verification."""
         now = datetime.now(timezone.utc)
