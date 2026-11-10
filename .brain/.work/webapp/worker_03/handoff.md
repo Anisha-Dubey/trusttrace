@@ -98,11 +98,15 @@ if not audit_result.is_valid:
 
 ## Cross-Worker Remediation Requirements (Action Items for other workers)
 
+Detailed audit documentation and resolution guides:
+- Complete Conflict Register: `.brain/.report/worker_03_worker_04_conflict_register.md`
+- Phased Implementation Handoff: `.brain/.report/worker_03_to_worker_04_handoff.md`
+
 ### For Worker 04 (Web Frontend & Presentation):
-- **DEF-01 (CRITICAL):** Update `SignalRecord` callsites in `src/trusttrace/web/routes.py` lines 42–45, 103–104, 152–155 to use keyword arguments or `SignalRecord.create()`.
-- **DEF-02 (HIGH):** Create `tests/test_web_routes.py` to provide automated test coverage for web endpoints.
-- **DEF-03 (HIGH):** Connect custom URL evaluation in `routes.py` to the real `ScanOrchestrator` and `TriageEngine` rather than hardcoding fake signals.
-- **DEF-05 (LOW):** Include `result.uncertainty.to_dict()` in the JSON response and render the confidence band badge and abstention notice banner in HTML templates.
+- **DEF-01 / CONFL-01 (CRITICAL):** Update `SignalRecord` callsites in `src/trusttrace/web/routes.py` lines 42–45, 103–104, 152–155 to use keyword arguments or `SignalRecord.create()`.
+- **DEF-02 / CONFL-11 (HIGH):** Create `tests/test_web_interface.py` to provide automated test coverage for web endpoints.
+- **DEF-03 / CONFL-12 (CRITICAL):** Connect custom URL evaluation in `routes.py` to the real `ScanOrchestrator` and `TriageEngine` rather than hardcoding fake signals and violating EVID-002 (CONFL-09).
+- **DEF-05 / CONFL-07 (HIGH):** Include `result.uncertainty.to_dict()` in the JSON response and render the confidence band badge and abstention notice banner in HTML templates.
 
 ### For Worker 02 (Evidence & Persistence):
-- **DEF-04 (MEDIUM):** Hook `ReportIntegrityAuditor().audit_report(report)` into `EvidenceService` before finalizing or publishing report dictionaries.
+- **DEF-04 / CONFL-08 (MEDIUM):** Hook `ReportIntegrityAuditor().audit_report(report)` into `EvidenceService` before finalizing or publishing report dictionaries.

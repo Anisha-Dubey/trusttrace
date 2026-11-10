@@ -19,11 +19,12 @@
   - Automated report integrity auditor (`integrity_auditor.py`) enforcing 6 core invariants (`INV-TLS-001`, `INV-EVID-002`, `INV-COV-001`, `INV-CLAIM-001`, `INV-FINDING-001`, `INV-COV-002`).
   - Context-aware anti-marketing assertion detection.
   - Strict v1 schema compatibility preserved in `to_report_fragment()`.
-- **Cross-Worker Policy Integration**:
+- **Cross-Worker Policy Integration & Worker 04 Conflict Register**:
   - `PolicyInput` natively ingests Worker 02 Pydantic models (`EvidenceModel`, `CoverageModel`) via `to_v1_contract_dict()`, `model_dump()`, or `dict()`.
   - Added `PolicyInput.from_components()` for heterogeneous evidence construction.
   - Hardened `SignalRecord` with helpful error diagnostics for bare string callsites and added `SignalRecord.create()` factory helper.
   - Broadened `TriageEngine.evaluate_evidence()` to accept `PolicyInput`, dicts, or Pydantic models.
-  - Completed comprehensive integration audit (`worker_03_integration_audit.md`) and remediation plan (`worker_03_integration_remediation_plan.md`).
+  - Completed comprehensive Worker 04 Conflict Register (`.brain/.report/worker_03_worker_04_conflict_register.md`) cataloging 12 verified conflicts across all 8 inspection areas (A–H) with 13 required audit attributes each.
+  - Authored actionable Worker 04 Implementation Handoff (`.brain/.report/worker_03_to_worker_04_handoff.md`) with concrete code examples for immediate unblocking.
 - **Test Metrics**: 107 tests passing in `tests/test_triage_policy.py`. Full repo runner passes 233/233 tests (1 skipped). All worker boundaries strictly preserved.
-- **External Dependencies**: Worker 04 web callsites (DEF-01) and test suite (DEF-02); Worker 02 pre-publication integrity auditor hook (DEF-04). Worker 03 responsibilities are 100% complete independently.
+- **External Dependencies**: Worker 04 web callsites (DEF-01/CONFL-01) and test suite (DEF-02/CONFL-11); Worker 02 pre-publication integrity auditor hook (DEF-04/CONFL-08). Worker 03 responsibilities are 100% complete independently.
