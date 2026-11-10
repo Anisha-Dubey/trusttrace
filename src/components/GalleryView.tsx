@@ -305,7 +305,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: idx * 0.06 }}
-              className="group relative rounded-[28px] sm:rounded-[34px] border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[#040404] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
+              className="group relative rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[#040404] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
               data-cursor-text="AUDIT CASE"
               onMouseEnter={() => {
                 sound.playLiquid();
@@ -330,7 +330,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
               </div>
 
               {/* Simulated Interactive Visual Stage (Baseline Gallery Style) */}
-              <div className="relative rounded-[22px] border border-[rgb(0_0_0/8%)] bg-[#f6f6f6] p-5 space-y-3.5 overflow-hidden group-hover:bg-[#f0f0f0] transition-colors">
+              <div className="relative rounded-xl border border-[rgb(0_0_0/8%)] bg-[#f6f6f6] p-5 space-y-3.5 overflow-hidden group-hover:bg-[#f0f0f0] transition-colors">
                 {/* Browser-style address preview */}
                 <div className="flex items-center justify-between text-xs font-mono pb-2 border-b border-[rgb(0_0_0/8%)]">
                   <div className="flex items-center gap-2">
@@ -400,7 +400,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
-          className="border border-[rgb(0_0_0/10%)] rounded-[28px] bg-[#ffffff] divide-y divide-[rgb(0_0_0/10%)] overflow-hidden"
+          className="border border-[rgb(0_0_0/10%)] rounded-2xl bg-[#ffffff] divide-y divide-[rgb(0_0_0/10%)] overflow-hidden"
         >
           {filteredCases.map((item) => (
             <div
