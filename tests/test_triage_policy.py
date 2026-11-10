@@ -2118,6 +2118,35 @@ class TestReportIntegrityAuditor(unittest.TestCase):
         res = self.auditor.audit_report(fixture)
         self.assertTrue(res.is_valid, f"Official fixture failed integrity audit: {res.issues}")
 
+    def test_audit_report_non_dict_rejected(self):
+        """ReportIntegrityAuditor safely rejects non-dict inputs without raising uncaught exceptions."""
+        res = self.auditor.audit_report("not-a-dict")  # type: ignore[arg-type]
+        self.assertFalse(res.is_valid)
+        self.assertEqual(res.error_count, 1)
+        self.assertEqual(res.issues[0].rule_id, "MALFORMED_REPORT")
+
+    def test_audit_report_none_values_resilient(self):
+        """ReportIntegrityAuditor safely handles None values within report keys."""
+        report = {
+            "dimensions": None,
+            "findings": None,
+            "limitations": None,
+            "coverage": None,
+            "evidence": None,
+        }
+        res = self.auditor.audit_report(report)
+        self.assertTrue(res.is_valid)
+
+    def test_audit_report_malformed_findings_list_handled(self):
+        """ReportIntegrityAuditor flags non-dict findings gracefully without crashing."""
+        report = {
+            "findings": ["invalid-finding-string", None],
+            "limitations": [123, None],
+        }
+        res = self.auditor.audit_report(report)
+        self.assertFalse(res.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.FINDING_001.value for i in res.issues))
+
 
 if __name__ == "__main__":
     unittest.main()

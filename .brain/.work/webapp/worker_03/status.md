@@ -19,4 +19,4 @@
   - Automated report integrity auditor (`integrity_auditor.py`) enforcing 6 core invariants (`INV-TLS-001`, `INV-EVID-002`, `INV-COV-001`, `INV-CLAIM-001`, `INV-FINDING-001`, `INV-COV-002`).
   - Context-aware anti-marketing assertion detection.
   - Strict v1 schema compatibility preserved in `to_report_fragment()`.
-- **Test Metrics**: 94 tests passing in 0.010s with zero regressions. Full repo runner passes 220/220 tests. All worker boundaries respected.
+- **Test Metrics**: 97 tests passing in 0.010s with zero regressions. Full repo runner passes 223/223 tests. All worker boundaries respected.

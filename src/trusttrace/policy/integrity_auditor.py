@@ -125,7 +125,6 @@ class ReportIntegrityAuditor:
         Returns:
             ReportAuditResult with detailed issues and pass/fail validity.
         """
-        issues: List[AuditIssue] = []
         rules_checked = [
             AuditRuleId.TLS_001.value,
             AuditRuleId.EVID_002.value,
@@ -134,6 +133,22 @@ class ReportIntegrityAuditor:
             AuditRuleId.FINDING_001.value,
             AuditRuleId.COV_002.value,
         ]
+
+        if not isinstance(report, dict):
+            return ReportAuditResult(
+                is_valid=False,
+                issues=(
+                    AuditIssue(
+                        rule_id="MALFORMED_REPORT",
+                        severity=AuditSeverity.ERROR,
+                        affected_field="$",
+                        explanation=f"Report must be a dictionary mapping, received: {type(report).__name__}",
+                    ),
+                ),
+                rules_checked=tuple(rules_checked),
+            )
+
+        issues: List[AuditIssue] = []
 
         # ─── Rule 1 (INV-TLS-001): Identity Authorization vs TLS Validity ─
         self._check_rule_tls_001(report, issues)
@@ -164,15 +179,23 @@ class ReportIntegrityAuditor:
 
     def _check_rule_tls_001(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Reject identity='supported' unless explicit authorization evidence is present."""
-        dimensions = report.get("dimensions", {})
+        dimensions = report.get("dimensions")
+        if not isinstance(dimensions, dict):
+            return
+
         identity_val = dimensions.get("identity")
-
         if identity_val == "supported":
-            evidence_items = report.get("evidence", [])
-            has_auth = False
-            auth_ids: List[str] = []
+            raw_evidence = report.get("evidence")
+            evidence_items: Sequence[Any] = (
+                raw_evidence
+                if isinstance(raw_evidence, Sequence) and not isinstance(raw_evidence, (str, bytes))
+                else ()
+            )
 
+            has_auth = False
             for ev in evidence_items:
+                if not isinstance(ev, dict):
+                    continue
                 kind = str(ev.get("kind", "")).lower()
                 status = str(ev.get("status", "")).lower()
                 if status == "observed" and (
@@ -182,9 +205,8 @@ class ReportIntegrityAuditor:
                     or "verified_identity" in kind
                 ):
                     has_auth = True
-                    auth_ids.append(str(ev.get("evidence_id", "")))
+                    break
 
-            # If evidence list is omitted or no authorization evidence was found
             if not has_auth:
                 issues.append(
                     AuditIssue(
@@ -200,7 +222,7 @@ class ReportIntegrityAuditor:
 
     def _check_rule_evid_002(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Reject affirmative global claims ('safe', 'clean'); absence of threat feed match is not proof of safety."""
-        decision = str(report.get("decision", "")).lower()
+        decision = str(report.get("decision", "") or "").lower()
         if decision in ("safe", "clean"):
             issues.append(
                 AuditIssue(
@@ -211,19 +233,38 @@ class ReportIntegrityAuditor:
                 )
             )
 
-        # Inspect free text fields: findings summaries, limitations, rationale
+        # Inspect free text fields safely: findings summaries, limitations
         texts_to_check: List[Tuple[str, str]] = []
-        for i, f in enumerate(report.get("findings", [])):
-            texts_to_check.append((f"findings[{i}].summary", str(f.get("summary", ""))))
-            for j, lim in enumerate(f.get("limitations", [])):
-                texts_to_check.append((f"findings[{i}].limitations[{j}]", str(lim)))
+        raw_findings = report.get("findings")
+        findings: Sequence[Any] = (
+            raw_findings
+            if isinstance(raw_findings, Sequence) and not isinstance(raw_findings, (str, bytes))
+            else ()
+        )
 
-        for i, lim in enumerate(report.get("limitations", [])):
-            texts_to_check.append((f"limitations[{i}]", str(lim)))
+        for i, f in enumerate(findings):
+            if isinstance(f, dict):
+                summary = f.get("summary")
+                if isinstance(summary, str) and summary:
+                    texts_to_check.append((f"findings[{i}].summary", summary))
+                f_lims = f.get("limitations")
+                if isinstance(f_lims, Sequence) and not isinstance(f_lims, (str, bytes)):
+                    for j, lim in enumerate(f_lims):
+                        if isinstance(lim, str) and lim:
+                            texts_to_check.append((f"findings[{i}].limitations[{j}]", lim))
+
+        raw_limitations = report.get("limitations")
+        limitations: Sequence[Any] = (
+            raw_limitations
+            if isinstance(raw_limitations, Sequence) and not isinstance(raw_limitations, (str, bytes))
+            else ()
+        )
+
+        for i, lim in enumerate(limitations):
+            if isinstance(lim, str) and lim:
+                texts_to_check.append((f"limitations[{i}]", lim))
 
         for field_name, text in texts_to_check:
-            if not text:
-                continue
             for pat in self.GLOBAL_SAFETY_PATTERNS:
                 match = pat.search(text)
                 if match:
@@ -244,26 +285,42 @@ class ReportIntegrityAuditor:
 
     def _check_rule_cov_001(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Ensure no_threat_observed under partial coverage explicitly discloses limited scope."""
-        decision = str(report.get("decision", "")).lower()
+        decision = str(report.get("decision", "") or "").lower()
         if decision != "no_threat_observed":
             return
 
-        coverage = report.get("coverage", {})
-        if not coverage:
+        coverage = report.get("coverage")
+        if not isinstance(coverage, dict):
             return
 
         checks_total = coverage.get("checks_total", 0)
         checks_failed = coverage.get("checks_failed", 0)
         checks_not_run = coverage.get("checks_not_run", 0)
 
+        # Ensure values are valid integers
+        if not (isinstance(checks_total, int) and isinstance(checks_failed, int) and isinstance(checks_not_run, int)):
+            return
+
         # Incomplete coverage check
         if (checks_failed > 0 or checks_not_run > 0) and checks_total > 0:
-            limitations = report.get("limitations", [])
+            raw_limitations = report.get("limitations")
+            limitations: Sequence[Any] = (
+                raw_limitations
+                if isinstance(raw_limitations, Sequence) and not isinstance(raw_limitations, (str, bytes))
+                else ()
+            )
             has_coverage_disclosure = any(
-                ("partial" in lim.lower() or "not run" in lim.lower() or "failed" in lim.lower() or "limited" in lim.lower() or "coverage" in lim.lower())
+                isinstance(lim, str) and (
+                    "partial" in lim.lower()
+                    or "not run" in lim.lower()
+                    or "failed" in lim.lower()
+                    or "limited" in lim.lower()
+                    or "coverage" in lim.lower()
+                )
                 for lim in limitations
             )
-            ev_quality = report.get("dimensions", {}).get("evidence_quality", "")
+            dimensions = report.get("dimensions")
+            ev_quality = dimensions.get("evidence_quality", "") if isinstance(dimensions, dict) else ""
 
             if not has_coverage_disclosure or ev_quality == "strong":
                 issues.append(
@@ -287,17 +344,36 @@ class ReportIntegrityAuditor:
     def _check_rule_claim_001(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Detect unsupported absolute marketing assertions ('100% secure', 'bulletproof', 'zero false positives')."""
         texts_to_check: List[Tuple[str, str]] = []
-        for i, f in enumerate(report.get("findings", [])):
-            texts_to_check.append((f"findings[{i}].summary", str(f.get("summary", ""))))
-            for j, lim in enumerate(f.get("limitations", [])):
-                texts_to_check.append((f"findings[{i}].limitations[{j}]", str(lim)))
+        raw_findings = report.get("findings")
+        findings: Sequence[Any] = (
+            raw_findings
+            if isinstance(raw_findings, Sequence) and not isinstance(raw_findings, (str, bytes))
+            else ()
+        )
 
-        for i, lim in enumerate(report.get("limitations", [])):
-            texts_to_check.append((f"limitations[{i}]", str(lim)))
+        for i, f in enumerate(findings):
+            if isinstance(f, dict):
+                summary = f.get("summary")
+                if isinstance(summary, str) and summary:
+                    texts_to_check.append((f"findings[{i}].summary", summary))
+                f_lims = f.get("limitations")
+                if isinstance(f_lims, Sequence) and not isinstance(f_lims, (str, bytes)):
+                    for j, lim in enumerate(f_lims):
+                        if isinstance(lim, str) and lim:
+                            texts_to_check.append((f"findings[{i}].limitations[{j}]", lim))
+
+        raw_limitations = report.get("limitations")
+        limitations: Sequence[Any] = (
+            raw_limitations
+            if isinstance(raw_limitations, Sequence) and not isinstance(raw_limitations, (str, bytes))
+            else ()
+        )
+
+        for i, lim in enumerate(limitations):
+            if isinstance(lim, str) and lim:
+                texts_to_check.append((f"limitations[{i}]", lim))
 
         for field_name, text in texts_to_check:
-            if not text:
-                continue
             for pat in self.ABSOLUTE_MARKETING_PATTERNS:
                 match = pat.search(text)
                 if match:
@@ -318,34 +394,66 @@ class ReportIntegrityAuditor:
 
     def _check_rule_finding_001(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Confirm all finding evidence_ids point to declared evidence records in the report."""
-        findings = report.get("findings", [])
-        evidence_list = report.get("evidence", [])
-        community_reports = report.get("community_reports", [])
+        raw_findings = report.get("findings")
+        findings: Sequence[Any] = (
+            raw_findings
+            if isinstance(raw_findings, Sequence) and not isinstance(raw_findings, (str, bytes))
+            else ()
+        )
+
+        raw_evidence = report.get("evidence")
+        evidence_list: Sequence[Any] = (
+            raw_evidence
+            if isinstance(raw_evidence, Sequence) and not isinstance(raw_evidence, (str, bytes))
+            else ()
+        )
+
+        raw_community = report.get("community_reports")
+        community_reports: Sequence[Any] = (
+            raw_community
+            if isinstance(raw_community, Sequence) and not isinstance(raw_community, (str, bytes))
+            else ()
+        )
 
         declared_ids: Set[str] = {
-            str(e.get("evidence_id")) for e in evidence_list if e.get("evidence_id")
+            str(e.get("evidence_id"))
+            for e in evidence_list
+            if isinstance(e, dict) and e.get("evidence_id")
         } | {
-            str(r.get("report_id")) for r in community_reports if r.get("report_id")
+            str(r.get("report_id"))
+            for r in community_reports
+            if isinstance(r, dict) and r.get("report_id")
         }
 
         for i, f in enumerate(findings):
-            ev_ids = f.get("evidence_ids", [])
-            finding_id = f.get("finding_id", f"finding[{i}]")
+            if not isinstance(f, dict):
+                issues.append(
+                    AuditIssue(
+                        rule_id=AuditRuleId.FINDING_001.value,
+                        severity=AuditSeverity.ERROR,
+                        affected_field=f"findings[{i}]",
+                        explanation=f"Finding at index {i} must be a dictionary mapping.",
+                    )
+                )
+                continue
 
-            if not ev_ids:
+            ev_ids = f.get("evidence_ids")
+            finding_id = str(f.get("finding_id", f"finding[{i}]"))
+
+            if not isinstance(ev_ids, Sequence) or isinstance(ev_ids, (str, bytes)) or len(ev_ids) == 0:
                 issues.append(
                     AuditIssue(
                         rule_id=AuditRuleId.FINDING_001.value,
                         severity=AuditSeverity.ERROR,
                         affected_field=f"findings[{i}].evidence_ids",
-                        explanation=f"Finding '{finding_id}' has empty evidence_ids. Every finding must cite at least one evidence ID.",
+                        explanation=f"Finding '{finding_id}' has empty or invalid evidence_ids. Every finding must cite at least one evidence ID.",
                     )
                 )
                 continue
 
             # If declared evidence records are present, verify referential integrity
             if declared_ids:
-                orphans = [eid for eid in ev_ids if str(eid) not in declared_ids]
+                orphans = [str(eid) for eid in ev_ids if str(eid) not in declared_ids]
                 if orphans:
                     issues.append(
                         AuditIssue(
@@ -363,7 +471,7 @@ class ReportIntegrityAuditor:
     def _check_rule_cov_002(self, report: Dict[str, Any], issues: List[AuditIssue]) -> None:
         """Confirm checks_total == checks_observed + checks_failed + checks_not_run."""
         coverage = report.get("coverage")
-        if not coverage or not isinstance(coverage, dict):
+        if not isinstance(coverage, dict):
             return
 
         total = coverage.get("checks_total")
@@ -372,10 +480,10 @@ class ReportIntegrityAuditor:
         not_run = coverage.get("checks_not_run")
 
         if (
-            isinstance(total, int)
-            and isinstance(observed, int)
-            and isinstance(failed, int)
-            and isinstance(not_run, int)
+            isinstance(total, int) and not isinstance(total, bool)
+            and isinstance(observed, int) and not isinstance(observed, bool)
+            and isinstance(failed, int) and not isinstance(failed, bool)
+            and isinstance(not_run, int) and not isinstance(not_run, bool)
         ):
             if total != (observed + failed + not_run):
                 issues.append(

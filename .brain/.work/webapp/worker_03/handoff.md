@@ -23,8 +23,8 @@
 
 ## Test Results
 ```
-Worker 03 Tests: Ran 94 tests in 0.010s — OK (zero regressions, zero errors)
-Full Repository: Ran 220 tests in 14.332s — OK (skipped=1)
+Worker 03 Tests: Ran 97 tests in 0.010s — OK (zero regressions, zero errors)
+Full Repository: Ran 223 tests in 14.332s — OK (skipped=1)
 All 8 schema/negative/cross-record fixture checks passed
 ```
 

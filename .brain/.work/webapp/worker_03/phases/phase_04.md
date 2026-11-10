@@ -108,7 +108,7 @@ Enforces 6 invariant checks prior to report publication:
 ---
 
 ## 5. Verification & Test Metrics
-- **Total Tests**: 94 unit and integration tests passing in 0.010s.
+- **Total Tests**: 97 unit and integration tests passing in 0.010s.
 - **Regressions**: 0 regressions on all 69 Phase 01, 02, and 03 tests.
-- **Full Suite**: 220 tests passed across the entire repository in `run_tests.py` (0 failures, 1 skipped).
+- **Full Suite**: 223 tests passed across the entire repository in `run_tests.py` (0 failures, 1 skipped).
 - **Worker Boundaries**: Locked strictly to `src/trusttrace/policy/`, `tests/test_triage_policy.py`, `.brain/`. Zero modifications to other workers or shared contracts.

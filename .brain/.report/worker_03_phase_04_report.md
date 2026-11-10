@@ -59,8 +59,8 @@ OK
 ```
 - Original Phase 01 & 02 tests: 29/29 PASSED.
 - Phase 03 evidence bridge tests: 40/40 PASSED.
-- Phase 04 uncertainty & integrity auditor tests: 25/25 PASSED.
-- Total: 94 tests, 0 failures, 0 regressions.
+- Phase 04 uncertainty & integrity auditor tests: 28/28 PASSED.
+- Total: 97 tests, 0 failures, 0 regressions.
 
 ### B. Worker Boundary Check
 ```
@@ -81,7 +81,7 @@ PASS: 8 schema/negative/cross-record fixture checks
 ### D. Full Repository Test Suite
 ```
 $ python run_tests.py
-Ran 220 tests in 14.332s
+Ran 223 tests in 14.332s
 OK (skipped=1)
 PASS: 8 schema/negative/cross-record fixture checks
 ALL WORKER 01, WORKER 02 & WORKER 03 TESTS & CONTRACT INVARIANTS PASSED!
