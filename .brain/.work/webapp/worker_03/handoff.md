@@ -1,6 +1,6 @@
 # worker_03 handoff
 
-**Status: PHASES 01, 02, 03, 04 & CROSS-WORKER POLICY INTEGRATION COMPLETED.**
+**Status: PHASES 01, 02, 03, 04, 05 & CROSS-WORKER POLICY INTEGRATION COMPLETED.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
@@ -13,8 +13,11 @@
   - `triage_engine.py` (multi-type `evaluate_evidence()`, deterministic finding IDs, orphan suppression)
   - `uncertainty.py` (UncertaintyType, ConfidenceBand, FreshnessPolicy, AbstentionNotice, UncertaintyEngine)
   - `integrity_auditor.py` (ReportIntegrityAuditor enforcing rules 1-6 and anti-marketing guard)
+  - `regression.py` (PolicyRegressionRunner, RegressionDiffReport for zero-false-positive drift detection)
+  - `evaluation.py` (FIXTURES_V1, FIXTURES_V2, build_eval_v1_set, build_eval_v2_set, ControlledEvaluationSet, ClaimAuditor)
+  - `decision_log.py` (DecisionAuditRecord, DecisionLog with in-memory audit indexing)
   - `__init__.py` (public exports)
-  - `tests/test_triage_policy.py` (107 tests passing)
+  - `tests/test_triage_policy.py` (122 tests passing)
 
 ## Contract Version
 - Policy version: `w03-v1.0`
@@ -23,8 +26,8 @@
 
 ## Test Results
 ```
-Worker 03 Tests: Ran 107 tests in 0.090s — OK (zero regressions, zero errors)
-Full Repository: Ran 233 tests in 15.910s — OK (skipped=1)
+Worker 03 Tests: Ran 122 tests in 0.131s — OK (zero regressions, zero errors)
+Full Repository: Ran 248 tests in 13.248s — OK (skipped=1)
 All 8 schema/negative/cross-record fixture checks passed
 ```
 
@@ -51,6 +54,25 @@ triage_result: TriageResult = engine.evaluate_evidence(policy_input)  # Also acc
 
 # Extract report fragment mergeable into scan_report.schema.json
 report_fragment = triage_result.to_report_fragment()
+```
+
+### 2. Policy Regression Runner & Controlled Evaluation (Phase 05)
+```python
+from trusttrace.policy import (
+    PolicyRegressionRunner,
+    build_eval_v1_set,
+    build_eval_v2_set,
+)
+
+runner = PolicyRegressionRunner()
+v2_suite = build_eval_v2_set()
+
+# Capture baseline
+snapshot = runner.capture_baseline_snapshot(v2_suite)
+
+# Verify zero policy drift against candidate policy engine
+diff = runner.run_regression_against_baseline(v2_suite, snapshot)
+assert not diff.has_regressions
 ```
 
 ### 2. Signal Construction (Safe Callsites)

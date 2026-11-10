@@ -9,16 +9,32 @@ Modules:
 - triage_engine: Conservative deterministic policy engine and evidence triage
 - uncertainty: Uncertainty taxonomy, ordinal confidence bands, freshness, and abstention
 - integrity_auditor: Automated report invariant auditor and anti-marketing guard
-- decision_log: Versioned decision audit trail
-- evaluation: Controlled evaluation set and claim audit
+- decision_log: Versioned decision audit trail and serializable audit records
+- evaluation: Controlled evaluation set, versioned suites, and claim audit
+- regression: Deterministic policy-version regression runner and diff reporting
 """
 
-from .decision_log import DecisionLog, DecisionLogEntry
+from .decision_log import DecisionAuditRecord, DecisionLog, DecisionLogEntry
 from .diagnostics import (
     DiagnosticCode,
     DiagnosticCollector,
     DiagnosticRecord,
     DiagnosticSeverity,
+)
+from .evaluation import (
+    FIXTURES_V1,
+    FIXTURES_V2,
+    ClaimAuditEntry,
+    ClaimAuditor,
+    ClaimCategory,
+    ClaimVerdict,
+    ControlledEvaluationSet,
+    EvaluationFixture,
+    EvaluationResult,
+    EvaluationSummary,
+    FixtureLabel,
+    build_eval_v1_set,
+    build_eval_v2_set,
 )
 from .input_validation import EvidenceValidator, ValidationIssue, ValidationResult
 from .integrity_auditor import (
@@ -36,6 +52,7 @@ from .policy_input import (
     PolicyInput,
     PolicyInputParseError,
 )
+from .regression import PolicyRegressionRunner, RegressionDiffReport
 from .signal_extractor import EvidenceSignalExtractor, SignalExtractionResult
 from .signal_taxonomy import (
     DimensionAssessment,
@@ -113,7 +130,25 @@ __all__ = [
     "AuditIssue",
     "ReportAuditResult",
     "ReportIntegrityAuditor",
-    # Decision Log
+    # Decision Log & Audit Records
     "DecisionLogEntry",
     "DecisionLog",
+    "DecisionAuditRecord",
+    # Evaluation Suites & Claim Audit (Phase 02 & Phase 05)
+    "EvaluationFixture",
+    "EvaluationResult",
+    "EvaluationSummary",
+    "ControlledEvaluationSet",
+    "ClaimAuditor",
+    "ClaimAuditEntry",
+    "ClaimCategory",
+    "ClaimVerdict",
+    "FixtureLabel",
+    "FIXTURES_V1",
+    "FIXTURES_V2",
+    "build_eval_v1_set",
+    "build_eval_v2_set",
+    # Policy Regression (Phase 05)
+    "PolicyRegressionRunner",
+    "RegressionDiffReport",
 ]

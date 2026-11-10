@@ -48,6 +48,7 @@ from trusttrace.policy import (
     ConfidenceBand,
     CoverageSummary,
     DEFAULT_FRESHNESS_WINDOWS,
+    DecisionAuditRecord,
     DiagnosticCode,
     DiagnosticCollector,
     DiagnosticRecord,
@@ -55,10 +56,14 @@ from trusttrace.policy import (
     EvidenceItem,
     EvidenceSignalExtractor,
     EvidenceValidator,
+    FIXTURES_V1,
+    FIXTURES_V2,
     FreshnessPolicy,
     ParseIssue,
     PolicyInput,
     PolicyInputParseError,
+    PolicyRegressionRunner,
+    RegressionDiffReport,
     ReportAuditResult,
     ReportIntegrityAuditor,
     SignalConfidence,
@@ -69,6 +74,8 @@ from trusttrace.policy import (
     UncertaintyType,
     ValidationIssue,
     ValidationResult,
+    build_eval_v1_set,
+    build_eval_v2_set,
     generate_deterministic_finding_id,
     normalize_signal_confidence,
 )
@@ -2478,6 +2485,340 @@ class Worker03IntegrationRemediationTests(unittest.TestCase):
         res4 = auditor.audit_report(evid002_violation)
         self.assertFalse(res4.is_valid)
         self.assertTrue(any(i.rule_id == AuditRuleId.EVID_002.value for i in res4.issues))
+
+
+# ─── Worker 03 Phase 05: Evaluation, Regression, and Invariants ───────
+
+
+class TestPolicyRegression(unittest.TestCase):
+    """Deterministic policy regression comparison tests (Phase 05)."""
+
+    def setUp(self):
+        self.engine = TriageEngine()
+        self.runner = PolicyRegressionRunner()
+
+    def test_capture_baseline_snapshot(self):
+        """Baseline snapshot captures deterministic semantic policy outcomes."""
+        snapshot = self.runner.capture_baseline_snapshot(self.engine, FIXTURES_V1)
+        self.assertEqual(len(snapshot), 7)
+        self.assertIn("FIX-001", snapshot)
+
+        f1 = snapshot["FIX-001"]
+        self.assertEqual(f1["fixture_id"], "FIX-001")
+        self.assertEqual(f1["decision"], "no_threat_observed")
+        self.assertEqual(f1["dimensions"]["certificate"], "valid_for_hostname")
+        self.assertIn("rules_triggered", f1)
+        self.assertIn("limitations", f1)
+        # Nondeterministic metadata should not be present
+        self.assertNotIn("timestamp", f1)
+        self.assertNotIn("scan_id", f1)
+
+    def test_regression_runner_zero_false_regressions(self):
+        """Running regression against baseline for unchanged engine reports zero regressions."""
+        snapshot = self.runner.capture_baseline_snapshot(self.engine, FIXTURES_V2)
+        diff = self.runner.run_regression_against_baseline(self.engine, snapshot, FIXTURES_V2)
+
+        self.assertFalse(diff.has_regressions)
+        self.assertEqual(len(diff.decision_shifts), 0)
+        self.assertEqual(len(diff.dimension_shifts), 0)
+        self.assertEqual(len(diff.rule_shifts), 0)
+        self.assertEqual(diff.passed_fixtures, 15)
+        self.assertEqual(diff.total_fixtures, 15)
+
+    def test_regression_runner_detects_deliberate_verdict_shift(self):
+        """Runner flags when candidate decision departs from baseline snapshot."""
+        snapshot = self.runner.capture_baseline_snapshot(self.engine, FIXTURES_V1)
+        # Deliberately modify baseline snapshot for FIX-001
+        snapshot["FIX-001"]["decision"] = "caution"
+
+        diff = self.runner.run_regression_against_baseline(self.engine, snapshot, FIXTURES_V1)
+        self.assertTrue(diff.has_regressions)
+        self.assertEqual(len(diff.decision_shifts), 1)
+        shift = diff.decision_shifts[0]
+        self.assertEqual(shift["fixture_id"], "FIX-001")
+        self.assertEqual(shift["baseline"], "caution")
+        self.assertEqual(shift["candidate"], "no_threat_observed")
+
+    def test_regression_runner_detects_dimension_shift(self):
+        """Runner flags when candidate dimensions depart from baseline snapshot."""
+        snapshot = self.runner.capture_baseline_snapshot(self.engine, FIXTURES_V1)
+        # Deliberately modify baseline dimension for FIX-002
+        snapshot["FIX-002"]["dimensions"]["behavior"] = "suspicious"
+
+        diff = self.runner.run_regression_against_baseline(self.engine, snapshot, FIXTURES_V1)
+        self.assertTrue(diff.has_regressions)
+        self.assertEqual(len(diff.dimension_shifts), 1)
+        shift = diff.dimension_shifts[0]
+        self.assertEqual(shift["fixture_id"], "FIX-002")
+        self.assertEqual(shift["dimension"], "behavior")
+        self.assertEqual(shift["baseline"], "suspicious")
+        self.assertEqual(shift["candidate"], "malicious_evidence")
+
+    def test_regression_diff_report_serialization(self):
+        """RegressionDiffReport serializes cleanly to dict and JSON."""
+        snapshot = self.runner.capture_baseline_snapshot(self.engine, FIXTURES_V1)
+        snapshot["FIX-003"]["decision"] = "caution"
+        diff = self.runner.run_regression_against_baseline(self.engine, snapshot, FIXTURES_V1)
+
+        d = diff.to_dict()
+        self.assertIsInstance(d, dict)
+        self.assertTrue(d["has_regressions"])
+        self.assertEqual(len(d["decision_shifts"]), 1)
+
+        j = diff.to_json()
+        parsed = json.loads(j)
+        self.assertEqual(parsed["total_fixtures"], 7)
+        self.assertTrue(parsed["has_regressions"])
+
+    def test_decision_audit_record_semantic_dict(self):
+        """DecisionAuditRecord provides deterministic semantic dict excluding transient keys."""
+        record = DecisionAuditRecord(
+            audit_id="audit-12345",
+            scan_id="scan-abc",
+            target="example.com",
+            policy_version="1.0.0",
+            timestamp="2026-11-10T12:00:00Z",
+            decision="no_threat_observed",
+            dimensions={"identity": "unverified", "certificate": "valid_for_hostname", "behavior": "no_threat_observed", "evidence_quality": "strong"},
+            findings=[{"code": "NO_THREAT", "category": "behavior"}],
+            limitations=["Simulated fixture context"],
+            uncertainty={"band": "high"},
+            rules_triggered=["RULE_CERT_VALID", "RULE_NO_THREAT"],
+        )
+
+        semantic = record.to_semantic_dict()
+        self.assertEqual(semantic["target"], "example.com")
+        self.assertEqual(semantic["decision"], "no_threat_observed")
+        self.assertNotIn("scan_id", semantic)
+        self.assertNotIn("audit_id", semantic)
+        self.assertNotIn("timestamp", semantic)
+
+        # JSON round-trip of full record
+        full_json = record.to_json()
+        restored = DecisionAuditRecord.from_json(full_json)
+        self.assertEqual(restored.audit_id, "audit-12345")
+        self.assertEqual(restored.decision, "no_threat_observed")
+
+    def test_decision_log_record_audit_integration(self):
+        """DecisionLog records and indexes DecisionAuditRecord without external DB."""
+        log = DecisionLog()
+        record = DecisionAuditRecord(
+            audit_id="aud-1",
+            scan_id="scan-99",
+            target="trusted.org",
+            policy_version="1.0.0",
+            timestamp="2026-11-10T00:00:00Z",
+            decision="inconclusive",
+            dimensions={"evidence_quality": "unavailable"},
+        )
+        log.record_audit(record)
+        self.assertEqual(len(log.audit_records), 1)
+
+        found = log.find_audit_by_scan("scan-99")
+        self.assertIsNotNone(found)
+        self.assertEqual(found.target, "trusted.org")
+        self.assertIsNone(log.find_audit_by_scan("non-existent"))
+
+
+class TestExpandedFixtures(unittest.TestCase):
+    """Controlled evaluation suites v1 (frozen) and v2 (expanded 15 fixtures)."""
+
+    def setUp(self):
+        self.engine = TriageEngine()
+
+    def test_v1_fixtures_frozen_and_pass(self):
+        """Canonical v1 suite contains exactly 7 fixtures and all pass."""
+        eval_v1 = build_eval_v1_set()
+        self.assertTrue(eval_v1.is_frozen)
+        self.assertEqual(len(eval_v1.fixtures), 7)
+        with self.assertRaises(RuntimeError):
+            eval_v1.add_fixture(eval_v1.fixtures[0])
+
+        summary = eval_v1.run_evaluation(self.engine)
+        self.assertEqual(summary.total_fixtures, 7)
+        self.assertEqual(summary.passed, 7)
+        self.assertEqual(summary.failed, 0)
+        self.assertTrue(summary.is_simulated)
+
+    def test_v2_fixtures_expanded_and_pass(self):
+        """Expanded v2 suite contains exactly 15 fixtures and all pass."""
+        eval_v2 = build_eval_v2_set()
+        self.assertTrue(eval_v2.is_frozen)
+        self.assertEqual(len(eval_v2.fixtures), 15)
+        with self.assertRaises(RuntimeError):
+            eval_v2.add_fixture(eval_v2.fixtures[0])
+
+        summary = eval_v2.run_evaluation(self.engine)
+        self.assertEqual(summary.total_fixtures, 15)
+        self.assertEqual(summary.passed, 15)
+        self.assertEqual(summary.failed, 0)
+        self.assertTrue(summary.is_simulated)
+
+    def test_all_fixtures_marked_simulated(self):
+        """Every fixture in v1 and v2 is explicitly marked is_simulated=True."""
+        for f in FIXTURES_V1:
+            self.assertTrue(f.is_simulated, f"{f.fixture_id} must have is_simulated=True")
+        for f in FIXTURES_V2:
+            self.assertTrue(f.is_simulated, f"{f.fixture_id} must have is_simulated=True")
+
+    def test_summary_honest_limitations_and_class_prevalence(self):
+        """EvaluationSummary reports honest limitations without claiming generalization."""
+        eval_v2 = build_eval_v2_set()
+        summary = eval_v2.run_evaluation(self.engine)
+
+        self.assertTrue(any("simulated" in lim.lower() for lim in summary.limitations))
+        prev = eval_v2.get_class_prevalence()
+        self.assertIn("no_threat_observed", prev)
+        self.assertIn("inconclusive", prev)
+        self.assertIn("caution", prev)
+        self.assertIn("high_risk", prev)
+
+    def test_v2_specific_fixture_behaviors(self):
+        """Specific behavioral verification for each of FIX-008 through FIX-015."""
+        eval_v2 = build_eval_v2_set()
+        res_map = {r.fixture_id: r for r in eval_v2.run_evaluation(self.engine).results}
+
+        # FIX-008: Expired TLS alone does not trigger high_risk
+        self.assertEqual(res_map["FIX-008"].actual_decision, "no_threat_observed")
+        self.assertEqual(res_map["FIX-008"].actual_dimensions["certificate"], "invalid_or_expired")
+
+        # FIX-009: IDN lookalike heuristic leaves identity unverified without asserting high_risk
+        self.assertEqual(res_map["FIX-009"].actual_decision, "inconclusive")
+        self.assertEqual(res_map["FIX-009"].actual_dimensions["identity"], "unverified")
+
+        # FIX-010: Private IP blocked upstream yields inconclusive with unavailable quality
+        self.assertEqual(res_map["FIX-010"].actual_decision, "inconclusive")
+        self.assertEqual(res_map["FIX-010"].actual_dimensions["evidence_quality"], "unavailable")
+
+        # FIX-011: Stale threat feed preserves positive threat evidence with partial quality
+        self.assertEqual(res_map["FIX-011"].actual_decision, "high_risk")
+        self.assertEqual(res_map["FIX-011"].actual_dimensions["evidence_quality"], "partial")
+
+        # FIX-012: Rate-limited collector outcome maps to collector_failure and unavailable quality
+        self.assertEqual(res_map["FIX-012"].actual_decision, "inconclusive")
+        self.assertEqual(res_map["FIX-012"].actual_dimensions["evidence_quality"], "unavailable")
+
+        # FIX-013: Corroborated community report elevates behavior to suspicious
+        self.assertEqual(res_map["FIX-013"].actual_decision, "caution")
+        self.assertEqual(res_map["FIX-013"].actual_dimensions["behavior"], "suspicious")
+
+        # FIX-014: Complete network timeout yields unavailable evidence quality
+        self.assertEqual(res_map["FIX-014"].actual_decision, "inconclusive")
+        self.assertEqual(res_map["FIX-014"].actual_dimensions["evidence_quality"], "unavailable")
+
+        # FIX-015: Conflicting provider observations retain evidence and cap at inconclusive
+        self.assertEqual(res_map["FIX-015"].actual_decision, "inconclusive")
+        self.assertEqual(res_map["FIX-015"].actual_dimensions["evidence_quality"], "partial")
+
+
+class TestPolicyInvariantsAndFuzzing(unittest.TestCase):
+    """Invariant preservation, permutation invariance, and fixed-seed property fuzzing."""
+
+    def setUp(self):
+        self.engine = TriageEngine()
+
+    def test_permutation_invariance_deterministic(self):
+        """Signal presentation order does not change semantic decision or dimensions."""
+        test_scenarios = [
+            # Scenario A: Clean site with valid TLS and collectors
+            [
+                SignalRecord(kind=SignalKind.TLS_VALID, evidence_ids=["e1"], source="tls"),
+                SignalRecord(kind=SignalKind.TLS_HOSTNAME_MATCH, evidence_ids=["e1"], source="tls"),
+                SignalRecord(kind=SignalKind.NO_THREAT_MATCH, evidence_ids=["e2"], source="dns"),
+                SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["e1", "e2"], source="orch"),
+            ],
+            # Scenario B: High risk threat match
+            [
+                SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["e1"], source="orch"),
+                SignalRecord(kind=SignalKind.THREAT_FEED_MATCH, evidence_ids=["e1"], source="feed"),
+                SignalRecord(kind=SignalKind.TLS_MISMATCH, evidence_ids=["e2"], source="tls"),
+            ],
+            # Scenario C: Conflicting signals
+            [
+                SignalRecord(kind=SignalKind.NO_THREAT_MATCH, evidence_ids=["e1"], source="feed1"),
+                SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["e1", "e2"], source="orch"),
+                SignalRecord(kind=SignalKind.THREAT_FEED_MATCH, evidence_ids=["e2"], source="feed2"),
+                SignalRecord(kind=SignalKind.CONFLICTING_SIGNALS, evidence_ids=["e1", "e2"], source="orch"),
+            ],
+            # Scenario D: Community caution
+            [
+                SignalRecord(kind=SignalKind.COLLECTOR_SUCCESS, evidence_ids=["e1"], source="orch"),
+                SignalRecord(kind=SignalKind.COMMUNITY_REPORT_CORROBORATED, evidence_ids=["e2"], source="comm"),
+                SignalRecord(kind=SignalKind.TLS_VALID, evidence_ids=["e3"], source="tls"),
+            ],
+        ]
+
+        import random
+        for scenario in test_scenarios:
+            res_forward = self.engine.evaluate(scenario)
+            res_reverse = self.engine.evaluate(list(reversed(scenario)))
+            self.assertEqual(res_forward.decision, res_reverse.decision)
+            self.assertEqual(res_forward.dimensions, res_reverse.dimensions)
+
+            # Random permutations
+            rng = random.Random(42)
+            for _ in range(5):
+                shuffled = list(scenario)
+                rng.shuffle(shuffled)
+                res_shuffled = self.engine.evaluate(shuffled)
+                self.assertEqual(res_forward.decision, res_shuffled.decision)
+                self.assertEqual(res_forward.dimensions, res_shuffled.dimensions)
+
+    def test_fixed_seed_property_based_fuzzing(self):
+        """150 randomized valid signal combinations uphold all policy invariants."""
+        import random
+        rng = random.Random(1337)
+        all_kinds = list(SignalKind)
+        valid_decisions = {"high_risk", "caution", "no_threat_observed", "inconclusive"}
+
+        for i in range(150):
+            sample_size = rng.randint(0, 12)
+            kinds = [rng.choice(all_kinds) for _ in range(sample_size)]
+            signals = [
+                SignalRecord(
+                    kind=kd,
+                    evidence_ids=[f"ev-fuzz-{j}"],
+                    source="fuzz_generator",
+                    confidence="direct_observation",
+                )
+                for j, kd in enumerate(kinds)
+            ]
+
+            # Invariant 1: No unhandled exceptions
+            res = self.engine.evaluate(signals)
+
+            # Invariant 2: Decision is within legal non-affirmative set (EVID-002: never safe or clean)
+            self.assertIn(res.decision, valid_decisions, f"Illegal decision at iteration {i}: {res.decision}")
+            self.assertNotIn(res.decision, {"safe", "clean", "benign", "secure"})
+
+            # Invariant 3: All 4 dimensions present and non-empty
+            for dim_name in ("identity", "certificate", "behavior", "evidence_quality"):
+                self.assertIn(dim_name, res.dimensions, f"Missing dimension {dim_name} at iteration {i}")
+                self.assertTrue(len(res.dimensions[dim_name]) > 0)
+
+            # Invariant 4: TLS-001 (Identity supported requires explicit authorization evidence)
+            if res.dimensions.get("identity") == "supported":
+                self.assertTrue(
+                    any(s.kind == SignalKind.AUTHORIZATION_EVIDENCE for s in signals),
+                    f"TLS-001 violated at iteration {i}: identity supported without authorization signal",
+                )
+
+            # Invariant 5: EVID-001 (Unavailable evidence quality cannot produce no_threat_observed)
+            if res.dimensions.get("evidence_quality") == "unavailable":
+                self.assertNotEqual(
+                    res.decision,
+                    "no_threat_observed",
+                    f"EVID-001 violated at iteration {i}: unavailable quality produced no_threat_observed",
+                )
+
+    def test_malformed_input_isolation(self):
+        """Passing non-SignalRecord elements raises appropriate error without engine corruption."""
+        with self.assertRaises(AttributeError):
+            self.engine.evaluate(["invalid_string_instead_of_signal"])  # type: ignore
+
+        # Engine remains fully functional after error
+        res = self.engine.evaluate([])
+        self.assertEqual(res.decision, "inconclusive")
 
 
 if __name__ == "__main__":
