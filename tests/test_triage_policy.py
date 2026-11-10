@@ -39,6 +39,29 @@ from trusttrace.policy.evaluation import (
     ClaimVerdict,
     ClaimCategory,
 )
+from trusttrace.policy import (
+    CommunityReportItem,
+    CoverageSummary,
+    DiagnosticCode,
+    DiagnosticCollector,
+    DiagnosticRecord,
+    DiagnosticSeverity,
+    EvidenceItem,
+    EvidenceSignalExtractor,
+    EvidenceValidator,
+    ParseIssue,
+    PolicyInput,
+    PolicyInputParseError,
+    SignalConfidence,
+    SignalExtractionResult,
+    ValidationIssue,
+    ValidationResult,
+    generate_deterministic_finding_id,
+    normalize_signal_confidence,
+)
+import json
+from dataclasses import FrozenInstanceError
+
 
 
 class TestSignalTaxonomy(unittest.TestCase):
@@ -793,6 +816,879 @@ class TestSchemaCompliance(unittest.TestCase):
             self.assertGreater(len(finding["evidence_ids"]), 0)
 
 
+# =====================================================================
+# Phase 03 Tests: DTOs, Validation, Signal Extraction, and Integration
+# =====================================================================
+
+
+class TestPolicyInputDTOs(unittest.TestCase):
+    """Tests for PolicyInput and canonical evidence DTO parsing and immutability."""
+
+    def setUp(self):
+        with open(".brain/.testdata/v1/complete_report.json", "r") as f:
+            self.complete_dict = json.load(f)
+
+    def test_v1_complete_report_parsing_strict(self):
+        """Official complete fixture parses cleanly with strict=True."""
+        parsed = PolicyInput.from_v1_dict(self.complete_dict, strict=True)
+        self.assertEqual(parsed.scan_id, "fixture-complete-001")
+        self.assertEqual(parsed.target, "example.test")
+        self.assertEqual(len(parsed.evidence), 1)
+        self.assertIsNotNone(parsed.coverage)
+        self.assertEqual(parsed.coverage.checks_total, 4)
+        self.assertEqual(parsed.coverage.checks_observed, 3)
+        self.assertFalse(parsed.coverage.is_aggregate_complete())
+        self.assertTrue(parsed.is_valid)
+
+    def test_immutability_guarantees(self):
+        """All DTOs enforce dataclass and nested MappingProxyType immutability."""
+        parsed = PolicyInput.from_v1_dict(self.complete_dict, strict=True)
+
+        # Dataclass reassignment raises FrozenInstanceError
+        with self.assertRaises(FrozenInstanceError):
+            parsed.target = "tampered.test"
+
+        ev = parsed.evidence[0]
+        with self.assertRaises(FrozenInstanceError):
+            ev.status = "tampered"
+
+        # MappingProxyType prevents in-place dictionary mutations
+        with self.assertRaises(TypeError):
+            parsed.unparsed_fields["new_key"] = "tampered"
+
+        with self.assertRaises(TypeError):
+            ev.unparsed_fields["new_key"] = "tampered"
+
+        with self.assertRaises(TypeError):
+            ev.value["result"] = "tampered"
+
+    def test_caller_dict_never_mutated(self):
+        """Parsing must never mutate caller's input dictionary or nested objects."""
+        import copy
+        dict_copy = copy.deepcopy(self.complete_dict)
+        _ = PolicyInput.from_v1_dict(self.complete_dict, strict=True)
+        self.assertEqual(self.complete_dict, dict_copy)
+
+    def test_malformed_evidence_rejected_strict(self):
+        """Strict parsing rejects non-string evidence_id or missing fields."""
+        import copy
+        bad_dict = copy.deepcopy(self.complete_dict)
+        bad_dict["evidence"][0]["evidence_id"] = 12345
+        with self.assertRaises(PolicyInputParseError) as ctx:
+            PolicyInput.from_v1_dict(bad_dict, strict=True)
+        self.assertTrue(any("evidence_id" in str(i.path) for i in ctx.exception.issues))
+
+    def test_non_strict_parsing_retains_parse_issues(self):
+        """Non-strict mode omits invalid records and populates parse_issues."""
+        import copy
+        bad_dict = copy.deepcopy(self.complete_dict)
+        bad_dict["evidence"][0]["evidence_id"] = 99999
+        parsed = PolicyInput.from_v1_dict(bad_dict, strict=False)
+        self.assertFalse(parsed.is_valid)
+        self.assertGreater(len(parsed.parse_issues), 0)
+        self.assertEqual(len(parsed.evidence), 0)
+
+    def test_bare_string_limitations_rejected(self):
+        """Bare string for limitations sequence must be rejected."""
+        import copy
+        bad_dict = copy.deepcopy(self.complete_dict)
+        bad_dict["evidence"][0]["limitations"] = "bare string"
+        with self.assertRaises(PolicyInputParseError):
+            PolicyInput.from_v1_dict(bad_dict, strict=True)
+
+    def test_bare_string_linked_evidence_rejected(self):
+        """Bare string for linked_evidence_ids sequence must be rejected."""
+        comm_dict = {
+            "report_id": "rep-1",
+            "normalized_domain": "example.test",
+            "claim_type": "phishing",
+            "verification_state": "verified",
+            "independent_source_count": 2,
+            "linked_evidence_ids": "bare_string_id",
+        }
+        with self.assertRaises(PolicyInputParseError):
+            CommunityReportItem.from_dict(comm_dict, strict=True)
+
+    def test_coverage_summary_arithmetic(self):
+        """Coverage arithmetic invariant is enforced (total = observed + failed + not_run)."""
+        # Arithmetic mismatch: 3 + 2 + 1 != 4
+        bad_cov = {
+            "checks_total": 4,
+            "checks_observed": 3,
+            "checks_failed": 2,
+            "checks_not_run": 1,
+        }
+        with self.assertRaises(PolicyInputParseError):
+            CoverageSummary.from_dict(bad_cov, strict=True)
+
+    def test_coverage_aggregate_completeness(self):
+        """is_aggregate_complete returns True only if observed == total > 0 and failed == not_run == 0."""
+        complete_cov = CoverageSummary(checks_total=4, checks_observed=4, checks_failed=0, checks_not_run=0)
+        self.assertTrue(complete_cov.is_aggregate_complete())
+
+        partial_cov = CoverageSummary(checks_total=4, checks_observed=3, checks_failed=0, checks_not_run=1)
+        self.assertFalse(partial_cov.is_aggregate_complete())
+
+        failed_cov = CoverageSummary(checks_total=4, checks_observed=2, checks_failed=2, checks_not_run=0)
+        self.assertFalse(failed_cov.is_aggregate_complete())
+
+    def test_unknown_fields_preserved_isolated(self):
+        """Unknown nested and top-level fields are safely isolated into unparsed_fields."""
+        import copy
+        extra_dict = copy.deepcopy(self.complete_dict)
+        extra_dict["custom_flag"] = "top_level_flag"
+        extra_dict["evidence"][0]["custom_metric"] = 123.45
+
+        parsed = PolicyInput.from_v1_dict(extra_dict, strict=True)
+        self.assertEqual(parsed.unparsed_fields.get("custom_flag"), "top_level_flag")
+        self.assertEqual(parsed.evidence[0].unparsed_fields.get("custom_metric"), 123.45)
+
+    def test_target_resolution_and_validation(self):
+        """Resolves target from 'target' or 'normalized_host', rejecting blank targets."""
+        with_target = {"scan_id": "s-1", "target": "domain.com"}
+        p1 = PolicyInput.from_v1_dict(with_target, strict=True)
+        self.assertEqual(p1.target, "domain.com")
+
+        with_host = {"scan_id": "s-2", "normalized_host": "domain.com"}
+        p2 = PolicyInput.from_v1_dict(with_host, strict=True)
+        self.assertEqual(p2.target, "domain.com")
+
+        with_blank = {"scan_id": "s-3", "target": "   "}
+        with self.assertRaises(PolicyInputParseError):
+            PolicyInput.from_v1_dict(with_blank, strict=True)
+
+
+class TestInputValidation(unittest.TestCase):
+    """Tests for EvidenceValidator rule enforcement and diagnostics generation."""
+
+    def setUp(self):
+        self.validator = EvidenceValidator()
+
+    def test_valid_input_passes(self):
+        """Well-formed PolicyInput passes validation with zero errors."""
+        policy_input = PolicyInput(
+            scan_id="scan-001",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertTrue(result.is_valid)
+        self.assertEqual(len(result.issues), 0)
+
+    def test_duplicate_evidence_ids_flagged(self):
+        """Duplicate evidence IDs in evidence batch produce ERROR issue."""
+        policy_input = PolicyInput(
+            scan_id="scan-002",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dup",
+                    kind="tls_certificate",
+                    source="src1",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dup",
+                    kind="dns_resolution",
+                    source="src2",
+                    observed_at="2026-11-10T08:01:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={},
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertFalse(result.is_valid)
+        self.assertTrue(any(i.code == DiagnosticCode.DUPLICATE_EVIDENCE_ID for i in result.issues))
+
+    def test_invalid_timestamps_flagged(self):
+        """Non-ISO or non-UTC timestamps produce validation error."""
+        policy_input = PolicyInput(
+            scan_id="scan-003",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-time",
+                    kind="tls_certificate",
+                    source="src1",
+                    observed_at="invalid-date-format",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={},
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertFalse(result.is_valid)
+        self.assertTrue(any(i.code == DiagnosticCode.MALFORMED_PAYLOAD for i in result.issues))
+
+    def test_target_scope_mismatch_flagged(self):
+        """Payload explicit target mismatch with scan target produces scope warning."""
+        policy_input = PolicyInput(
+            scan_id="scan-004",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-scope",
+                    kind="tls_certificate",
+                    source="src1",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"hostname": "another-different-domain.org"},
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertTrue(any(d.code == DiagnosticCode.TARGET_SCOPE_MISMATCH for d in result.diagnostics))
+
+    def test_community_report_target_mismatch(self):
+        """Community report targeting a different domain produces scope mismatch diagnostic."""
+        policy_input = PolicyInput(
+            scan_id="scan-005",
+            target="example.com",
+            scan_profile="standard",
+            community_reports=(
+                CommunityReportItem(
+                    report_id="rep-mismatch",
+                    normalized_domain="phish-target.net",
+                    claim_type="phishing",
+                    verification_state="verified",
+                    independent_source_count=2,
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertTrue(any(d.code == DiagnosticCode.TARGET_SCOPE_MISMATCH for d in result.diagnostics))
+
+    def test_unlinked_community_report_flagged(self):
+        """Community report citing non-existent evidence IDs is flagged."""
+        policy_input = PolicyInput(
+            scan_id="scan-006",
+            target="example.com",
+            scan_profile="standard",
+            community_reports=(
+                CommunityReportItem(
+                    report_id="rep-unlinked",
+                    normalized_domain="example.com",
+                    claim_type="phishing",
+                    verification_state="verified",
+                    independent_source_count=2,
+                    linked_evidence_ids=("non_existent_ev_999",),
+                ),
+            ),
+        )
+        result = self.validator.validate(policy_input)
+        self.assertTrue(any(d.code == DiagnosticCode.UNLINKED_COMMUNITY_REPORT for d in result.diagnostics))
+
+
+class TestSignalConfidenceAndTaxonomy(unittest.TestCase):
+    """Tests for SignalConfidence enum, normalization, and SignalRecord validation."""
+
+    def test_signal_confidence_normalization(self):
+        """Ordinal confidence normalizes strings, legacy reliabilities, and enums into the approved six-value design."""
+        # Six-value design
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.HIGH_CONFIDENCE), SignalConfidence.HIGH_CONFIDENCE)
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.OBSERVED), SignalConfidence.OBSERVED)
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.CORROBORATED), SignalConfidence.CORROBORATED)
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.HEURISTIC), SignalConfidence.HEURISTIC)
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.UNVERIFIED), SignalConfidence.UNVERIFIED)
+        self.assertEqual(normalize_signal_confidence(SignalConfidence.UNKNOWN), SignalConfidence.UNKNOWN)
+
+        # Legacy normalization
+        self.assertEqual(normalize_signal_confidence("direct_observation"), SignalConfidence.OBSERVED)
+        self.assertEqual(normalize_signal_confidence("verified_source"), SignalConfidence.HIGH_CONFIDENCE)
+        self.assertEqual(normalize_signal_confidence("corroborated"), SignalConfidence.CORROBORATED)
+        self.assertEqual(normalize_signal_confidence("heuristic"), SignalConfidence.HEURISTIC)
+        self.assertEqual(normalize_signal_confidence("unverified_third_party"), SignalConfidence.UNVERIFIED)
+        self.assertEqual(normalize_signal_confidence("untrusted"), SignalConfidence.UNKNOWN)
+
+        # Compatibility aliases
+        self.assertEqual(normalize_signal_confidence("high"), SignalConfidence.HIGH)
+        self.assertEqual(normalize_signal_confidence("medium"), SignalConfidence.MEDIUM)
+        self.assertEqual(normalize_signal_confidence("low"), SignalConfidence.LOW)
+        self.assertEqual(normalize_signal_confidence("inferred"), SignalConfidence.INFERRED)
+
+    def test_legacy_confidence_string_compatibility(self):
+        """SignalRecord accepts string or SignalConfidence and maintains equality with strings."""
+        sig = SignalRecord(
+            kind=SignalKind.TLS_VALID,
+            evidence_ids=["ev-1"],
+            source="test",
+            confidence="direct_observation",
+        )
+        self.assertEqual(sig.confidence_level, SignalConfidence.OBSERVED)
+        self.assertEqual(sig.confidence, "direct_observation")
+        self.assertEqual(sig.confidence, "direct_observation")
+
+    def test_bare_string_evidence_ids_rejected(self):
+        """Passing a bare string instead of a sequence of evidence_ids raises TypeError."""
+        with self.assertRaises(TypeError):
+            SignalRecord(
+                kind=SignalKind.TLS_VALID,
+                evidence_ids="ev-1",  # type: ignore[arg-type]
+                source="test",
+            )
+
+    def test_empty_evidence_id_rejected(self):
+        """Empty or blank string within evidence_ids raises ValueError."""
+        with self.assertRaises(ValueError):
+            SignalRecord(
+                kind=SignalKind.TLS_VALID,
+                evidence_ids=["ev-1", "  "],
+                source="test",
+            )
+
+
+class TestEvidenceSignalExtractor(unittest.TestCase):
+    """Tests for deterministic evidence-to-signal extraction rules."""
+
+    def setUp(self):
+        self.extractor = EvidenceSignalExtractor()
+
+    def test_tls_certificate_valid_semantics(self):
+        """Full TLS certificate observed with valid, matched, and non-expired flags."""
+        policy_input = PolicyInput(
+            scan_id="s-tls-1",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.TLS_VALID, kinds)
+        self.assertIn(SignalKind.TLS_HOSTNAME_MATCH, kinds)
+        self.assertIn(SignalKind.COLLECTOR_SUCCESS, kinds)
+
+    def test_tls_certificate_expired(self):
+        """Expired TLS certificate emits TLS_EXPIRED."""
+        policy_input = PolicyInput(
+            scan_id="s-tls-2",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-exp",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": False, "hostname_match": True, "is_expired": True},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.TLS_EXPIRED, kinds)
+        self.assertNotIn(SignalKind.TLS_VALID, kinds)
+
+    def test_tls_certificate_mismatch(self):
+        """Hostname mismatched TLS certificate emits TLS_MISMATCH."""
+        policy_input = PolicyInput(
+            scan_id="s-tls-3",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-mis",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": False, "hostname_match": False, "is_expired": False},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.TLS_MISMATCH, kinds)
+        self.assertNotIn(SignalKind.TLS_HOSTNAME_MATCH, kinds)
+
+    def test_tls_hostname_validation_fixture_semantics(self):
+        """Fixture tls_hostname_validation with valid_for_hostname emits ONLY TLS_HOSTNAME_MATCH."""
+        policy_input = PolicyInput(
+            scan_id="s-tls-fix",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-fix",
+                    kind="tls_hostname_validation",
+                    source="fixture_adapter",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"result": "valid_for_hostname"},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.TLS_HOSTNAME_MATCH, kinds)
+        # Invariant: Fixture validation CANNOT independently establish certificate validity or expiry
+        self.assertNotIn(SignalKind.TLS_VALID, kinds)
+        self.assertNotIn(SignalKind.TLS_EXPIRED, kinds)
+
+    def test_tls_failure_semantics(self):
+        """Failed TLS handshake emits TLS_UNAVAILABLE and COLLECTOR_FAILURE."""
+        policy_input = PolicyInput(
+            scan_id="s-tls-fail",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-fail",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "handshake_timeout"},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.TLS_UNAVAILABLE, kinds)
+        self.assertIn(SignalKind.COLLECTOR_FAILURE, kinds)
+
+    def test_dns_resolution_observed_and_blocked(self):
+        """Observed DNS emits COLLECTOR_SUCCESS; blocked DNS records BLOCKED_DESTINATION_POLICY."""
+        policy_input = PolicyInput(
+            scan_id="s-dns",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns-obs",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dns-blk",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at="2026-11-10T08:00:01Z",
+                    status="blocked",
+                    reliability="direct_observation",
+                    value={"reason": "ssrf_loopback_blocked"},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        kinds = {s.kind for s in res.signals}
+        self.assertIn(SignalKind.COLLECTOR_SUCCESS, kinds)
+        # Blocked destination is NOT a collector failure!
+        self.assertNotIn(SignalKind.COLLECTOR_FAILURE, kinds)
+        self.assertTrue(any(d.code == DiagnosticCode.BLOCKED_DESTINATION_POLICY for d in res.diagnostics))
+
+    def test_threat_feed_match_provenance_and_scope(self):
+        """Threat intelligence emits THREAT_FEED_MATCH with verified provider, suppressed if untrusted."""
+        trusted_input = PolicyInput(
+            scan_id="s-threat-1",
+            target="evil.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="phish_feed_alpha",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="verified_source",
+                    value={"matched": True, "target": "evil.com"},
+                ),
+            ),
+        )
+        res1 = self.extractor.extract_signals(trusted_input)
+        kinds1 = {s.kind for s in res1.signals}
+        self.assertIn(SignalKind.THREAT_FEED_MATCH, kinds1)
+
+        untrusted_input = PolicyInput(
+            scan_id="s-threat-2",
+            target="evil.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-threat-untrusted",
+                    kind="threat_intelligence",
+                    source="random_forum",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="untrusted",
+                    value={"matched": True, "target": "evil.com"},
+                ),
+            ),
+        )
+        res2 = self.extractor.extract_signals(untrusted_input)
+        kinds2 = {s.kind for s in res2.signals}
+        self.assertNotIn(SignalKind.THREAT_FEED_MATCH, kinds2)
+        self.assertTrue(any(d.code == DiagnosticCode.UNVERIFIED_THREAT_PROVENANCE for d in res2.diagnostics))
+
+    def test_no_threat_match_discipline(self):
+        """NO_THREAT_MATCH emitted ONLY on successful negative match, NEVER on failure."""
+        negative_input = PolicyInput(
+            scan_id="s-neg",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-neg",
+                    kind="threat_intelligence",
+                    source="reputable_feed",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="reputable_third_party",
+                    value={"matched": False, "target": "example.com"},
+                ),
+            ),
+        )
+        res1 = self.extractor.extract_signals(negative_input)
+        self.assertIn(SignalKind.NO_THREAT_MATCH, {s.kind for s in res1.signals})
+
+        failed_feed_input = PolicyInput(
+            scan_id="s-fail-feed",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-fail-feed",
+                    kind="threat_intelligence",
+                    source="reputable_feed",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="failed",
+                    reliability="reputable_third_party",
+                    value={"error": "api_timeout"},
+                ),
+            ),
+        )
+        res2 = self.extractor.extract_signals(failed_feed_input)
+        self.assertNotIn(SignalKind.NO_THREAT_MATCH, {s.kind for s in res2.signals})
+        self.assertIn(SignalKind.COLLECTOR_FAILURE, {s.kind for s in res2.signals})
+
+    def test_community_report_corroboration(self):
+        """Community report requires >= 2 independent source families AND valid linked evidence IDs to corroborate."""
+        corroborated_input = PolicyInput(
+            scan_id="s-comm-1",
+            target="example.com",
+            scan_profile="standard",
+            community_reports=(
+                CommunityReportItem(
+                    report_id="rep-corr",
+                    normalized_domain="example.com",
+                    claim_type="phishing",
+                    verification_state="verified",
+                    independent_source_count=3,
+                    linked_evidence_ids=("ev-linked-1",),
+                ),
+            ),
+        )
+        res1 = self.extractor.extract_signals(corroborated_input)
+        self.assertIn(SignalKind.COMMUNITY_REPORT_CORROBORATED, {s.kind for s in res1.signals})
+
+        # Strict requirement: >= 2 sources but NO linked evidence IDs must NOT corroborate!
+        missing_linked_input = PolicyInput(
+            scan_id="s-comm-1b",
+            target="example.com",
+            scan_profile="standard",
+            community_reports=(
+                CommunityReportItem(
+                    report_id="rep-corr-nolink",
+                    normalized_domain="example.com",
+                    claim_type="phishing",
+                    verification_state="verified",
+                    independent_source_count=3,
+                    linked_evidence_ids=(),
+                ),
+            ),
+        )
+        res1b = self.extractor.extract_signals(missing_linked_input)
+        self.assertNotIn(SignalKind.COMMUNITY_REPORT_CORROBORATED, {s.kind for s in res1b.signals})
+        self.assertIn(SignalKind.COMMUNITY_REPORT_UNVERIFIED, {s.kind for s in res1b.signals})
+
+        unverified_input = PolicyInput(
+            scan_id="s-comm-2",
+            target="example.com",
+            scan_profile="standard",
+            community_reports=(
+                CommunityReportItem(
+                    report_id="rep-unver",
+                    normalized_domain="example.com",
+                    claim_type="phishing",
+                    verification_state="unverified",
+                    independent_source_count=1,
+                ),
+            ),
+        )
+        res2 = self.extractor.extract_signals(unverified_input)
+        self.assertIn(SignalKind.COMMUNITY_REPORT_UNVERIFIED, {s.kind for s in res2.signals})
+
+    def test_unsupported_evidence_kind_diagnostic(self):
+        """Unsupported evidence kinds emit diagnostic without fabricating signals."""
+        policy_input = PolicyInput(
+            scan_id="s-unsup",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-unknown",
+                    kind="unsupported_exotic_collector",
+                    source="experimental",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"custom_payload": 123},
+                ),
+            ),
+        )
+        res = self.extractor.extract_signals(policy_input)
+        self.assertEqual(len(res.signals), 0)
+        self.assertTrue(any(d.code == DiagnosticCode.UNSUPPORTED_EVIDENCE_KIND for d in res.diagnostics))
+
+
+class TestDeterministicFindingIDs(unittest.TestCase):
+    """Tests for canonical JSON SHA-256 deterministic finding ID generation."""
+
+    def test_permutation_invariance(self):
+        """Evidence IDs in differing orders produce identical finding IDs."""
+        id1 = generate_deterministic_finding_id(
+            scan_id="scan-001",
+            rule_id="RULE-BEH-001",
+            evidence_ids=["ev-a", "ev-b", "ev-c"],
+        )
+        id2 = generate_deterministic_finding_id(
+            scan_id="scan-001",
+            rule_id="RULE-BEH-001",
+            evidence_ids=["ev-c", "ev-a", "ev-b"],
+        )
+        self.assertEqual(id1, id2)
+
+    def test_cross_scan_separation(self):
+        """Identical rules and evidence on different scans produce different IDs."""
+        id_scan1 = generate_deterministic_finding_id(
+            scan_id="scan-001",
+            rule_id="RULE-CERT-001",
+            evidence_ids=["ev-1"],
+        )
+        id_scan2 = generate_deterministic_finding_id(
+            scan_id="scan-002",
+            rule_id="RULE-CERT-001",
+            evidence_ids=["ev-1"],
+        )
+        self.assertNotEqual(id_scan1, id_scan2)
+
+    def test_full_sha256_format(self):
+        """Finding IDs use 'finding-' prefix followed by 64 hex characters."""
+        fid = generate_deterministic_finding_id(
+            scan_id="scan-demo",
+            rule_id="RULE-01",
+            evidence_ids=["ev-1"],
+        )
+        self.assertTrue(fid.startswith("finding-"))
+        hex_digest = fid.split("-", 1)[1]
+        self.assertEqual(len(hex_digest), 64)
+        int(hex_digest, 16)  # Validates hex string
+
+
+class TestTriageEvidenceIntegration(unittest.TestCase):
+    """End-to-end tests for TriageEngine.evaluate_evidence()."""
+
+    def setUp(self):
+        self.engine = TriageEngine()
+        with open(".brain/.testdata/v1/complete_report.json", "r") as f:
+            self.fixture = json.load(f)
+
+    def test_evaluate_evidence_complete_fixture(self):
+        """Complete official fixture evaluates through the end-to-end evidence bridge."""
+        policy_input = PolicyInput.from_v1_dict(self.fixture, strict=True)
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertIsInstance(res, TriageResult)
+        self.assertIn(res.decision, ("caution", "inconclusive", "no_threat_observed"))
+        # Invariant: tls_hostname_validation emits TLS_HOSTNAME_MATCH (identity=unverified).
+        # It does NOT establish certificate validity, so certificate dimension remains 'not_checked'.
+        self.assertEqual(res.dimensions["certificate"], "not_checked")
+        self.assertEqual(res.dimensions["identity"], "unverified")
+
+    def test_evaluate_evidence_orphan_finding_suppressed(self):
+        """Findings referencing non-existent evidence IDs are suppressed with audit diagnostics."""
+        # Signal cites unknown evidence ID 'ghost-ev-999' not present in policy_input.evidence
+        policy_input = PolicyInput(
+            scan_id="scan-orphan-test",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="real-ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": False, "is_expired": True, "hostname_match": True},
+                ),
+            ),
+        )
+        # Directly inject an orphan signal to test suppression logic
+        orphan_sig = SignalRecord(
+            kind=SignalKind.THREAT_FEED_MATCH,
+            evidence_ids=["ghost-ev-999"],
+            source="spoofed_source",
+        )
+        # Verify that if a rule generated a finding with ghost-ev-999, evaluate_evidence suppresses it
+        class SpoofedEngine(TriageEngine):
+            def evaluate(self, signals, scan_id=None):
+                base = super().evaluate(signals, scan_id=scan_id)
+                # Inject an orphan finding
+                base.findings.append({
+                    "finding_id": "finding-orphan",
+                    "kind": "threat_feed_match",
+                    "severity": "high",
+                    "summary": "Ghost finding",
+                    "evidence_ids": ["ghost-ev-999"],
+                    "rule_id": "RULE-BEH-001",
+                    "rule_version": "1.0",
+                })
+                return base
+
+        spoofed_engine = SpoofedEngine()
+        res = spoofed_engine.evaluate_evidence(policy_input)
+        self.assertEqual(len(res.findings), 1)  # Only the certificate issue from real-ev-1
+        self.assertEqual(res.findings[0]["kind"], "certificate_issue")
+        self.assertTrue(any(d.code == DiagnosticCode.ORPHAN_FINDING_SUPPRESSED for d in res.diagnostics))
+
+    def test_evaluate_evidence_invalid_input_quarantined(self):
+        """Input with unresolved parse issues is safely quarantined without execution."""
+        bad_dict = {"scan_id": "", "target": ""}
+        bad_input = PolicyInput.from_v1_dict(bad_dict, strict=False)
+        self.assertFalse(bad_input.is_valid)
+
+        res = self.engine.evaluate_evidence(bad_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertEqual(res.dimensions["evidence_quality"], "unavailable")
+        self.assertEqual(len(res.findings), 0)
+
+    def test_evaluate_evidence_positive_threat_non_erasure(self):
+        """Valid positive threat evidence is NOT erased by an unrelated collector failure."""
+        threat_with_dns_failure = PolicyInput(
+            scan_id="scan-non-erasure",
+            target="malicious.test",
+            scan_profile="standard",
+            evidence=(
+                # Positive threat feed match
+                EvidenceItem(
+                    evidence_id="ev-threat-pos",
+                    kind="threat_intelligence",
+                    source="verified_threat_feed",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="verified_source",
+                    value={"matched": True, "target": "malicious.test"},
+                ),
+                # Unrelated DNS collector failure
+                EvidenceItem(
+                    evidence_id="ev-dns-fail",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at="2026-11-10T08:00:01Z",
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "timeout"},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(threat_with_dns_failure)
+        # Decision must remain high_risk; positive threat is not erased!
+        self.assertEqual(res.decision, "high_risk")
+        self.assertEqual(res.dimensions["behavior"], "malicious_evidence")
+        self.assertTrue(any(f["kind"] == "threat_feed_match" for f in res.findings))
+
+    def test_evaluate_evidence_partial_coverage_limitation(self):
+        """Partial coverage appends an explicit limitation to the triage result."""
+        policy_input = PolicyInput(
+            scan_id="scan-partial-cov",
+            target="example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=4, checks_observed=2, checks_failed=1, checks_not_run=1),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["1.2.3.4"]},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertTrue(any("Coverage is partial" in lim for lim in res.limitations))
+
+    def test_evaluate_evidence_all_collectors_failed(self):
+        """When all collectors fail, decision is inconclusive and quality unavailable."""
+        all_failed_input = PolicyInput(
+            scan_id="scan-all-fail",
+            target="example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-f",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T08:00:00Z",
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "timeout"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dns-f",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at="2026-11-10T08:00:01Z",
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "nxdomain"},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(all_failed_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertEqual(res.dimensions["evidence_quality"], "unavailable")
+
+
 if __name__ == "__main__":
     unittest.main()
-

@@ -1,17 +1,75 @@
-"""Signal taxonomy for Worker 03 Phase 01.
+"""Signal taxonomy for Worker 03 Phase 03.
 
 Defines a typed signal classification system that separates identity,
 certificate, behavior, and evidence-quality dimensions. Each signal maps
 to exactly one dimension, carries provenance, and has explicit abstention
 conditions.
 
-Implements the conservative decision policy table from
-.brain/.work/shared/decision_policy_table.md
+Maintains strict separation between:
+- SourceReliability (upstream provenance property of evidence),
+- SignalConfidence (calibrated ordinal confidence of extracted signal),
+- DecisionUncertainty (disposition level or coverage limitation).
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+
+class SignalConfidence(str, Enum):
+    """Ordinal confidence levels for policy signals aligned with the approved six-value design."""
+
+    # Approved six-value design
+    HIGH_CONFIDENCE = "high_confidence"
+    OBSERVED = "observed"
+    CORROBORATED = "corroborated"
+    HEURISTIC = "heuristic"
+    UNVERIFIED = "unverified"
+    UNKNOWN = "unknown"
+
+    # Compatibility aliases
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFERRED = "inferred"
+
+
+def normalize_signal_confidence(raw: Any) -> SignalConfidence:
+    """Normalize arbitrary string or enum into a canonical SignalConfidence enum value."""
+    if isinstance(raw, SignalConfidence):
+        return raw
+
+    if not isinstance(raw, str):
+        return SignalConfidence.UNKNOWN
+
+    norm = raw.strip().lower()
+    # Exact matches for six-value design
+    if norm in ("high_confidence", "verified_source", "reputable_third_party"):
+        return SignalConfidence.HIGH_CONFIDENCE
+    if norm in ("observed", "direct_observation"):
+        return SignalConfidence.OBSERVED
+    if norm in ("corroborated", "corroboration"):
+        return SignalConfidence.CORROBORATED
+    if norm in ("heuristic",):
+        return SignalConfidence.HEURISTIC
+    if norm in ("unverified", "unverified_third_party"):
+        return SignalConfidence.UNVERIFIED
+    if norm in ("unknown", "untrusted"):
+        return SignalConfidence.UNKNOWN
+
+    # Shorthand compatibility matches
+    if norm == "high":
+        return SignalConfidence.HIGH
+    if norm == "medium":
+        return SignalConfidence.MEDIUM
+    if norm == "low":
+        return SignalConfidence.LOW
+    if norm == "inferred":
+        return SignalConfidence.INFERRED
+
+    return SignalConfidence.UNKNOWN
 
 
 class SignalKind(str, Enum):
@@ -84,9 +142,9 @@ class SignalRecord:
 
     Attributes:
         kind: The classified signal type.
-        evidence_ids: List of evidence IDs supporting this signal.
+        evidence_ids: List or tuple of evidence IDs supporting this signal.
         source: Origin system or collector that produced the signal.
-        confidence: Signal confidence (not a probability; purely ordinal).
+        confidence: Signal confidence (SignalConfidence or string).
         value: Optional raw value from the evidence.
         limitations: Explicit caveats about the signal's applicability.
     """
@@ -94,9 +152,28 @@ class SignalRecord:
     kind: SignalKind
     evidence_ids: List[str]
     source: str
-    confidence: str = "direct_observation"  # matches Reliability enum
+    confidence: Union[SignalConfidence, str] = SignalConfidence.OBSERVED
     value: Optional[Any] = None
     limitations: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Validate collections and normalize confidence."""
+        if isinstance(self.evidence_ids, (str, bytes)):
+            raise TypeError("evidence_ids must be a sequence of strings, not a bare string")
+        if not isinstance(self.evidence_ids, (list, tuple)):
+            raise TypeError(f"evidence_ids must be a list or tuple, got {type(self.evidence_ids)}")
+        for eid in self.evidence_ids:
+            if not isinstance(eid, str) or not eid.strip():
+                raise ValueError(f"Each evidence_id must be a non-empty string, got {eid!r}")
+
+        # Ensure confidence is a string/enum
+        if not isinstance(self.confidence, (SignalConfidence, str)):
+            self.confidence = normalize_signal_confidence(self.confidence)
+
+    @property
+    def confidence_level(self) -> SignalConfidence:
+        """Return the normalized SignalConfidence enum value."""
+        return normalize_signal_confidence(self.confidence)
 
     @property
     def dimension(self) -> SignalDimension:
@@ -121,4 +198,3 @@ class DimensionAssessment:
     contributing_signals: List[SignalKind] = field(default_factory=list)
     rationale: str = ""
     abstention_reason: Optional[str] = None
-
