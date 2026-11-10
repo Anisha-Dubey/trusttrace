@@ -1,6 +1,6 @@
 # worker_03 status
 
-**PHASES 01, 02, 03, 04, 05 & 06 COMPLETED & VERIFIED.**
+**PHASES 01, 02, 03, 04, 05, 06 & 07 COMPLETED & VERIFIED.**
 
 - **Phase 01 (Explainable triage policy)**: Deterministic rule engine with 6 named rules, signal taxonomy with 18 signal kinds across 4 dimensions, decision audit log, and conservative disposition ceilings. All policy table invariants enforced.
 - **Phase 02 (Controlled evaluation and claim audit)**: 7 golden evaluation fixtures all passing, honest metrics with sample-size caveats, and pitch claim auditor flagging unsupported accuracy/safety/novelty claims.
@@ -30,5 +30,15 @@
   - Verified Worker 02 cross-worker integration on `main` (PR #5, commit `c328cc2`); `EvidenceService` successfully invokes `TriageEngine.evaluate_evidence()` and `ReportIntegrityAuditor.audit_report()`; 11/11 tests pass in `tests/test_worker02_cross_worker_integration.py`.
   - Implemented 7 end-to-end integration tests in `tests/test_triage_policy.py` covering all 5 canonical blueprint scenarios, finding-to-evidence referential integrity, and v1 JSON schema validation with strict `additionalProperties: false`.
   - Authored formal Phase 06 specification (`phases/phase_06.md`) and completion report (`.brain/.report/worker_03_phase_06_report.md`).
-- **Test Metrics**: 129 tests passing in `tests/test_triage_policy.py` in 0.165s. Full repo runner: 291 tests discovered (290 passed, 1 skipped, 0 failures). PostgreSQL 15 integration: 11/11 passed. All 8 fixture checks pass. All worker boundaries strictly preserved.
+- **Phase 07 (Multimodal Availability Masking & Missing-Modality Ablation)**:
+  - Implemented `fusion.py` with `ModalityKind`, `ModalityStatus`, `ModalityProfile`, and `ModalityAvailabilityMask`.
+  - Robust URL parsing via `urllib.parse.urlsplit` with HTTPS bare-domain default and scheme-aware TLS applicability.
+  - 4-stage exact evidence modality classifier ensuring zero records dropped (unmapped records preserved in `unmapped_records`).
+  - Exhaustive 32-subset deterministic status aggregation truth table.
+  - Preserved positive threat evidence override against missing modalities (Rule 1).
+  - Enforced negative threat intelligence discipline and staleness gating (>12h).
+  - Reconciled ABL-07: partial DNS with failures strictly withholds clean baseline, enforcing `inconclusive`.
+  - 14 ablation unit tests in `TestPhase07MultimodalAblationAndMasking`.
+  - Authored Phase 07 specification (`phases/phase_07.md`).
+- **Test Metrics**: 143 tests passing in `tests/test_triage_policy.py` in 0.152s. Full repo runner: 315 tests discovered (314 passed, 1 skipped, 0 failures). All 8 fixture checks pass. All worker boundaries strictly preserved.
 - **External Dependencies**: COMPLETE. Worker 01, Worker 02, Worker 03, and Worker 04 integration is fully validated and verified on `main`.

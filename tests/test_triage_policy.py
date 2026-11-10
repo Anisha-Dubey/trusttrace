@@ -59,6 +59,13 @@ from trusttrace.policy import (
     FIXTURES_V1,
     FIXTURES_V2,
     FreshnessPolicy,
+    GateResult,
+    ModalityAvailabilityGate,
+    ModalityAvailabilityMask,
+    ModalityClassifier,
+    ModalityKind,
+    ModalityProfile,
+    ModalityStatus,
     ParseIssue,
     PolicyInput,
     PolicyInputParseError,
@@ -78,6 +85,7 @@ from trusttrace.policy import (
     build_eval_v2_set,
     generate_deterministic_finding_id,
     normalize_signal_confidence,
+    parse_and_validate_target,
 )
 import json
 from datetime import datetime, timezone, timedelta
@@ -3255,6 +3263,531 @@ class TestPhase06EndToEndIntegration(unittest.TestCase):
                     valid_eids,
                     f"Finding {f.get('finding_id')} references undeclared evidence ID '{eid}'",
                 )
+
+
+class TestPhase07MultimodalAblationAndMasking(unittest.TestCase):
+    """Worker 03 Phase 07: Multimodal Availability Masking and Missing-Modality Ablation.
+
+    Tests:
+    - Conservative URL and scheme parsing with HTTPS bare domain defaults.
+    - Exhaustive 32-subset status aggregation truth table.
+    - 12 comprehensive ablation scenarios (ABL-01 through ABL-12).
+    - Preservation of positive threat signals regardless of unrelated missing modalities.
+    - Reconciled ABL-07: Partial DNS with failures cannot permit clean baseline.
+    - Preservation of unmapped evidence kinds.
+    """
+
+    def setUp(self):
+        self.engine = TriageEngine()
+        self.now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        self.stale_iso = (datetime.now(timezone.utc) - timedelta(hours=36)).isoformat().replace("+00:00", "Z")
+
+    def test_01_target_validation_and_scheme_applicability(self):
+        """Conservative target URL and scheme parsing with HTTPS bare domain defaults."""
+        # Valid HTTPS with port
+        scheme, host, port, valid = parse_and_validate_target("https://example.com:8443")
+        self.assertTrue(valid)
+        self.assertEqual(scheme, "https")
+        self.assertEqual(host, "example.com")
+        self.assertEqual(port, 8443)
+
+        # Bare domain defaults to HTTPS per Handbook 9.2
+        scheme, host, port, valid = parse_and_validate_target("example.com")
+        self.assertTrue(valid)
+        self.assertEqual(scheme, "https")
+        self.assertEqual(host, "example.com")
+        self.assertIsNone(port)
+
+        # Explicit HTTP
+        scheme, host, port, valid = parse_and_validate_target("http://example.com")
+        self.assertTrue(valid)
+        self.assertEqual(scheme, "http")
+        self.assertEqual(host, "example.com")
+
+        # Unsupported schemes
+        _, _, _, valid = parse_and_validate_target("ftp://example.com")
+        self.assertFalse(valid)
+        _, _, _, valid = parse_and_validate_target("ws://example.com")
+        self.assertFalse(valid)
+
+        # Empty / whitespace / malformed
+        _, _, _, valid = parse_and_validate_target("")
+        self.assertFalse(valid)
+        _, _, _, valid = parse_and_validate_target("   ")
+        self.assertFalse(valid)
+        _, _, _, valid = parse_and_validate_target("https://")
+        self.assertFalse(valid)
+        _, _, _, valid = parse_and_validate_target("[::1")
+        self.assertFalse(valid)
+
+    def test_02_truth_table_all_32_subsets_deterministic(self):
+        """Programmatically verify all 2^5 = 32 subsets of statuses resolve deterministically."""
+        import itertools
+        canonical_statuses = ["observed", "failed", "blocked", "unavailable", "not_run"]
+        subsets_checked = 0
+
+        for r in range(len(canonical_statuses) + 1):
+            for combo in itertools.combinations(canonical_statuses, r):
+                subsets_checked += 1
+                status_clean, pri_clean = ModalityAvailabilityGate.aggregate_status(combo, has_warnings=False)
+                status_warn, pri_warn = ModalityAvailabilityGate.aggregate_status(combo, has_warnings=True)
+
+                self.assertIsInstance(status_clean, ModalityStatus)
+                self.assertIsInstance(status_warn, ModalityStatus)
+
+                if "observed" in combo:
+                    self.assertEqual(pri_clean, "observed")
+                    self.assertEqual(pri_warn, "observed")
+                    if combo == ("observed",):
+                        self.assertEqual(status_clean, ModalityStatus.OBSERVED_COMPLETE)
+                        self.assertEqual(status_warn, ModalityStatus.OBSERVED_PARTIAL)
+                    else:
+                        self.assertEqual(status_clean, ModalityStatus.OBSERVED_PARTIAL)
+                        self.assertEqual(status_warn, ModalityStatus.OBSERVED_PARTIAL)
+                elif "blocked" in combo:
+                    self.assertEqual(status_clean, ModalityStatus.BLOCKED)
+                    self.assertEqual(pri_clean, "blocked")
+                elif "failed" in combo:
+                    self.assertEqual(status_clean, ModalityStatus.FAILED)
+                    self.assertEqual(pri_clean, "failed")
+                elif "unavailable" in combo:
+                    self.assertEqual(status_clean, ModalityStatus.UNAVAILABLE)
+                    self.assertEqual(pri_clean, "unavailable")
+                elif combo == ("not_run",):
+                    self.assertEqual(status_clean, ModalityStatus.NOT_RUN)
+                    self.assertEqual(pri_clean, "not_run")
+                elif not combo:
+                    self.assertEqual(status_clean, ModalityStatus.MISSING)
+                    self.assertEqual(pri_clean, "not_run")
+
+        self.assertEqual(subsets_checked, 32)
+
+    def test_03_abl_01_full_baseline_observation(self):
+        """ABL-01: Full clean baseline across DNS, TLS, and Threat Intel on HTTPS -> no_threat_observed."""
+        target = "https://clean.example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-01",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "no_threat_observed")
+        self.assertIsNotNone(res.availability_mask)
+        self.assertTrue(res.availability_mask.dns_available)
+        self.assertTrue(res.availability_mask.tls_available)
+        self.assertTrue(res.availability_mask.threat_intel_available)
+        self.assertTrue(res.availability_mask.is_tls_applicable)
+
+    def test_04_abl_02_plain_http_clean_baseline(self):
+        """ABL-02: Plain HTTP clean baseline -> TLS not applicable, clean verdict permitted."""
+        target = "http://clean-http.example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-02",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "no_threat_observed")
+        self.assertIsNotNone(res.availability_mask)
+        self.assertFalse(res.availability_mask.is_tls_applicable)
+        self.assertEqual(res.dimensions["certificate"], "not_checked")
+
+    def test_05_abl_03_missing_dns_resolution(self):
+        """ABL-03: Missing DNS resolution -> COVERAGE_DEFICIT, clean baseline withheld -> inconclusive."""
+        target = "https://example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-03",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any(d.code == DiagnosticCode.COVERAGE_DEFICIT for d in res.diagnostics))
+
+    def test_06_abl_04_missing_threat_intelligence(self):
+        """ABL-04: Missing Threat Intelligence -> COVERAGE_DEFICIT, clean baseline withheld -> inconclusive."""
+        target = "https://example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-04",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any(d.code == DiagnosticCode.COVERAGE_DEFICIT for d in res.diagnostics))
+
+    def test_07_abl_05_positive_threat_overrides_missing_modalities(self):
+        """ABL-05: Positive threat evidence overrides all missing/failed modalities -> high_risk."""
+        target = "https://evil.example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-05",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-fail",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "handshake_timeout"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat-pos",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": True, "threat_level": "malicious", "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        # Rule 1 Invariant: Positive threat evidence is preserved!
+        self.assertEqual(res.decision, "high_risk")
+        self.assertEqual(res.dimensions["behavior"], "malicious_evidence")
+
+    def test_08_abl_06_tls_cert_expired_on_https(self):
+        """ABL-06: Expired TLS certificate on HTTPS target -> invalid_or_expired, certificate_issue."""
+        target = "https://expired.example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-06",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls-exp",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": False, "is_expired": True, "hostname_match": True},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.dimensions["certificate"], "invalid_or_expired")
+        self.assertTrue(any(f["kind"] == "certificate_issue" for f in res.findings))
+
+    def test_09_abl_07_partial_dns_with_failure_yields_inconclusive(self):
+        """ABL-07: Partial DNS with a failure check cannot satisfy Rule 5 -> inconclusive."""
+        target = "https://partial-dns.example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-07",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns-ok",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dns-fail",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "query_timeout"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        # Reconciled Invariant: Partial DNS with failure yields inconclusive!
+        self.assertEqual(res.decision, "inconclusive")
+
+    def test_10_abl_08_blocked_threat_feed(self):
+        """ABL-08: Threat intelligence feed blocked -> gate withholds clean baseline -> inconclusive."""
+        target = "https://example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-08",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat-blk",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="blocked",
+                    reliability="direct_observation",
+                    value={"reason": "rate_limited_or_policy_block"},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any(d.code == DiagnosticCode.COVERAGE_DEFICIT for d in res.diagnostics))
+
+    def test_11_abl_09_untrusted_threat_provenance_cannot_establish_clean(self):
+        """ABL-09: Untrusted threat provenance disqualified from clean assertion -> inconclusive."""
+        target = "https://example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-09",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat-untrusted",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="untrusted",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any(d.code == DiagnosticCode.UNVERIFIED_THREAT_PROVENANCE for d in res.diagnostics))
+
+    def test_12_abl_10_stale_threat_intelligence_cannot_establish_clean(self):
+        """ABL-10: Stale threat intelligence (>12 hours) cannot establish clean baseline -> inconclusive."""
+        target = "https://example.com"
+        policy_input = PolicyInput(
+            scan_id="s-abl-10",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat-stale",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=self.stale_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "target": target},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any(d.code == DiagnosticCode.STALE_EVIDENCE_FLAGGED for d in res.diagnostics))
+
+    def test_13_abl_11_malformed_url_and_empty_host(self):
+        """ABL-11: Malformed target or empty host rejects with INPUT_PARSE_ERROR -> inconclusive."""
+        policy_input = PolicyInput(
+            scan_id="s-abl-11",
+            target="https://",
+            scan_profile="standard",
+            evidence=(),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertEqual(res.dimensions["identity"], "unverified")
+        self.assertTrue(any(d.code == DiagnosticCode.INPUT_PARSE_ERROR for d in res.diagnostics))
+
+    def test_14_abl_12_unknown_evidence_records_preserved(self):
+        """ABL-12: Unknown evidence kind preserved in unmapped_records with UNSUPPORTED_EVIDENCE_KIND."""
+        policy_input = PolicyInput(
+            scan_id="s-abl-12",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-unknown",
+                    kind="quantum_telemetry_probe",
+                    source="alien_sensor",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"anomaly": False},
+                ),
+            ),
+        )
+        res = self.engine.evaluate_evidence(policy_input)
+        self.assertIsNotNone(res.availability_mask)
+        self.assertEqual(len(res.availability_mask.unmapped_records), 1)
+        self.assertEqual(res.availability_mask.unmapped_records[0]["kind"], "quantum_telemetry_probe")
+        self.assertTrue(any(d.code == DiagnosticCode.UNSUPPORTED_EVIDENCE_KIND for d in res.diagnostics))
 
 
 if __name__ == "__main__":

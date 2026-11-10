@@ -36,6 +36,16 @@ from .evaluation import (
     build_eval_v1_set,
     build_eval_v2_set,
 )
+from .fusion import (
+    GateResult,
+    ModalityAvailabilityGate,
+    ModalityAvailabilityMask,
+    ModalityClassifier,
+    ModalityKind,
+    ModalityProfile,
+    ModalityStatus,
+    parse_and_validate_target,
+)
 from .input_validation import EvidenceValidator, ValidationIssue, ValidationResult
 from .integrity_auditor import (
     AuditIssue,
@@ -151,4 +161,13 @@ __all__ = [
     # Policy Regression (Phase 05)
     "PolicyRegressionRunner",
     "RegressionDiffReport",
+    # Multimodal Availability & Fusion (Phase 07)
+    "ModalityKind",
+    "ModalityStatus",
+    "ModalityProfile",
+    "ModalityAvailabilityMask",
+    "ModalityClassifier",
+    "ModalityAvailabilityGate",
+    "GateResult",
+    "parse_and_validate_target",
 ]

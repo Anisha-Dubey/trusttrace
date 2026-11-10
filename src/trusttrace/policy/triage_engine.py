@@ -28,6 +28,16 @@ from .diagnostics import (
     DiagnosticRecord,
     DiagnosticSeverity,
 )
+from .fusion import (
+    GateResult,
+    ModalityAvailabilityGate,
+    ModalityAvailabilityMask,
+    ModalityClassifier,
+    ModalityKind,
+    ModalityProfile,
+    ModalityStatus,
+    parse_and_validate_target,
+)
 from .input_validation import EvidenceValidator, ValidationResult
 from .integrity_auditor import (
     AuditIssue,
@@ -108,6 +118,7 @@ class TriageResult:
     rationale_summary: str
     diagnostics: Tuple[DiagnosticRecord, ...] = field(default_factory=tuple)
     uncertainty: Optional[UncertaintyAssessment] = None
+    availability_mask: Optional[ModalityAvailabilityMask] = None
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -279,6 +290,61 @@ class TriageEngine:
                 uncertainty=uncertainty_assessment,
             )
 
+        # Step 2b: Target Validation & Multimodal Availability Masking (Phase 07)
+        availability_mask = ModalityAvailabilityGate.build_mask(
+            evidence_items=policy_input.evidence,
+            target=policy_input.target,
+            community_reports=policy_input.community_reports,
+        )
+
+        if not availability_mask.is_target_valid:
+            diagnostics_collector.record(
+                code=DiagnosticCode.INPUT_PARSE_ERROR,
+                severity=DiagnosticSeverity.ERROR,
+                message=f"Target '{policy_input.target}' is malformed or invalid URL/hostname",
+                action_taken="Emitted inconclusive triage result due to invalid target",
+            )
+            uncertainty_assessment = self.uncertainty_engine.assess_evidence(
+                policy_input=policy_input,
+                signals=(),
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unverified",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
+            )
+            return TriageResult(
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unverified",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
+                findings=[],
+                rule_trace=[],
+                policy_version=self.policy_version,
+                limitations=[
+                    f"Target '{policy_input.target}' is malformed or unsupported scheme; evaluation withheld."
+                ],
+                rationale_summary="Target parsing validation failed.",
+                diagnostics=diagnostics_collector.records,
+                uncertainty=uncertainty_assessment,
+                availability_mask=availability_mask,
+            )
+
+        # Record unknown evidence kinds preserved in mask
+        for unmapped in availability_mask.unmapped_records:
+            diagnostics_collector.record(
+                code=DiagnosticCode.UNSUPPORTED_EVIDENCE_KIND,
+                severity=DiagnosticSeverity.WARNING,
+                message=f"Evidence item '{unmapped.get('evidence_id')}' with kind '{unmapped.get('kind')}' was unmapped; preserved in unmapped_records",
+                evidence_ids=(unmapped.get("evidence_id"),) if unmapped.get("evidence_id") else (),
+                action_taken="Preserved record in mask.unmapped_records without dropping",
+            )
+
         # Step 3: Signal Extraction
         sig_result = self.extractor.extract_signals(policy_input)
         diagnostics_collector.extend(sig_result.diagnostics)
@@ -340,8 +406,41 @@ class TriageEngine:
                 if cov_msg not in combined_limitations:
                     combined_limitations.append(cov_msg)
 
-        # Step 7: Compose Final Decision with Positive Threat Preservation
+        # Step 7: Multimodal Availability Gate Evaluation & Positive Threat Preservation (Phase 07)
+        has_positive_threat = any(s.kind == SignalKind.THREAT_FEED_MATCH for s in sig_result.signals)
+        gate_result = ModalityAvailabilityGate.evaluate_gate(
+            mask=availability_mask,
+            has_positive_threat=has_positive_threat,
+        )
+
+        for diag_code in gate_result.diagnostics:
+            if diag_code == DiagnosticCode.COVERAGE_DEFICIT:
+                diagnostics_collector.record(
+                    code=DiagnosticCode.COVERAGE_DEFICIT,
+                    severity=DiagnosticSeverity.WARNING,
+                    message=gate_result.reason,
+                    action_taken="Enforced multimodal availability gate requirement",
+                )
+            elif diag_code == DiagnosticCode.STALE_EVIDENCE_FLAGGED:
+                diagnostics_collector.record(
+                    code=DiagnosticCode.STALE_EVIDENCE_FLAGGED,
+                    severity=DiagnosticSeverity.WARNING,
+                    message=gate_result.reason,
+                    action_taken="Enforced freshness requirement on threat intelligence",
+                )
+            elif diag_code == DiagnosticCode.INPUT_PARSE_ERROR:
+                diagnostics_collector.record(
+                    code=DiagnosticCode.INPUT_PARSE_ERROR,
+                    severity=DiagnosticSeverity.ERROR,
+                    message=gate_result.reason,
+                    action_taken="Quarantined input with invalid target",
+                )
+
         final_decision = base_result.decision
+        if gate_result.requires_inconclusive and final_decision == "no_threat_observed":
+            final_decision = "inconclusive"
+            if gate_result.reason not in combined_limitations:
+                combined_limitations.append(gate_result.reason)
 
         # Step 8: Uncertainty Quantification & Abstention Notice Generation
         uncertainty_assessment = self.uncertainty_engine.assess_evidence(
@@ -366,6 +465,7 @@ class TriageEngine:
             rationale_summary=base_result.rationale_summary,
             diagnostics=diagnostics_collector.records,
             uncertainty=uncertainty_assessment,
+            availability_mask=availability_mask,
         )
 
     def evaluate(
