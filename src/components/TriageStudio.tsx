@@ -365,7 +365,8 @@ export default function TriageStudio({
           {scenarioPills.map((pill, idx) => {
             const Icon = pill.icon;
             const isSelected = selectedScenarioKey === pill.key;
-            const badgeBg = 'bg-[#040404] text-white border border-[#040404]';
+            // Clean neutral light-gray pill with dark monospace typography (zero saturated colors)
+            const badgeBg = 'bg-[#E5E7EB] text-[#111827] border border-[#D1D5DB]/80';
 
             return (
               <LiquidCard
@@ -380,8 +381,8 @@ export default function TriageStudio({
                   idx === 4 ? 'col-span-2 sm:col-span-1' : ''
                 } ${
                   isSelected
-                    ? 'border-[#040404] bg-[#FFFFFF] ring-2 ring-[#040404] shadow-md'
-                    : 'border-[#D9D9D9] bg-[#F6F6F6] hover:bg-[#FFFFFF] hover:border-[#040404]'
+                    ? 'border-2 border-[#040404] bg-[#FFFFFF] shadow-sm'
+                    : 'border border-[#D9D9D9] bg-[#F6F6F6] hover:bg-[#FFFFFF] hover:border-[#040404]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-1.5">
@@ -391,11 +392,11 @@ export default function TriageStudio({
                   <Icon className="w-4 h-4 text-[#040404] shrink-0 mt-0.5" />
                 </div>
                 <div className="space-y-2.5 pt-2">
-                  <div className="text-xs sm:text-[13px] font-sans font-semibold text-[#1F2937] leading-snug">
+                  <div className="text-xs font-mono font-medium text-[#4B5563] leading-snug">
                     {pill.sub}
                   </div>
                   <div>
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider shadow-xs ${badgeBg}`}>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider ${badgeBg}`}>
                       {pill.badge}
                     </span>
                   </div>

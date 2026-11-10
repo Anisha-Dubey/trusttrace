@@ -93,57 +93,58 @@ html, body, button, a, input, textarea, select, [role="button"], .cursor-pointer
 /* AUTHENTIC HAND-DRAWN ROUND CORNERS & SKETCH RADIUS SYSTEM                */
 /* ========================================================================= */
 
-/* Hand-drawn Card / Bento Box: Organic asymmetrical sketch corners */
+/* Hand-drawn Card / Bento Box: Organic curved sketch corners */
 .handdrawn-card {
-  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important;
-  border-width: 1.5px 2px 1.5px 1.8px;
+  border-radius: 28px 36px 26px 34px / 34px 26px 38px 28px !important;
+  border-width: 1.6px;
 }
 
 .handdrawn-card:hover {
-  border-radius: 18px 225px 18px 255px / 255px 18px 225px 18px !important;
+  border-radius: 34px 26px 38px 28px / 28px 36px 26px 34px !important;
   transition: border-radius 0.3s ease-in-out;
 }
 
 /* Hand-drawn Medium Box / Telemetry / Modal */
 .handdrawn-box {
-  border-radius: 24px 28px 22px 27px / 26px 22px 29px 24px !important;
-  border-width: 1.5px 1.8px 1.6px 1.5px;
+  border-radius: 24px 30px 22px 28px / 28px 22px 32px 24px !important;
+  border-width: 1.6px;
 }
 
 .handdrawn-box:hover {
-  border-radius: 27px 22px 28px 24px / 22px 27px 24px 28px !important;
+  border-radius: 28px 22px 32px 24px / 24px 30px 22px 28px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Scenario Pills & Badges */
 .handdrawn-pill {
-  border-radius: 255px 25px 225px 25px / 25px 225px 25px 255px !important;
-  border-width: 1.5px 1.8px 1.5px 1.6px;
+  border-radius: 9999px !important;
+  border-width: 1.5px;
 }
 
 .handdrawn-pill:hover {
-  border-radius: 25px 255px 25px 225px / 225px 25px 255px 25px !important;
+  border-radius: 9999px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Buttons & Action Triggers */
 .handdrawn-btn {
-  border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px !important;
+  border-radius: 20px 24px 18px 22px / 22px 18px 24px 20px !important;
+  border-width: 1.5px;
 }
 
 .handdrawn-btn:hover {
-  border-radius: 18px 255px 18px 225px / 225px 18px 255px 18px !important;
+  border-radius: 22px 18px 24px 20px / 20px 24px 18px 22px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
 /* Hand-drawn Input Field */
 .handdrawn-input {
-  border-radius: 255px 20px 225px 20px / 20px 225px 20px 255px !important;
-  border-width: 1.5px 2px 1.5px 1.8px;
+  border-radius: 20px 24px 18px 22px / 22px 18px 24px 20px !important;
+  border-width: 1.5px;
 }
 
 .handdrawn-input:focus {
-  border-radius: 20px 255px 20px 225px / 225px 20px 255px 20px !important;
+  border-radius: 22px 18px 24px 20px / 20px 24px 18px 22px !important;
   transition: border-radius 0.25s ease-in-out;
 }
 
