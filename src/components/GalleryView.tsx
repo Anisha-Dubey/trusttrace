@@ -177,29 +177,29 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
     switch (decision) {
       case 'caution':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/30 text-[10px] font-mono font-bold uppercase tracking-wider">
-            <AlertTriangle className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#101010] text-white border border-[#101010] text-[10px] font-mono font-bold uppercase tracking-wider">
+            <AlertTriangle className="w-3 h-3 text-white" />
             <span>Caution</span>
           </span>
         );
       case 'no_threat_observed':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-800 border border-emerald-500/30 text-[10px] font-mono font-bold uppercase tracking-wider">
-            <ShieldCheck className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#101010] text-white border border-[#101010] text-[10px] font-mono font-bold uppercase tracking-wider">
+            <ShieldCheck className="w-3 h-3 text-white" />
             <span>Benign</span>
           </span>
         );
       case 'inconclusive':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-700 border border-zinc-500/30 text-[10px] font-mono font-bold uppercase tracking-wider">
-            <Activity className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#101010] text-white border border-[#101010] text-[10px] font-mono font-bold uppercase tracking-wider">
+            <Activity className="w-3 h-3 text-white" />
             <span>Inconclusive</span>
           </span>
         );
       case 'rejected':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-700 border border-rose-500/30 text-[10px] font-mono font-bold uppercase tracking-wider">
-            <XCircle className="w-3 h-3" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#101010] text-white border border-[#101010] text-[10px] font-mono font-bold uppercase tracking-wider">
+            <XCircle className="w-3 h-3 text-white" />
             <span>Rejected</span>
           </span>
         );

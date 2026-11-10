@@ -196,10 +196,10 @@ export default function TriageStudio({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F6F6F6] border border-[#D9D9D9] text-[11px] font-mono text-[#6B6B6B]"
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F6F6F6] border border-[#D9D9D9] text-[11px] font-mono text-[#040404]"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>PASSIVE WEB-RISK TRIAGE ENGINE</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#040404] animate-pulse" />
+          <span className="font-semibold">PASSIVE WEB-RISK TRIAGE ENGINE</span>
         </motion.div>
 
         <motion.h1
@@ -285,15 +285,7 @@ export default function TriageStudio({
           <div className="flex items-center justify-between text-xs sm:text-sm font-mono px-2">
             <div className="flex items-center gap-2">
               <span className="text-[#374151] font-semibold">Pre-Flight:</span>
-              <span
-                className={
-                  preflight.type === 'danger'
-                    ? 'text-rose-700 font-bold'
-                    : preflight.type === 'warning'
-                    ? 'text-amber-700 font-bold'
-                    : 'text-[#1F2937] font-semibold'
-                }
-              >
+              <span className="text-[#040404] font-bold">
                 {preflight.label}
               </span>
             </div>
@@ -373,17 +365,7 @@ export default function TriageStudio({
           {scenarioPills.map((pill, idx) => {
             const Icon = pill.icon;
             const isSelected = selectedScenarioKey === pill.key;
-
-            const badgeBg =
-              pill.badge === 'HIGH RISK'
-                ? 'bg-[#040404] text-white border border-[#040404]'
-                : pill.badge === 'VERIFIED'
-                ? 'bg-emerald-800 text-white border border-emerald-900'
-                : pill.badge === 'CAUTION'
-                ? 'bg-amber-600 text-white border border-amber-700'
-                : pill.badge === 'INCONCLUSIVE'
-                ? 'bg-zinc-800 text-white border border-zinc-900'
-                : 'bg-rose-700 text-white border border-rose-800';
+            const badgeBg = 'bg-[#040404] text-white border border-[#040404]';
 
             return (
               <LiquidCard

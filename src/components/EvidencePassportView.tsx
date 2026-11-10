@@ -64,7 +64,7 @@ export default function EvidencePassportView({
         };
       case 'caution':
         return {
-          bg: 'bg-[#f6f6f6] border-amber-600/50 text-[#040404]',
+          bg: 'bg-[#f6f6f6] border-[#040404] text-[#040404]',
           label: 'Caution Advised',
           icon: AlertTriangle,
           sub: 'Valid TLS but lookalike homoglyph or unverified identity',
@@ -72,7 +72,7 @@ export default function EvidencePassportView({
       case 'rejected':
       case 'high_risk':
         return {
-          bg: 'bg-[#f6f6f6] border-rose-600/50 text-[#040404]',
+          bg: 'bg-[#f6f6f6] border-[#040404] text-[#040404]',
           label: 'Intake Rejected',
           icon: Ban,
           sub: 'Boundary security policy violated (zero egress)',
@@ -121,7 +121,7 @@ export default function EvidencePassportView({
               <span aria-hidden="true" className="text-[#CDCDCD]">&bull;</span>
               <span>Host: <strong className="text-[#040404]">{report.normalized_host}</strong></span>
               <span aria-hidden="true" className="text-[#CDCDCD]">&bull;</span>
-              <span>Status: <strong className={report.status === 'rejected' ? 'text-rose-600 uppercase font-bold' : 'text-[#040404] uppercase font-bold'}>{report.status}</strong></span>
+              <span>Status: <strong className="text-[#040404] uppercase font-bold">{report.status}</strong></span>
             </div>
           </div>
 
