@@ -66,14 +66,45 @@ def classify_ip(ip_val: Union[str, ipaddress.IPv4Address, ipaddress.IPv6Address]
         ip_str = str(ip)
     else:
         ip_str = str(ip_val).strip()
+        ip = None
         try:
             ip = ipaddress.ip_address(ip_str)
         except ValueError:
+            # Check integer or hexadecimal numeric IP representations
+            if ip_str.isdigit():
+                try:
+                    num_val = int(ip_str)
+                    if 0 <= num_val <= 0xFFFFFFFF:
+                        ip = ipaddress.IPv4Address(num_val)
+                except Exception:
+                    pass
+            elif ip_str.lower().startswith("0x") and len(ip_str) <= 10:
+                try:
+                    num_val = int(ip_str, 16)
+                    if 0 <= num_val <= 0xFFFFFFFF:
+                        ip = ipaddress.IPv4Address(num_val)
+                except Exception:
+                    pass
+
+        if ip is None:
             return IPClassificationResult(
                 ip_str=ip_str,
                 status=IPStatus.INVALID,
                 is_safe=False,
                 rejection_reason="invalid_ip_format"
+            )
+
+    # Check for IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1)
+    if ip.version == 6 and ip.ipv4_mapped:
+        mapped_ipv4 = ip.ipv4_mapped
+        mapped_res = classify_ip(mapped_ipv4)
+        if not mapped_res.is_safe:
+            return IPClassificationResult(
+                ip_str=ip_str,
+                status=mapped_res.status,
+                is_safe=False,
+                rejection_reason=f"ipv4_mapped_{mapped_res.rejection_reason}",
+                ip_obj=ip
             )
 
     # 1. Cloud Metadata checks (SSRF-003)

@@ -132,6 +132,51 @@ class TestSSRFBoundary(unittest.TestCase):
         is_allowed = resolver.validate_connection_ip(init_res, attempted_connect_ip)
         self.assertFalse(is_allowed, "Connection-time rebinding to 127.0.0.1 must be rejected")
 
+    def test_ssrf_ipv4_mapped_ipv6_addresses_prohibited(self):
+        """P2-8: IPv4-mapped IPv6 representations of prohibited IPv4 addresses are strictly blocked."""
+        test_cases = [
+            ("::ffff:127.0.0.1", "loopback_target"),
+            ("::ffff:10.0.0.1", "private_network_target"),
+            ("::ffff:192.168.1.1", "private_network_target"),
+            ("::ffff:169.254.169.254", "cloud_metadata_target"),
+        ]
+        for ip_str, expected_reason in test_cases:
+            res = classify_ip(ip_str)
+            self.assertFalse(res.is_safe, f"{ip_str} must not be safe")
+            self.assertIn(expected_reason, res.rejection_reason)
+
+    def test_ssrf_unusual_numeric_ip_representations(self):
+        """P2-8: Integer and hex IP representations (e.g. 2130706433, 0x7f000001) are classified and blocked."""
+        # 2130706433 == 127.0.0.1 (loopback)
+        res_int = classify_ip("2130706433")
+        self.assertFalse(res_int.is_safe)
+        self.assertEqual(res_int.rejection_reason, "loopback_target")
+
+        # 0x7f000001 == 127.0.0.1 (loopback)
+        res_hex = classify_ip("0x7f000001")
+        self.assertFalse(res_hex.is_safe)
+        self.assertEqual(res_hex.rejection_reason, "loopback_target")
+
+        # 0x0a000001 == 10.0.0.1 (private RFC1918)
+        res_priv_hex = classify_ip("0x0a000001")
+        self.assertFalse(res_priv_hex.is_safe)
+        self.assertEqual(res_priv_hex.rejection_reason, "private_network_target")
+
+    def test_url_idna_and_normalization_edge_cases(self):
+        """P2-8: IDNA and internationalized domain names are safely normalized and validated."""
+        boundary = IntakeBoundary(resolver=SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"]))
+        # Cyrillic 'пример.испытание' -> xn--e1afmkfd.xn--80akhbyknj4f
+        idna_url = "https://xn--e1afmkfd.xn--80akhbyknj4f/login"
+        res = boundary.evaluate_target(idna_url)
+        self.assertTrue(res.is_safe)
+        self.assertIsNotNone(res.url_result.ascii_host)
+
+        # Host with trailing dot
+        dot_url = "https://safe-public.test./path"
+        res_dot = boundary.evaluate_target(dot_url)
+        self.assertTrue(res_dot.is_safe)
+        self.assertEqual(res_dot.normalized_host, "safe-public.test")
+
 
 if __name__ == "__main__":
     unittest.main()
