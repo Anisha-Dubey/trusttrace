@@ -1,18 +1,19 @@
 # worker_04 handoff
 
-**Status: PHASES 01, 02, 03, 04 COMPLETED & READY FOR RELEASE / STAGE DEMO.**
+**Status: PHASES 01, 02, 03, 04, 05 COMPLETED & READY FOR RELEASE / STAGE DEMO.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
 - Scope:
   - `src/trusttrace/web/routes.py` (FastAPI dashboard and triage demo routes)
-  - `index.html` (Standalone and server-served Ethiack-inspired UI)
+  - `index.html` (Standalone and server-served Baseline Studio inspired UI)
   - `tests/test_web_interface.py` (Full regression suite for web interface)
-  - `.brain/.work/webapp/worker_04/` (Phases 01-04, status, handoff)
+  - `.brain/.work/webapp/worker_04/` (Phases 01-05, status, handoff)
   - `.brain/.report/worker_04_phase_01_report.md`
   - `.brain/.report/worker_04_phase_02_report.md`
   - `.brain/.report/worker_04_phase_03_report.md`
   - `.brain/.report/worker_04_phase_04_report.md`
+  - `.brain/.report/worker_04_phase_05_report.md`
 
 ## Contract & Invariant Version
 - Policy Version: `w03-v1.0`
@@ -21,7 +22,7 @@
 
 ## Test Results
 - `tests/test_web_interface.py`: 10/10 tests passing.
-- `run_tests.py`: 258/258 tests passing (1 skipped).
+- `run_tests.py`: 269/269 tests passing (1 skipped).
 - Contract & Fixture Invariants: 8/8 checks passed.
 
 ## Stage Demo Scenarios

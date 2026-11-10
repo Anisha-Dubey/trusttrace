@@ -1,358 +1,419 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TRUSTTRACE — Evidence-First Web Trust Triage Engine</title>
+  <title>TRUSTTRACE — Evidence-First Web Trust Triage Engine // Baseline Studio</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter, Inter Tight, Averia Serif Libre, JetBrains Mono -->
+  <!-- Google Fonts: Space Grotesk, Syne, Space Mono, JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800;900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Syne:wght@700;800;900&display=swap" rel="stylesheet">
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            void: '#080808',
+            surface: '#121212',
+            surfaceHover: '#181818',
+            volt: '#CCFF00',
+            voltDark: '#99CC00',
+            hairline: 'rgba(255, 255, 255, 0.08)',
+            hairlineVolt: 'rgba(204, 255, 0, 0.3)',
+            crimson: '#FF3366',
+            amberAlert: '#FFAA00',
+            cyanSignal: '#00F0FF'
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            syne: ['"Syne"', 'sans-serif'],
+            mono: ['"Space Mono"', '"JetBrains Mono"', 'monospace'],
+            code: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
   <style>
     :root {
-      --color-background: #ffffff;
-      --color-text: #040404;
-      --color-text-muted: #6b6b6b;
-      --color-surface-soft: #f6f6f6;
-      --color-surface-grey: #d9d9d9;
-      --color-surface-mid: #cdcdcd;
-      --color-surface-dark: #101010;
-      --color-border: rgba(0, 0, 0, 0.10);
-      --font-body: 'Inter', Helvetica, sans-serif;
-      --font-heading: 'Inter Tight', 'Inter', sans-serif;
-      --font-accent: 'Averia Serif Libre', Georgia, serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --tracking-heading: -0.03em;
+      --color-void: #080808;
+      --color-surface: #121212;
+      --color-volt: #CCFF00;
+      --color-text: #F5F5F5;
+      --color-muted: #888888;
+      --border-hairline: rgba(255, 255, 255, 0.08);
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-mono: 'Space Mono', 'JetBrains Mono', monospace;
     }
 
     body {
-      font-family: var(--font-body);
-      background-color: var(--color-background);
+      background-color: var(--color-void);
       color: var(--color-text);
+      font-family: var(--font-display);
       overflow-x: hidden;
+      selection-background-color: var(--color-volt);
+      selection-color: #000000;
     }
 
-    .font-heading {
-      font-family: var(--font-heading);
-      letter-spacing: var(--tracking-heading);
-    }
-
-    .font-accent {
-      font-family: var(--font-accent);
-    }
-
-    .font-mono {
-      font-family: var(--font-mono);
+    ::selection {
+      background-color: #CCFF00;
+      color: #000000;
     }
 
     /* Minimal Custom Scrollbar */
     ::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
+      width: 4px;
+      height: 4px;
     }
     ::-webkit-scrollbar-track {
-      background: var(--color-surface-soft);
+      background: #080808;
     }
     ::-webkit-scrollbar-thumb {
-      background: var(--color-surface-mid);
-      border-radius: 9999px;
+      background: #222222;
+      border-radius: 2px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--color-text-muted);
+      background: #CCFF00;
     }
 
-    /* Custom Fluid Cursor */
-    .cursor-dot {
+    /* Baseline Fluid Magnetic Cursor */
+    .baseline-cursor-dot {
       pointer-events: none;
       position: fixed;
       top: 0;
       left: 0;
-      width: 8px;
-      height: 8px;
-      background-color: #101010;
+      width: 6px;
+      height: 6px;
+      background-color: #CCFF00;
       border-radius: 50%;
       z-index: 9999;
       transform: translate(-50%, -50%);
       transition: width 0.15s, height 0.15s, opacity 0.15s;
     }
-    .cursor-follower {
+    .baseline-cursor-follower {
       pointer-events: none;
       position: fixed;
       top: 0;
       left: 0;
-      width: 32px;
-      height: 32px;
-      border: 1px solid rgba(0, 0, 0, 0.25);
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(204, 255, 0, 0.35);
       border-radius: 50%;
       z-index: 9998;
       transform: translate(-50%, -50%);
-      transition: transform 0.08s ease-out, width 0.2s, height 0.2s, background-color 0.2s;
+      transition: transform 0.08s ease-out, width 0.2s, height 0.2s, border-color 0.2s;
     }
 
     @media (hover: none) and (pointer: coarse) {
-      .cursor-dot, .cursor-follower {
+      .baseline-cursor-dot, .baseline-cursor-follower {
         display: none !important;
       }
     }
 
-    /* Subtle Card Elevation on Hover */
-    .ethiack-card {
-      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+    /* Baseline Studio Bento Card Styles */
+    .bento-card {
+      background-color: #121212;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      position: relative;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .ethiack-card:hover {
+    .bento-card:hover {
+      border-color: rgba(204, 255, 0, 0.35);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 0 20px -5px rgba(204, 255, 0, 0.1);
       transform: translateY(-2px);
-      box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Corner Technical Grid Markers */
+    .corner-mark {
+      position: absolute;
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: rgba(255, 255, 255, 0.2);
+      pointer-events: none;
+    }
+    .corner-tl { top: 6px; left: 8px; }
+    .corner-tr { top: 6px; right: 8px; }
+    .corner-bl { bottom: 6px; left: 8px; }
+    .corner-br { bottom: 6px; right: 8px; }
+
+    /* Scan Sweep Pulse */
+    @keyframes sweep {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(1000%); }
+    }
+    .scan-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #CCFF00, transparent);
+      opacity: 0.5;
+      animation: sweep 3s linear infinite;
+      pointer-events: none;
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between selection:bg-[#101010] selection:text-white">
+<body class="min-h-screen flex flex-col justify-between selection:bg-volt selection:text-black">
 
   <!-- Custom Cursor Elements -->
-  <div id="cursorDot" class="cursor-dot"></div>
-  <div id="cursorFollower" class="cursor-follower"></div>
+  <div id="cursorDot" class="baseline-cursor-dot"></div>
+  <div id="cursorFollower" class="baseline-cursor-follower"></div>
 
-  <!-- Top Invariants Marquee Ticker -->
-  <aside aria-label="Invariant tenets" class="border-b border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] px-4 py-2 text-[11px] font-mono text-[#6b6b6b]">
+  <!-- Top Baseline Marquee Header Bar -->
+  <aside aria-label="Baseline Studio Bar" class="border-b border-hairline bg-[#0a0a0a] px-4 py-2 text-[10px] font-mono text-[#888888]">
     <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-y-1 gap-x-4">
       <div class="flex flex-wrap items-center gap-x-5 gap-y-1">
-        <span class="flex items-center gap-1.5 text-[#040404] font-semibold">
-          <i class="fa-solid fa-lock text-amber-600"></i>
+        <span class="flex items-center gap-1.5 text-white font-bold tracking-wider">
+          <span class="h-1.5 w-1.5 rounded-full bg-volt animate-ping"></span>
+          <span>BASELINE // TRUSTTRACE TRIAGE ENGINE</span>
+        </span>
+        <span class="text-[#333333] hidden sm:inline">&bull;</span>
+        <span class="flex items-center gap-1.5 text-[#aaaaaa]">
+          <i class="fa-solid fa-lock text-volt text-[9px]"></i>
           <span>Thesis: Valid TLS &ne; Identity Verified</span>
         </span>
-        <span class="text-[#cdcdcd] hidden sm:inline">&bull;</span>
-        <span class="flex items-center gap-1.5">
-          <i class="fa-solid fa-calculator text-blue-600"></i>
+        <span class="text-[#333333] hidden md:inline">&bull;</span>
+        <span class="flex items-center gap-1.5 hidden md:flex text-[#aaaaaa]">
+          <i class="fa-solid fa-calculator text-cyanSignal text-[9px]"></i>
           <span>Coverage Math: Total = Observed + Failed + Not Run</span>
         </span>
-        <span class="text-[#cdcdcd] hidden md:inline">&bull;</span>
-        <span class="flex items-center gap-1.5 hidden md:flex">
-          <i class="fa-solid fa-shield-halved text-rose-600"></i>
+        <span class="text-[#333333] hidden lg:inline">&bull;</span>
+        <span class="flex items-center gap-1.5 hidden lg:flex text-[#aaaaaa]">
+          <i class="fa-solid fa-shield-halved text-crimson text-[9px]"></i>
           <span>Egress Boundary: SSRF &amp; Loopback Blocked</span>
         </span>
-        <span class="text-[#cdcdcd] hidden lg:inline">&bull;</span>
-        <span class="flex items-center gap-1.5 hidden lg:flex">
-          <i class="fa-solid fa-certificate text-purple-600"></i>
-          <span>Negative Match: No Blacklist Hit &ne; Benign</span>
-        </span>
       </div>
+
       <div class="flex items-center gap-3">
-        <span id="backendBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#ffffff] border border-[rgba(0,0,0,0.1)] text-[10px] text-[#040404] font-semibold">
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span id="backendBadgeText">Client Triage Ready</span>
+        <span id="backendBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface border border-hairline text-[9px] text-[#cccccc] font-mono">
+          <span class="h-1.5 w-1.5 rounded-full bg-volt"></span>
+          <span id="backendBadgeText">ENGINE: ONLINE</span>
         </span>
-        <button onclick="openModal('backendModal')" class="text-[#040404] hover:underline font-bold text-[11px] flex items-center gap-1">
-          <i class="fa-solid fa-terminal text-[10px]"></i>
+        <button onclick="openModal('backendModal')" class="text-volt hover:text-white transition font-mono font-bold text-[10px] flex items-center gap-1 uppercase tracking-wider">
+          <i class="fa-solid fa-terminal text-[9px]"></i>
           <span>FastAPI Bridge</span>
         </button>
       </div>
     </div>
   </aside>
 
-  <!-- Sticky Ethiack Editorial Header -->
-  <header class="sticky top-0 z-40 w-full border-b border-[rgba(0,0,0,0.08)] bg-[#ffffff]/95 backdrop-blur-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+  <!-- Main Baseline Sticky Navigation -->
+  <header class="sticky top-0 z-40 w-full border-b border-hairline bg-[#080808]/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-4">
 
-      <!-- Brand Zone -->
+      <!-- Brand Lockup -->
       <div class="flex items-center gap-3 shrink-0">
-        <button onclick="switchTab('studio')" class="flex items-center gap-2.5 text-left group focus:outline-none">
-          <div class="h-8 w-8 rounded-lg bg-[#101010] text-white flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-            <i class="fa-solid fa-shield-halved text-sm"></i>
+        <button onclick="switchTab('studio')" class="flex items-center gap-3 text-left group focus:outline-none">
+          <div class="h-9 w-9 rounded-lg bg-surface border border-hairline group-hover:border-volt transition-colors flex items-center justify-center shrink-0">
+            <span class="font-mono font-black text-volt text-sm tracking-tighter">TT</span>
           </div>
-          <div class="flex items-baseline gap-1.5">
-            <span class="font-heading font-extrabold text-lg tracking-[-0.03em] text-[#040404]">
-              TRUSTTRACE
-            </span>
-            <span class="text-[11px] text-[#6b6b6b] font-mono tracking-wider hidden sm:inline">
-              / v1.0
+          <div class="flex flex-col">
+            <div class="flex items-baseline gap-1.5">
+              <span class="font-display font-black text-xl sm:text-2xl tracking-[-0.04em] text-white group-hover:text-volt transition-colors">
+                TRUSTTRACE
+              </span>
+              <span class="text-[9px] text-volt font-mono font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface border border-hairline">
+                v1.0
+              </span>
+            </div>
+            <span class="text-[9px] text-[#666666] font-mono tracking-wider hidden sm:block uppercase">
+              Baseline Studio &bull; Evidence-First Triage
             </span>
           </div>
         </button>
       </div>
 
-      <!-- Center Tab Navigation -->
-      <nav class="hidden md:flex items-center gap-1 text-xs font-medium text-[#6b6b6b] bg-[#f6f6f6] p-1 rounded-xl border border-[rgba(0,0,0,0.06)]">
-        <button onclick="switchTab('studio')" id="tabBtn-studio" class="px-3.5 py-1.5 rounded-lg transition text-[#040404] font-semibold bg-[#ffffff] shadow-sm">
-          Platform &amp; Triage
+      <!-- Center Tabs (Bento Style) -->
+      <nav class="hidden md:flex items-center gap-1 text-xs font-mono p-1 rounded-xl bg-surface border border-hairline">
+        <button onclick="switchTab('studio')" id="tabBtn-studio" class="px-3.5 py-1.5 rounded-lg transition font-bold text-black bg-volt shadow-xs">
+          [01] Triage Studio
         </button>
-        <button onclick="switchTab('gallery')" id="tabBtn-gallery" class="px-3.5 py-1.5 rounded-lg transition hover:text-[#040404]">
-          Gallery
+        <button onclick="switchTab('gallery')" id="tabBtn-gallery" class="px-3.5 py-1.5 rounded-lg transition text-[#888888] hover:text-white">
+          [02] Gallery
         </button>
-        <button onclick="switchTab('passport')" id="tabBtn-passport" class="px-3.5 py-1.5 rounded-lg transition hover:text-[#040404]">
-          Evidence Passport
+        <button onclick="switchTab('passport')" id="tabBtn-passport" class="px-3.5 py-1.5 rounded-lg transition text-[#888888] hover:text-white">
+          [03] Evidence Passport
         </button>
-        <button onclick="switchTab('community')" id="tabBtn-community" class="px-3.5 py-1.5 rounded-lg transition hover:text-[#040404]">
-          Threat Intel
+        <button onclick="switchTab('community')" id="tabBtn-community" class="px-3.5 py-1.5 rounded-lg transition text-[#888888] hover:text-white">
+          [04] Threat Intel
         </button>
-        <button onclick="switchTab('invariants')" id="tabBtn-invariants" class="px-3.5 py-1.5 rounded-lg transition hover:text-[#040404]">
-          8 Invariants
+        <button onclick="switchTab('invariants')" id="tabBtn-invariants" class="px-3.5 py-1.5 rounded-lg transition text-[#888888] hover:text-white">
+          [05] 8 Invariants
         </button>
       </nav>
 
-      <!-- Right Action Controls -->
+      <!-- Right Controls -->
       <div class="flex items-center gap-2 shrink-0">
-        <!-- Web Audio SFX Toggle -->
-        <button onclick="toggleAudio()" id="audioBtn" title="Toggle tactile SFX sound"
-          class="h-9 px-3 rounded-lg border border-[rgba(0,0,0,0.1)] bg-[#ffffff] hover:bg-[#f6f6f6] text-[#040404] text-xs font-mono flex items-center gap-1.5 transition">
-          <i id="audioIcon" class="fa-solid fa-volume-high text-xs"></i>
+        <!-- SFX Synthesizer Toggle -->
+        <button onclick="toggleAudio()" id="audioBtn" title="Tactile Web Audio Engine"
+          class="h-9 px-3 rounded-lg border border-hairline bg-surface hover:border-volt text-[#cccccc] hover:text-white text-xs font-mono flex items-center gap-1.5 transition">
+          <i id="audioIcon" class="fa-solid fa-volume-high text-xs text-volt"></i>
           <span class="hidden sm:inline" id="audioLabel">SFX</span>
         </button>
 
         <!-- Copy JSON Trigger -->
-        <button onclick="exportCurrentJSON()" title="Copy canonical v1 JSON"
-          class="h-9 px-3 rounded-lg border border-[rgba(0,0,0,0.1)] bg-[#ffffff] hover:bg-[#f6f6f6] text-[#040404] text-xs font-mono flex items-center gap-1.5 transition">
+        <button onclick="exportCurrentJSON()" title="Copy Canonical v1 JSON"
+          class="h-9 px-3 rounded-lg border border-hairline bg-surface hover:border-volt text-[#cccccc] hover:text-white text-xs font-mono flex items-center gap-1.5 transition">
           <i class="fa-solid fa-code text-xs"></i>
           <span class="hidden sm:inline">JSON</span>
         </button>
 
-        <!-- Mobile Menu Toggle Button -->
-        <div class="md:hidden flex items-center">
-          <button onclick="toggleMobileNav()" class="p-2 rounded-lg border border-[rgba(0,0,0,0.1)] text-[#040404]">
-            <i class="fa-solid fa-bars text-sm"></i>
-          </button>
-        </div>
+        <!-- Mobile Drawer Toggle -->
+        <button onclick="toggleMobileNav()" class="md:hidden p-2 rounded-lg border border-hairline bg-surface text-white">
+          <i class="fa-solid fa-bars text-sm"></i>
+        </button>
       </div>
     </div>
 
-    <!-- Mobile Nav Drawer -->
-    <div id="mobileNav" class="hidden md:hidden border-t border-[rgba(0,0,0,0.08)] bg-[#ffffff] px-4 py-3 space-y-1 text-sm font-medium">
-      <button onclick="switchTab('studio')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-[#f6f6f6]">Platform &amp; Triage</button>
-      <button onclick="switchTab('gallery')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-[#f6f6f6]">Gallery</button>
-      <button onclick="switchTab('passport')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-[#f6f6f6]">Evidence Passport</button>
-      <button onclick="switchTab('community')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-[#f6f6f6]">Threat Intel Feed</button>
-      <button onclick="switchTab('invariants')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-[#f6f6f6]">8 Architectural Invariants</button>
+    <!-- Mobile Nav Bar -->
+    <div id="mobileNav" class="hidden md:hidden border-t border-hairline bg-[#0c0c0c] px-4 py-3 space-y-1 text-xs font-mono">
+      <button onclick="switchTab('studio')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-surface text-white">[01] Triage Studio</button>
+      <button onclick="switchTab('gallery')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-surface text-white">[02] Gallery</button>
+      <button onclick="switchTab('passport')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-surface text-white">[03] Evidence Passport</button>
+      <button onclick="switchTab('community')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-surface text-white">[04] Threat Intel Feed</button>
+      <button onclick="switchTab('invariants')" class="w-full text-left py-2 px-3 rounded-lg hover:bg-surface text-white">[05] 8 Architectural Invariants</button>
     </div>
   </header>
 
   <!-- Main Container -->
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex-grow w-full space-y-12">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-14 flex-grow w-full space-y-14">
 
     <!-- ========================================================================= -->
-    <!-- TAB 1: PLATFORM & TRIAGE STUDIO -->
+    <!-- TAB 1: TRIAGE STUDIO -->
     <!-- ========================================================================= -->
     <section id="view-studio" class="space-y-10">
 
-      <!-- Hero Statement -->
-      <div class="text-center max-w-3xl mx-auto space-y-3">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#f6f6f6] border border-[rgba(0,0,0,0.08)] text-xs font-mono text-[#6b6b6b]">
-          <i class="fa-solid fa-passport text-[#040404]"></i>
-          <span>Worker 04 &bull; Presentation &amp; Multi-State Evidence Passport</span>
+      <!-- Baseline Statement Hero -->
+      <div class="space-y-4 max-w-4xl">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded bg-surface border border-hairline text-[11px] font-mono text-volt">
+          <span class="h-1.5 w-1.5 rounded-full bg-volt"></span>
+          <span>BASELINE DESIGN ENGINEERING &bull; WORKER 04 // EVIDENCE PASSPORT</span>
         </div>
-        <h1 class="text-3xl sm:text-5xl font-heading font-black tracking-[-0.03em] text-[#040404] leading-[1.05]">
-          Multi-Dimensional Digital Trust Passport
+        <h1 class="text-3xl sm:text-6xl font-display font-black tracking-[-0.04em] text-white leading-[0.98] uppercase">
+          People decide what level you're at before they audit what you do.
         </h1>
-        <p class="font-accent text-base sm:text-lg text-[#6b6b6b] leading-relaxed italic">
-          Conventional security tools produce a binary green lock that conceals critical uncertainty.
-          TRUSTTRACE unbundles trust across 4 verifiable dimensions with audited evidence lineage and zero active browser exploitation risk.
+        <p class="font-mono text-xs sm:text-sm text-[#888888] max-w-2xl leading-relaxed">
+          Conventional security tools produce a binary green lock that hides critical uncertainty.
+          <span class="text-white font-bold">TRUSTTRACE</span> unbundles trust across 4 verifiable dimensions with audited evidence lineage and zero active browser exploitation surface.
         </p>
       </div>
 
-      <!-- Triage Interactive Card -->
-      <div class="ethiack-card rounded-2xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-6 sm:p-8 space-y-6 shadow-sm">
-        <div class="space-y-2">
+      <!-- Triage Command Bento Card -->
+      <div class="bento-card rounded-2xl p-6 sm:p-8 space-y-6">
+        <div class="corner-mark corner-tl">// 01_TRIAGE_INTAKE</div>
+        <div class="corner-mark corner-tr">[RFC1918_PREFLIGHT]</div>
+        <div class="corner-mark corner-bl">[SEC_001]</div>
+        <div class="corner-mark corner-br">[PASSIVE_AUDIT]</div>
+
+        <div class="space-y-2 pt-2">
           <div class="flex items-center justify-between text-xs font-mono">
-            <label for="targetInput" class="font-bold text-[#040404] uppercase tracking-wider">
-              Target URL for Trust Assessment
+            <label for="targetInput" class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-radar text-volt text-xs"></i>
+              <span>Target URL for Trust Assessment</span>
             </label>
-            <span class="text-[#6b6b6b]">Intake Preflight &bull; Passive Lineage</span>
+            <span class="text-[#666666]">Passive Collector Egress &bull; Preflight Gate</span>
           </div>
 
           <div class="flex flex-col sm:flex-row gap-3">
             <div class="relative flex-grow">
-              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6b6b6b] pointer-events-none">
-                <i class="fa-solid fa-globe"></i>
+              <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#666666] pointer-events-none">
+                <i class="fa-solid fa-globe text-xs"></i>
               </span>
               <input type="url" id="targetInput" value="https://bank-secure-lоgin.com"
                 oninput="handleTargetInput(this.value)"
-                class="w-full pl-10 pr-4 py-3.5 bg-[#f6f6f6] border border-[rgba(0,0,0,0.12)] rounded-xl text-[#040404] text-sm focus:outline-none focus:border-[#040404] focus:bg-[#ffffff] transition font-mono placeholder:text-[#999999]"
+                class="w-full pl-10 pr-4 py-3.5 bg-[#0a0a0a] border border-hairline rounded-xl text-white text-sm focus:outline-none focus:border-volt font-mono placeholder:text-[#444444] transition-colors"
                 placeholder="https://example.com/login" />
             </div>
             <button onclick="executeScan('custom')" id="scanBtn"
-              class="px-7 py-3.5 bg-[#101010] hover:bg-[#252525] text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-sm active:scale-95 cursor-pointer shrink-0">
-              <i class="fa-solid fa-magnifying-glass text-xs"></i>
+              class="px-8 py-3.5 bg-volt hover:bg-voltDark text-black font-display font-black text-sm uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-volt/10 active:scale-95 cursor-pointer shrink-0">
+              <i class="fa-solid fa-bolt text-xs"></i>
               <span>Triage URL</span>
             </button>
           </div>
 
-          <!-- Real-Time Intake Preflight Banner -->
-          <div id="preflightAlert" class="text-xs font-mono p-2.5 rounded-lg border bg-[#f6f6f6] border-[rgba(0,0,0,0.08)] text-[#6b6b6b] flex items-center justify-between">
+          <!-- Real-Time Intake Preflight Alert -->
+          <div id="preflightAlert" class="text-xs font-mono p-3 rounded-lg border bg-[#0a0a0a] border-hairline text-[#888888] flex items-center justify-between">
             <span id="preflightText" class="flex items-center gap-2">
-              <i class="fa-solid fa-shield text-slate-500"></i>
+              <i class="fa-solid fa-shield text-volt"></i>
               <span>Intake Boundary: Passive Handshake Ready</span>
             </span>
-            <span class="text-[10px] text-[#999999] uppercase">RFC-1918 / SSRF Guard</span>
+            <span class="text-[9px] text-[#555555] uppercase font-bold tracking-widest">[RFC-1918 / SSRF GUARD]</span>
           </div>
         </div>
 
-        <!-- Quick Controlled Demo Scenarios -->
-        <div class="space-y-3 pt-2">
+        <!-- Quick Controlled Demo Scenarios Bento -->
+        <div class="space-y-3 pt-3 border-t border-hairline">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-mono font-bold text-[#040404] uppercase tracking-wider flex items-center gap-2">
-              <i class="fa-solid fa-flask-vial text-emerald-600"></i>
+            <span class="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <i class="fa-solid fa-flask-vial text-volt text-xs"></i>
               <span>Controlled Stage Demonstration Scenarios</span>
             </span>
-            <button onclick="switchTab('gallery')" class="text-xs text-[#6b6b6b] hover:text-[#040404] font-medium flex items-center gap-1">
-              <span>View Full Gallery</span>
+            <button onclick="switchTab('gallery')" class="text-xs text-volt hover:underline font-mono flex items-center gap-1">
+              <span>View Case Gallery</span>
               <i class="fa-solid fa-arrow-right text-[10px]"></i>
             </button>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
 
             <!-- Scenario 1: Phishing Lookalike -->
             <button onclick="loadScenario('phishing_lookalike', 'https://bank-secure-lоgin.com')"
-              class="ethiack-card p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] hover:bg-[#f6f6f6] text-left transition space-y-1.5 group cursor-pointer">
-              <div class="flex items-center justify-between font-bold text-[#040404]">
-                <span>Phishing Lookalike</span>
-                <i class="fa-solid fa-triangle-exclamation text-amber-600 group-hover:scale-110 transition"></i>
+              class="bento-card p-4 rounded-xl text-left transition space-y-2 group cursor-pointer">
+              <div class="flex items-center justify-between font-bold text-white">
+                <span class="group-hover:text-volt transition-colors">Phishing Lookalike</span>
+                <i class="fa-solid fa-triangle-exclamation text-amberAlert group-hover:scale-110 transition"></i>
               </div>
-              <p class="text-[#6b6b6b] text-[11px] leading-snug">
+              <p class="text-[#888888] text-[11px] leading-snug font-display">
                 Valid DV TLS, but Cyrillic homoglyph lookalike &amp; unverified identity.
               </p>
-              <div class="text-[10px] font-mono text-amber-700">&bull; Core Thesis Test (TLS-001)</div>
+              <div class="text-[9px] font-mono text-volt">&bull; Core Thesis Test (TLS-001)</div>
             </button>
 
             <!-- Scenario 2: Legitimate Domain -->
             <button onclick="loadScenario('legitimate', 'https://example.com')"
-              class="ethiack-card p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] hover:bg-[#f6f6f6] text-left transition space-y-1.5 group cursor-pointer">
-              <div class="flex items-center justify-between font-bold text-[#040404]">
-                <span>Legitimate Domain</span>
-                <i class="fa-solid fa-circle-check text-emerald-600 group-hover:scale-110 transition"></i>
+              class="bento-card p-4 rounded-xl text-left transition space-y-2 group cursor-pointer">
+              <div class="flex items-center justify-between font-bold text-white">
+                <span class="group-hover:text-volt transition-colors">Legitimate Domain</span>
+                <i class="fa-solid fa-circle-check text-volt group-hover:scale-110 transition"></i>
               </div>
-              <p class="text-[#6b6b6b] text-[11px] leading-snug">
+              <p class="text-[#888888] text-[11px] leading-snug font-display">
                 Full verification &amp; confirmed organizational identity. Clean telemetry.
               </p>
-              <div class="text-[10px] font-mono text-emerald-700">&bull; Benchmark (EVID-002)</div>
+              <div class="text-[9px] font-mono text-cyanSignal">&bull; Benchmark (EVID-002)</div>
             </button>
 
             <!-- Scenario 3: Expired TLS Cert -->
             <button onclick="loadScenario('expired_tls', 'https://legacy-portal.internal-corp.net')"
-              class="ethiack-card p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] hover:bg-[#f6f6f6] text-left transition space-y-1.5 group cursor-pointer">
-              <div class="flex items-center justify-between font-bold text-[#040404]">
-                <span>Expired TLS Cert</span>
-                <i class="fa-solid fa-clock-rotate-left text-blue-600 group-hover:scale-110 transition"></i>
+              class="bento-card p-4 rounded-xl text-left transition space-y-2 group cursor-pointer">
+              <div class="flex items-center justify-between font-bold text-white">
+                <span class="group-hover:text-volt transition-colors">Expired TLS Cert</span>
+                <i class="fa-solid fa-clock-rotate-left text-cyanSignal group-hover:scale-110 transition"></i>
               </div>
-              <p class="text-[#6b6b6b] text-[11px] leading-snug">
+              <p class="text-[#888888] text-[11px] leading-snug font-display">
                 Certificate expired 5 days ago. Technical hygiene warning &ne; malice.
               </p>
-              <div class="text-[10px] font-mono text-blue-700">&bull; Hygiene Nuance (TLS-002)</div>
+              <div class="text-[9px] font-mono text-amberAlert">&bull; Hygiene Nuance (TLS-002)</div>
             </button>
 
             <!-- Scenario 4: Conflicting Intel -->
             <button onclick="loadScenario('conflicting', 'https://disputed-target.org')"
-              class="ethiack-card p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] hover:bg-[#f6f6f6] text-left transition space-y-1.5 group cursor-pointer">
-              <div class="flex items-center justify-between font-bold text-[#040404]">
-                <span>Conflicting Intel</span>
-                <i class="fa-solid fa-scale-unbalanced text-purple-600 group-hover:scale-110 transition"></i>
+              class="bento-card p-4 rounded-xl text-left transition space-y-2 group cursor-pointer">
+              <div class="flex items-center justify-between font-bold text-white">
+                <span class="group-hover:text-volt transition-colors">Conflicting Intel</span>
+                <i class="fa-solid fa-scale-unbalanced text-crimson group-hover:scale-110 transition"></i>
               </div>
-              <p class="text-[#6b6b6b] text-[11px] leading-snug">
+              <p class="text-[#888888] text-[11px] leading-snug font-display">
                 Discordant threat feeds trigger explicit plain-language abstention.
               </p>
-              <div class="text-[10px] font-mono text-purple-700">&bull; Abstention Discipline</div>
+              <div class="text-[9px] font-mono text-crimson">&bull; Abstention Discipline</div>
             </button>
           </div>
         </div>
@@ -360,39 +421,39 @@
     </section>
 
     <!-- ========================================================================= -->
-    <!-- TAB 2: BENCHMARK CASE GALLERY -->
+    <!-- TAB 2: BENCHMARK CASE GALLERY (BASELINE PROJECT SHOWCASE STYLE) -->
     <!-- ========================================================================= -->
     <section id="view-gallery" class="space-y-8 hidden">
-      <div class="border-b border-[rgba(0,0,0,0.08)] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div class="border-b border-hairline pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-widest">Historical Triage Corpus</span>
-            <span class="text-[#cdcdcd]">/</span>
-            <span class="text-xs font-mono text-[#040404] font-semibold">Stage Verification</span>
+          <div class="flex items-center gap-2 mb-1.5 font-mono text-xs text-volt uppercase tracking-widest">
+            <span>[CORPUS // 02]</span>
+            <span class="text-[#444444]">/</span>
+            <span>HISTORICAL TRIAGE BENCHMARKS</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-heading font-extrabold text-[#040404] tracking-[-0.03em]">
+          <h2 class="text-3xl sm:text-5xl font-display font-black text-white tracking-[-0.04em] uppercase">
             Benchmark Case Gallery
           </h2>
-          <p class="text-[#6b6b6b] text-xs sm:text-sm mt-1 max-w-2xl font-body">
-            Examine canonical edge cases demonstrating the unbundling of transport encryption from entity authenticity.
+          <p class="text-[#888888] text-xs sm:text-sm mt-1 max-w-2xl font-mono">
+            Canonical case studies demonstrating why transport encryption must be unbundled from organizational authenticity.
           </p>
         </div>
 
-        <!-- Filter Pills & Layout Toggle -->
+        <!-- Category Filters -->
         <div class="flex flex-wrap items-center gap-2">
-          <div class="flex items-center gap-1 bg-[#f6f6f6] p-1 rounded-xl border border-[rgba(0,0,0,0.08)] text-xs font-mono">
-            <button onclick="filterGallery('all')" id="galFilter-all" class="px-3 py-1 rounded-lg bg-[#ffffff] text-[#040404] font-bold shadow-xs">All</button>
-            <button onclick="filterGallery('phishing')" id="galFilter-phishing" class="px-3 py-1 rounded-lg text-[#6b6b6b] hover:text-[#040404]">Phishing</button>
-            <button onclick="filterGallery('infrastructure')" id="galFilter-infrastructure" class="px-3 py-1 rounded-lg text-[#6b6b6b] hover:text-[#040404]">Infrastructure</button>
-            <button onclick="filterGallery('intel')" id="galFilter-intel" class="px-3 py-1 rounded-lg text-[#6b6b6b] hover:text-[#040404]">Threat Intel</button>
-            <button onclick="filterGallery('defense')" id="galFilter-defense" class="px-3 py-1 rounded-lg text-[#6b6b6b] hover:text-[#040404]">Active Defense</button>
+          <div class="flex items-center gap-1 bg-surface p-1 rounded-xl border border-hairline text-xs font-mono">
+            <button onclick="filterGallery('all')" id="galFilter-all" class="px-3 py-1 rounded-lg bg-volt text-black font-bold">All</button>
+            <button onclick="filterGallery('phishing')" id="galFilter-phishing" class="px-3 py-1 rounded-lg text-[#888888] hover:text-white">Phishing</button>
+            <button onclick="filterGallery('infrastructure')" id="galFilter-infrastructure" class="px-3 py-1 rounded-lg text-[#888888] hover:text-white">Infrastructure</button>
+            <button onclick="filterGallery('intel')" id="galFilter-intel" class="px-3 py-1 rounded-lg text-[#888888] hover:text-white">Threat Intel</button>
+            <button onclick="filterGallery('defense')" id="galFilter-defense" class="px-3 py-1 rounded-lg text-[#888888] hover:text-white">Active Defense</button>
           </div>
         </div>
       </div>
 
-      <!-- Gallery Grid of Cards -->
+      <!-- Gallery Grid of Bento Cards -->
       <div id="galleryContainer" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <!-- Cards dynamically populated via JS -->
+        <!-- Dynamically injected via JS -->
       </div>
     </section>
 
@@ -401,121 +462,129 @@
     <!-- ========================================================================= -->
     <section id="view-passport" class="space-y-8 hidden">
 
-      <!-- Top Passport Header Card -->
-      <div class="ethiack-card rounded-2xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-6 sm:p-8 space-y-6 shadow-sm">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[rgba(0,0,0,0.08)] pb-5">
+      <!-- Top Passport Header Bento -->
+      <div class="bento-card rounded-2xl p-6 sm:p-8 space-y-6">
+        <div class="corner-mark corner-tl">// 03_EVIDENCE_PASSPORT</div>
+        <div class="corner-mark corner-tr">[CANONICAL_AUDIT_v1.0]</div>
+        <div class="corner-mark corner-bl">[SHA256_PROVENANCE]</div>
+        <div class="corner-mark corner-br">[NON_ABSOLUTE_DISCLAIMER]</div>
+
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-6 pt-2">
           <div class="space-y-1">
-            <div class="flex items-center gap-2 text-xs font-mono text-[#6b6b6b]">
+            <div class="flex items-center gap-2 text-xs font-mono text-volt uppercase tracking-widest font-bold">
               <i class="fa-solid fa-id-card"></i>
-              <span class="uppercase tracking-widest font-bold">Canonical Evidence Passport</span>
-              <span class="text-[#cdcdcd]">&bull;</span>
-              <span id="passportScanId" class="text-[#040404] font-mono">scan-demo-phish-001</span>
+              <span>CANONICAL EVIDENCE PASSPORT</span>
+              <span class="text-[#444444]">&bull;</span>
+              <span id="passportScanId" class="text-white">scan-demo-phish-001</span>
             </div>
-            <h2 id="passportHost" class="text-2xl sm:text-4xl font-heading font-extrabold text-[#040404] tracking-[-0.03em] break-all">
+            <h2 id="passportHost" class="text-2xl sm:text-4xl font-display font-black text-white tracking-[-0.03em] break-all">
               bank-secure-lоgin.com
             </h2>
-            <div class="text-xs text-[#6b6b6b] font-mono flex flex-wrap items-center gap-x-4 gap-y-1">
-              <span>Target: <span id="passportSubmittedUrl" class="text-[#040404]">https://bank-secure-lоgin.com</span></span>
-              <span>Policy: <span id="passportPolicyVer" class="text-[#040404]">w03-v1.0</span></span>
+            <div class="text-xs text-[#888888] font-mono flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span>Target: <span id="passportSubmittedUrl" class="text-white">https://bank-secure-lоgin.com</span></span>
+              <span>Policy: <span id="passportPolicyVer" class="text-volt">w03-v1.0</span></span>
             </div>
           </div>
 
           <div class="flex flex-col sm:items-end gap-2 shrink-0">
-            <div id="passportDecisionBadge" class="px-4 py-2 rounded-xl bg-[#101010] text-white font-bold text-sm tracking-wide uppercase inline-flex items-center gap-2">
-              <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+            <div id="passportDecisionBadge" class="px-4 py-2 rounded-xl bg-volt text-black font-display font-black text-sm tracking-wider uppercase inline-flex items-center gap-2 shadow-lg shadow-volt/20">
+              <i class="fa-solid fa-triangle-exclamation"></i>
               <span id="passportDecisionText">Caution Advised</span>
             </div>
-            <div id="passportConfidenceBadge" class="text-[11px] font-mono text-[#6b6b6b] flex items-center gap-1.5">
-              <span>Confidence:</span>
-              <span id="passportConfidenceText" class="px-2 py-0.5 rounded bg-[#f6f6f6] border border-[rgba(0,0,0,0.1)] text-[#040404] font-bold">HIGH</span>
+            <div id="passportConfidenceBadge" class="text-[11px] font-mono text-[#888888] flex items-center gap-1.5">
+              <span>Ordinal Confidence:</span>
+              <span id="passportConfidenceText" class="px-2 py-0.5 rounded bg-[#0a0a0a] border border-hairline text-volt font-bold">HIGH</span>
             </div>
           </div>
         </div>
 
         <!-- Explicit Abstention Banner (Conditional) -->
-        <div id="abstentionNoticeBox" class="hidden p-4 rounded-xl border border-purple-300 bg-purple-50 text-purple-950 space-y-2 text-xs">
-          <div class="flex items-center gap-2 font-bold uppercase tracking-wider text-purple-900">
+        <div id="abstentionNoticeBox" class="hidden p-4 rounded-xl border border-crimson/50 bg-crimson/10 text-white space-y-2 text-xs font-mono">
+          <div class="flex items-center gap-2 font-bold uppercase tracking-wider text-crimson">
             <i class="fa-solid fa-scale-unbalanced text-sm"></i>
             <span>Explicit Abstention Notice per Policy Invariant EVID-004</span>
           </div>
-          <p id="abstentionRationale" class="text-[13px] leading-relaxed">
+          <p id="abstentionRationale" class="text-[12px] text-[#dddddd] leading-relaxed font-display">
             Contradictory intelligence signals detected. Provider Alpha reports active malicious classification while Provider Beta reports clean. Triage caps disposition at inconclusive to prevent deceptive certainty.
           </p>
-          <div class="text-[11px] font-mono text-purple-800 flex flex-wrap gap-x-4 gap-y-1">
-            <span>Affected Dimensions: <strong id="abstentionDimensions">behavior, target_reputation</strong></span>
-            <span>Missing Checks: <strong id="abstentionChecks">none (discordant feeds)</strong></span>
+          <div class="text-[10px] text-[#aaaaaa] flex flex-wrap gap-x-4 gap-y-1">
+            <span>Affected Dimensions: <strong id="abstentionDimensions" class="text-white">behavior, target_reputation</strong></span>
+            <span>Missing Checks: <strong id="abstentionChecks" class="text-white">none (discordant feeds)</strong></span>
           </div>
         </div>
 
         <!-- Coverage Arithmetic Mathematical Bar -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between text-xs font-mono">
-            <span class="font-bold text-[#040404]">Coverage Verification (INV-COV-001)</span>
-            <span id="coverageSummaryText" class="text-[#6b6b6b]">4 Observed &bull; 0 Failed &bull; 1 Not Run &bull; 5 Total</span>
+        <div class="space-y-2 font-mono text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-white flex items-center gap-2">
+              <span class="h-2 w-2 rounded-full bg-volt"></span>
+              <span>Coverage Verification (INV-COV-001)</span>
+            </span>
+            <span id="coverageSummaryText" class="text-[#888888]">4 Observed &bull; 0 Failed &bull; 1 Not Run &bull; 5 Total</span>
           </div>
-          <div class="h-2.5 w-full bg-[#f6f6f6] rounded-full overflow-hidden flex border border-[rgba(0,0,0,0.08)]">
-            <div id="barObserved" class="bg-emerald-500 h-full transition-all duration-500" style="width: 80%" title="Observed Checks"></div>
-            <div id="barFailed" class="bg-rose-500 h-full transition-all duration-500" style="width: 0%" title="Failed Checks"></div>
-            <div id="barNotRun" class="bg-amber-400 h-full transition-all duration-500" style="width: 20%" title="Not Run / Blocked Checks"></div>
+          <div class="h-2 w-full bg-[#0a0a0a] rounded-full overflow-hidden flex border border-hairline">
+            <div id="barObserved" class="bg-volt h-full transition-all duration-500" style="width: 80%" title="Observed Checks"></div>
+            <div id="barFailed" class="bg-crimson h-full transition-all duration-500" style="width: 0%" title="Failed Checks"></div>
+            <div id="barNotRun" class="bg-amberAlert h-full transition-all duration-500" style="width: 20%" title="Not Run / Blocked Checks"></div>
           </div>
-          <div class="flex justify-between text-[10px] font-mono text-[#6b6b6b]">
-            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-emerald-500 inline-block"></span> Observed Checks</span>
-            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-rose-500 inline-block"></span> Failed Checks</span>
-            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-amber-400 inline-block"></span> Not Run / Budget Exhausted</span>
+          <div class="flex justify-between text-[10px] text-[#666666]">
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-volt inline-block"></span> Observed Checks</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-crimson inline-block"></span> Failed Checks</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amberAlert inline-block"></span> Not Run / Budget Exhausted</span>
           </div>
         </div>
 
-        <!-- 4-Dimensional Trust Decomposition Grid -->
+        <!-- 4-Dimensional Trust Decomposition Bento -->
         <div>
-          <h3 class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-wider mb-3">
+          <h3 class="text-xs font-mono font-bold text-volt uppercase tracking-wider mb-3">
             01 // Trust Decomposition Across 4 Verifiable Dimensions
           </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
 
             <!-- Dimension 1: Identity & Ownership -->
-            <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-[#040404] uppercase font-mono">01 // IDENTITY</span>
-                <i class="fa-solid fa-id-badge text-slate-400"></i>
+            <div class="p-4 rounded-xl border border-hairline bg-[#0a0a0a] space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-white uppercase">01 // IDENTITY</span>
+                <i class="fa-solid fa-id-badge text-[#444444]"></i>
               </div>
-              <div id="dimIdentityValue" class="text-sm font-bold text-rose-700 font-mono">unverified</div>
-              <p class="text-[11px] text-[#6b6b6b] leading-tight">
+              <div id="dimIdentityValue" class="text-sm font-bold text-crimson">unverified</div>
+              <p class="text-[11px] text-[#888888] font-display leading-tight">
                 Entity authorization &amp; brand claim provenance.
               </p>
             </div>
 
             <!-- Dimension 2: Cryptographic Transport -->
-            <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-[#040404] uppercase font-mono">02 // TRANSPORT</span>
-                <i class="fa-solid fa-lock text-slate-400"></i>
+            <div class="p-4 rounded-xl border border-hairline bg-[#0a0a0a] space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-white uppercase">02 // TRANSPORT</span>
+                <i class="fa-solid fa-lock text-[#444444]"></i>
               </div>
-              <div id="dimTransportValue" class="text-sm font-bold text-emerald-700 font-mono">valid_for_hostname</div>
-              <p class="text-[11px] text-[#6b6b6b] leading-tight">
+              <div id="dimTransportValue" class="text-sm font-bold text-volt">valid_for_hostname</div>
+              <p class="text-[11px] text-[#888888] font-display leading-tight">
                 X.509 binding, expiration &amp; cipher hygiene.
               </p>
             </div>
 
             <!-- Dimension 3: Target Reputation & Threat -->
-            <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-[#040404] uppercase font-mono">03 // BEHAVIOR</span>
-                <i class="fa-solid fa-network-wired text-slate-400"></i>
+            <div class="p-4 rounded-xl border border-hairline bg-[#0a0a0a] space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-white uppercase">03 // BEHAVIOR</span>
+                <i class="fa-solid fa-network-wired text-[#444444]"></i>
               </div>
-              <div id="dimBehaviorValue" class="text-sm font-bold text-amber-700 font-mono">malicious_evidence</div>
-              <p class="text-[11px] text-[#6b6b6b] leading-tight">
+              <div id="dimBehaviorValue" class="text-sm font-bold text-amberAlert">malicious_evidence</div>
+              <p class="text-[11px] text-[#888888] font-display leading-tight">
                 Redirect lineage, host telemetry &amp; HTTP chain.
               </p>
             </div>
 
             <!-- Dimension 4: Evidence Quality -->
-            <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-[#040404] uppercase font-mono">04 // QUALITY</span>
-                <i class="fa-solid fa-database text-slate-400"></i>
+            <div class="p-4 rounded-xl border border-hairline bg-[#0a0a0a] space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-white uppercase">04 // QUALITY</span>
+                <i class="fa-solid fa-database text-[#444444]"></i>
               </div>
-              <div id="dimQualityValue" class="text-sm font-bold text-[#040404] font-mono">complete</div>
-              <p class="text-[11px] text-[#6b6b6b] leading-tight">
+              <div id="dimQualityValue" class="text-sm font-bold text-white">complete</div>
+              <p class="text-[11px] text-[#888888] font-display leading-tight">
                 Evidence freshness, source diversity &amp; provenance.
               </p>
             </div>
@@ -523,16 +592,16 @@
         </div>
 
         <!-- Findings List Section -->
-        <div class="space-y-4 pt-4 border-t border-[rgba(0,0,0,0.08)]">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-wider">
+        <div class="space-y-4 pt-4 border-t border-hairline">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
+            <h3 class="text-xs font-bold text-volt uppercase tracking-wider">
               02 // Adjudicated Findings &amp; Evidence References
             </h3>
-            <div class="flex items-center gap-1.5 text-xs font-mono">
-              <button onclick="filterFindings('all')" id="findingFilter-all" class="px-2.5 py-1 rounded-lg bg-[#101010] text-white font-bold">All</button>
-              <button onclick="filterFindings('high')" id="findingFilter-high" class="px-2.5 py-1 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">High</button>
-              <button onclick="filterFindings('caution')" id="findingFilter-caution" class="px-2.5 py-1 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">Caution</button>
-              <button onclick="filterFindings('info')" id="findingFilter-info" class="px-2.5 py-1 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">Info</button>
+            <div class="flex items-center gap-1.5 text-xs">
+              <button onclick="filterFindings('all')" id="findingFilter-all" class="px-2.5 py-1 rounded bg-volt text-black font-bold">All</button>
+              <button onclick="filterFindings('high')" id="findingFilter-high" class="px-2.5 py-1 rounded bg-[#0a0a0a] text-[#888888] hover:text-white">High</button>
+              <button onclick="filterFindings('caution')" id="findingFilter-caution" class="px-2.5 py-1 rounded bg-[#0a0a0a] text-[#888888] hover:text-white">Caution</button>
+              <button onclick="filterFindings('info')" id="findingFilter-info" class="px-2.5 py-1 rounded bg-[#0a0a0a] text-[#888888] hover:text-white">Info</button>
             </div>
           </div>
 
@@ -542,17 +611,17 @@
         </div>
 
         <!-- Raw Evidence Records Section -->
-        <div class="space-y-3 pt-4 border-t border-[rgba(0,0,0,0.08)]">
+        <div class="space-y-3 pt-4 border-t border-hairline font-mono">
           <div class="flex items-center justify-between">
-            <h3 class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-wider">
+            <h3 class="text-xs font-bold text-volt uppercase tracking-wider">
               03 // Backing Evidence Records &amp; Provenance
             </h3>
-            <span class="text-[11px] font-mono text-[#6b6b6b]">Immutable SHA-256 Provenance</span>
+            <span class="text-[10px] text-[#666666]">Immutable SHA-256 Provenance</span>
           </div>
 
-          <div class="overflow-x-auto border border-[rgba(0,0,0,0.08)] rounded-xl">
-            <table class="w-full text-left text-xs font-mono">
-              <thead class="bg-[#f6f6f6] text-[#6b6b6b] border-b border-[rgba(0,0,0,0.08)]">
+          <div class="overflow-x-auto border border-hairline rounded-xl">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-[#0a0a0a] text-[#888888] border-b border-hairline text-[11px]">
                 <tr>
                   <th class="p-3">Evidence ID</th>
                   <th class="p-3">Kind</th>
@@ -562,7 +631,7 @@
                   <th class="p-3">Limitations</th>
                 </tr>
               </thead>
-              <tbody id="evidenceTableBody" class="divide-y divide-[rgba(0,0,0,0.06)] bg-[#ffffff]">
+              <tbody id="evidenceTableBody" class="divide-y divide-hairline bg-[#101010]">
                 <!-- Dynamically populated evidence rows -->
               </tbody>
             </table>
@@ -575,40 +644,40 @@
     <!-- TAB 4: THREAT INTEL FEED -->
     <!-- ========================================================================= -->
     <section id="view-community" class="space-y-8 hidden">
-      <div class="border-b border-[rgba(0,0,0,0.08)] pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div class="border-b border-hairline pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div class="flex items-center gap-2 mb-1.5">
-            <span class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-widest">Community Intelligence</span>
-            <span class="text-[#cdcdcd]">/</span>
-            <span class="text-xs font-mono text-[#040404] font-semibold">Decentralized Threat Feed</span>
+          <div class="flex items-center gap-2 mb-1.5 font-mono text-xs text-volt uppercase tracking-widest">
+            <span>[FEED // 04]</span>
+            <span class="text-[#444444]">/</span>
+            <span>DECENTRALIZED COMMUNITY INTEL</span>
           </div>
-          <h2 class="text-2xl sm:text-3xl font-heading font-extrabold text-[#040404] tracking-[-0.03em]">
-            Threat Intelligence Feed &amp; Reports
+          <h2 class="text-3xl sm:text-5xl font-display font-black text-white tracking-[-0.04em] uppercase">
+            Threat Intelligence Feed
           </h2>
-          <p class="text-[#6b6b6b] text-xs sm:text-sm mt-1 max-w-2xl font-body">
+          <p class="text-[#888888] text-xs sm:text-sm mt-1 max-w-2xl font-mono">
             Submit corroborating evidence with strict XSS sanitization, sybil-resistant duplicate filtering, and independent source family tallying.
           </p>
         </div>
 
-        <button onclick="toggleSubmitForm()" class="px-4 py-2.5 bg-[#101010] text-white rounded-xl text-xs font-bold font-mono hover:bg-[#252525] transition flex items-center gap-2">
-          <i class="fa-solid fa-plus"></i>
+        <button onclick="toggleSubmitForm()" class="px-5 py-2.5 bg-volt text-black rounded-xl text-xs font-bold font-mono hover:bg-voltDark transition flex items-center gap-2 shadow-lg shadow-volt/10">
+          <i class="fa-solid fa-plus text-xs"></i>
           <span>Submit Threat Report</span>
         </button>
       </div>
 
-      <!-- Report Submission Form (Collapsible) -->
-      <div id="submitReportDrawer" class="hidden ethiack-card rounded-2xl border border-[rgba(0,0,0,0.12)] bg-[#f6f6f6] p-6 space-y-4">
-        <h3 class="text-sm font-bold text-[#040404] font-heading">Submit Domain Intelligence</h3>
+      <!-- Report Submission Form (Collapsible Bento) -->
+      <div id="submitReportDrawer" class="hidden bento-card rounded-2xl p-6 space-y-4">
+        <h3 class="text-sm font-bold text-white font-mono uppercase text-volt">// Submit Domain Threat Intelligence</h3>
         <form onsubmit="handleCommunitySubmit(event)" class="space-y-4 text-xs font-mono">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="font-bold text-[#040404]">Target Domain</label>
+              <label class="font-bold text-white">Target Domain</label>
               <input type="text" id="commDomain" required placeholder="phishing-lookalike.xyz"
-                class="w-full p-2.5 bg-[#ffffff] border border-[rgba(0,0,0,0.1)] rounded-lg focus:outline-none focus:border-[#040404]" />
+                class="w-full p-2.5 bg-[#0a0a0a] border border-hairline rounded-lg text-white focus:outline-none focus:border-volt" />
             </div>
             <div class="space-y-1">
-              <label class="font-bold text-[#040404]">Claim Classification</label>
-              <select id="commClaimType" class="w-full p-2.5 bg-[#ffffff] border border-[rgba(0,0,0,0.1)] rounded-lg focus:outline-none focus:border-[#040404]">
+              <label class="font-bold text-white">Claim Classification</label>
+              <select id="commClaimType" class="w-full p-2.5 bg-[#0a0a0a] border border-hairline rounded-lg text-white focus:outline-none focus:border-volt">
                 <option value="phishing">Phishing &amp; Credential Theft</option>
                 <option value="brand_impersonation">Brand Impersonation</option>
                 <option value="malware">Malware Distribution</option>
@@ -617,32 +686,32 @@
             </div>
           </div>
           <div class="space-y-1">
-            <label class="font-bold text-[#040404]">Observed Context &amp; Notes (XSS-sanitized)</label>
+            <label class="font-bold text-white">Observed Context &amp; Notes (XSS-sanitized)</label>
             <textarea id="commNotes" rows="2" placeholder="Describe the deceptive lure, homoglyph character, or credential harvesting pattern observed..."
-              class="w-full p-2.5 bg-[#ffffff] border border-[rgba(0,0,0,0.1)] rounded-lg focus:outline-none focus:border-[#040404]"></textarea>
+              class="w-full p-2.5 bg-[#0a0a0a] border border-hairline rounded-lg text-white focus:outline-none focus:border-volt"></textarea>
           </div>
           <div class="flex justify-end gap-2">
-            <button type="button" onclick="toggleSubmitForm()" class="px-4 py-2 rounded-lg border border-[rgba(0,0,0,0.1)] text-[#6b6b6b] hover:text-[#040404]">Cancel</button>
-            <button type="submit" class="px-5 py-2 rounded-lg bg-[#101010] text-white font-bold hover:bg-[#252525]">Publish to Feed</button>
+            <button type="button" onclick="toggleSubmitForm()" class="px-4 py-2 rounded-lg border border-hairline text-[#888888] hover:text-white">Cancel</button>
+            <button type="submit" class="px-5 py-2 rounded-lg bg-volt text-black font-bold hover:bg-voltDark">Publish to Feed</button>
           </div>
         </form>
       </div>
 
       <!-- Feed Search and List -->
-      <div class="space-y-4">
+      <div class="space-y-4 font-mono">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="relative flex-grow max-w-md">
-            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[#6b6b6b]">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[#666666]">
               <i class="fa-solid fa-search text-xs"></i>
             </span>
             <input type="text" id="feedSearch" oninput="filterThreatFeed()" placeholder="Search domain or note..."
-              class="w-full pl-8 pr-4 py-2 bg-[#f6f6f6] border border-[rgba(0,0,0,0.1)] rounded-xl text-xs font-mono focus:outline-none focus:bg-[#ffffff] focus:border-[#040404]" />
+              class="w-full pl-8 pr-4 py-2 bg-surface border border-hairline rounded-xl text-xs text-white focus:outline-none focus:border-volt" />
           </div>
-          <div class="flex items-center gap-1.5 text-xs font-mono">
-            <button onclick="setFeedStatusFilter('all')" id="commFilter-all" class="px-3 py-1.5 rounded-lg bg-[#101010] text-white font-bold">All</button>
-            <button onclick="setFeedStatusFilter('verified')" id="commFilter-verified" class="px-3 py-1.5 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">Verified (2+)</button>
-            <button onclick="setFeedStatusFilter('disputed')" id="commFilter-disputed" class="px-3 py-1.5 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">Disputed</button>
-            <button onclick="setFeedStatusFilter('unverified')" id="commFilter-unverified" class="px-3 py-1.5 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]">Unverified</button>
+          <div class="flex items-center gap-1.5 text-xs">
+            <button onclick="setFeedStatusFilter('all')" id="commFilter-all" class="px-3 py-1.5 rounded-lg bg-volt text-black font-bold">All</button>
+            <button onclick="setFeedStatusFilter('verified')" id="commFilter-verified" class="px-3 py-1.5 rounded-lg bg-surface text-[#888888] hover:text-white">Verified (2+)</button>
+            <button onclick="setFeedStatusFilter('disputed')" id="commFilter-disputed" class="px-3 py-1.5 rounded-lg bg-surface text-[#888888] hover:text-white">Disputed</button>
+            <button onclick="setFeedStatusFilter('unverified')" id="commFilter-unverified" class="px-3 py-1.5 rounded-lg bg-surface text-[#888888] hover:text-white">Unverified</button>
           </div>
         </div>
 
@@ -656,16 +725,16 @@
     <!-- TAB 5: 8 ARCHITECTURAL INVARIANTS -->
     <!-- ========================================================================= -->
     <section id="view-invariants" class="space-y-8 hidden">
-      <div class="border-b border-[rgba(0,0,0,0.08)] pb-6">
-        <div class="flex items-center gap-2 mb-1.5">
-          <span class="text-xs font-mono font-bold text-[#6b6b6b] uppercase tracking-widest">Formal Specifications</span>
-          <span class="text-[#cdcdcd]">/</span>
-          <span class="text-xs font-mono text-[#040404] font-semibold">Mathematical &amp; Policy Invariants</span>
+      <div class="border-b border-hairline pb-6">
+        <div class="flex items-center gap-2 mb-1.5 font-mono text-xs text-volt uppercase tracking-widest">
+          <span>[PROOFS // 05]</span>
+          <span class="text-[#444444]">/</span>
+          <span>MATHEMATICAL &amp; POLICY CONTRACTS</span>
         </div>
-        <h2 class="text-2xl sm:text-3xl font-heading font-extrabold text-[#040404] tracking-[-0.03em]">
+        <h2 class="text-3xl sm:text-5xl font-display font-black text-white tracking-[-0.04em] uppercase">
           The 8 Architectural Invariants
         </h2>
-        <p class="text-[#6b6b6b] text-xs sm:text-sm mt-1 max-w-2xl font-body">
+        <p class="text-[#888888] text-xs sm:text-sm mt-1 max-w-2xl font-mono">
           Every evaluation emitted by TRUSTTRACE adheres strictly to immutable mathematical proofs. No untracked checks, no fake authority from transport locks, and zero active browser exploitation surface.
         </p>
       </div>
@@ -673,148 +742,148 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs font-mono">
 
         <!-- INV-TLS-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">1. INV-TLS-001</span>
-            <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">CORE THESIS</span>
+            <span class="font-bold text-white text-sm">1. INV-TLS-001</span>
+            <span class="px-2 py-0.5 rounded bg-amberAlert/20 text-amberAlert text-[9px] font-bold">CORE THESIS</span>
           </div>
-          <div class="font-bold text-[#040404]">Valid DV TLS != Identity Verified</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Valid DV TLS != Identity Verified</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Domain-Validated certificates prove transport channel encryption between client and endpoint. They provide zero proof that the entity operating the domain is authorized to represent the claimed institution.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/integrity_auditor.py</span>
-            <button onclick="loadScenario('phishing_lookalike', 'https://bank-secure-lоgin.com')" class="text-[#040404] font-bold hover:underline">Test Case &rarr;</button>
+            <button onclick="loadScenario('phishing_lookalike', 'https://bank-secure-lоgin.com')" class="text-volt font-bold hover:underline">Test Case &rarr;</button>
           </div>
         </div>
 
         <!-- INV-EVID-002 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">2. INV-EVID-002</span>
-            <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-900 text-[10px] font-bold">EVIDENCE DISCIPLINE</span>
+            <span class="font-bold text-white text-sm">2. INV-EVID-002</span>
+            <span class="px-2 py-0.5 rounded bg-cyanSignal/20 text-cyanSignal text-[9px] font-bold">EVIDENCE DISCIPLINE</span>
           </div>
-          <div class="font-bold text-[#040404]">Negative Lookup != Proof of Safety</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Negative Lookup != Proof of Safety</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Absence of a blacklist entry is non-evidence of benevolence. Reports containing negative matches must carry explicit non-absolute safety disclaimers and prohibit "safe" verdicts.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/signal_extractor.py</span>
-            <button onclick="loadScenario('legitimate', 'https://example.com')" class="text-[#040404] font-bold hover:underline">Test Case &rarr;</button>
+            <button onclick="loadScenario('legitimate', 'https://example.com')" class="text-volt font-bold hover:underline">Test Case &rarr;</button>
           </div>
         </div>
 
         <!-- INV-COV-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">3. INV-COV-001</span>
-            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">COVERAGE MATH</span>
+            <span class="font-bold text-white text-sm">3. INV-COV-001</span>
+            <span class="px-2 py-0.5 rounded bg-volt/20 text-volt text-[9px] font-bold">COVERAGE MATH</span>
           </div>
-          <div class="font-bold text-[#040404]">Total Checks = Observed + Failed + Not Run</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Total Checks = Observed + Failed + Not Run</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Coverage arithmetic must be mathematically closed. A check that was not run due to budget exhaustion or safety gating cannot disappear from the denominator.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/input_validation.py</span>
-            <button onclick="switchTab('passport')" class="text-[#040404] font-bold hover:underline">Inspect Math &rarr;</button>
+            <button onclick="switchTab('passport')" class="text-volt font-bold hover:underline">Inspect Math &rarr;</button>
           </div>
         </div>
 
         <!-- INV-CLAIM-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">4. INV-CLAIM-001</span>
-            <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-900 text-[10px] font-bold">TRUTHFULNESS</span>
+            <span class="font-bold text-white text-sm">4. INV-CLAIM-001</span>
+            <span class="px-2 py-0.5 rounded bg-crimson/20 text-crimson text-[9px] font-bold">TRUTHFULNESS</span>
           </div>
-          <div class="font-bold text-[#040404]">Uncalibrated Pseudo-Probabilities Prohibited</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Uncalibrated Pseudo-Probabilities Prohibited</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             No synthetic percentage scores (e.g., "99.4% safe"). Confidence is strictly ordinal categories (HIGH, MEDIUM, LOW, NEGLIGIBLE) derived from structural coverage and freshness policies.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/uncertainty.py</span>
-            <button onclick="switchTab('passport')" class="text-[#040404] font-bold hover:underline">Inspect Bands &rarr;</button>
+            <button onclick="switchTab('passport')" class="text-volt font-bold hover:underline">Inspect Bands &rarr;</button>
           </div>
         </div>
 
         <!-- INV-FINDING-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">5. INV-FINDING-001</span>
-            <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-900 text-[10px] font-bold">PROVENANCE</span>
+            <span class="font-bold text-white text-sm">5. INV-FINDING-001</span>
+            <span class="px-2 py-0.5 rounded bg-cyanSignal/20 text-cyanSignal text-[9px] font-bold">PROVENANCE</span>
           </div>
-          <div class="font-bold text-[#040404]">Zero Dangling Findings / Strict Traceability</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Zero Dangling Findings / Strict Traceability</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Every policy finding must reference one or more genuine evidence record IDs recorded during intake. Fabricated findings without backing telemetry fail pre-publication audit.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/triage_engine.py</span>
-            <button onclick="switchTab('passport')" class="text-[#040404] font-bold hover:underline">Inspect Lineage &rarr;</button>
+            <button onclick="switchTab('passport')" class="text-volt font-bold hover:underline">Inspect Lineage &rarr;</button>
           </div>
         </div>
 
         <!-- INV-COV-002 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">6. INV-COV-002</span>
-            <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">ABSTENTION GATE</span>
+            <span class="font-bold text-white text-sm">6. INV-COV-002</span>
+            <span class="px-2 py-0.5 rounded bg-amberAlert/20 text-amberAlert text-[9px] font-bold">ABSTENTION GATE</span>
           </div>
-          <div class="font-bold text-[#040404]">Minimum Coverage Threshold for Definitive Verdict</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Minimum Coverage Threshold for Definitive Verdict</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             If required checks fail or timeout, the engine must abstain or cap confidence at inconclusive with an explicit plain-language Abstention Notice explaining the deficiency.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: policy/uncertainty.py</span>
-            <button onclick="loadScenario('conflicting', 'https://disputed-target.org')" class="text-[#040404] font-bold hover:underline">Test Case &rarr;</button>
+            <button onclick="loadScenario('conflicting', 'https://disputed-target.org')" class="text-volt font-bold hover:underline">Test Case &rarr;</button>
           </div>
         </div>
 
         <!-- INV-COMM-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">7. INV-COMM-001</span>
-            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">SYBIL RESISTANCE</span>
+            <span class="font-bold text-white text-sm">7. INV-COMM-001</span>
+            <span class="px-2 py-0.5 rounded bg-volt/20 text-volt text-[9px] font-bold">SYBIL RESISTANCE</span>
           </div>
-          <div class="font-bold text-[#040404]">Independent Corroboration Across Source Families</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Independent Corroboration Across Source Families</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Repeated submissions from the same reporter or upstream feed provider family do not inflate the independent verification count. Verification requires independent corroboration.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: evidence/community/</span>
-            <button onclick="switchTab('community')" class="text-[#040404] font-bold hover:underline">Inspect Feed &rarr;</button>
+            <button onclick="switchTab('community')" class="text-volt font-bold hover:underline">Inspect Feed &rarr;</button>
           </div>
         </div>
 
         <!-- INV-SEC-001 -->
-        <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-5 space-y-2">
+        <div class="bento-card rounded-xl p-5 space-y-2">
           <div class="flex items-center justify-between">
-            <span class="font-bold text-[#040404] text-sm">8. INV-SEC-001</span>
-            <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-900 text-[10px] font-bold">BOUNDARY DEFENSE</span>
+            <span class="font-bold text-white text-sm">8. INV-SEC-001</span>
+            <span class="px-2 py-0.5 rounded bg-crimson/20 text-crimson text-[9px] font-bold">BOUNDARY DEFENSE</span>
           </div>
-          <div class="font-bold text-[#040404]">Zero Egress on SSRF / Embedded Credentials</div>
-          <p class="text-[#6b6b6b] leading-relaxed">
+          <div class="font-bold text-white">Zero Egress on SSRF / Embedded Credentials</div>
+          <p class="text-[#888888] leading-relaxed font-display">
             Loopback IPs (127.0.0.1), RFC1918 subnets, cloud metadata (169.254.169.254), and credential-embedded URLs are halted at the intake gate before any network packet is dispatched.
           </p>
-          <div class="pt-2 flex justify-between items-center text-[10px] text-[#999999]">
+          <div class="pt-2 flex justify-between items-center text-[10px] text-[#666666]">
             <span>Enforced in: collectors/intake.py</span>
-            <button onclick="loadScenario('ssrf_blocked', 'http://169.254.169.254/latest/meta-data/')" class="text-[#040404] font-bold hover:underline">Test Case &rarr;</button>
+            <button onclick="loadScenario('ssrf_blocked', 'http://169.254.169.254/latest/meta-data/')" class="text-volt font-bold hover:underline">Test Case &rarr;</button>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Ethiack Minimal Footer -->
-  <footer class="border-t border-[rgba(0,0,0,0.08)] bg-[#ffffff] py-8 text-xs font-mono text-[#6b6b6b]">
+  <!-- Baseline Studio Minimal Footer -->
+  <footer class="border-t border-hairline bg-[#0a0a0a] py-8 text-xs font-mono text-[#888888]">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-2">
-        <span class="h-2 w-2 rounded-full bg-[#101010]"></span>
-        <span class="font-bold text-[#040404]">TRUSTTRACE</span>
+        <span class="h-2 w-2 rounded-full bg-volt"></span>
+        <span class="font-bold text-white">TRUSTTRACE</span>
         <span>&bull; HackMatrix '26 Research &amp; Engineering</span>
       </div>
       <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px]">
-        <span>Policy: <strong class="text-[#040404]">w03-v1.0</strong></span>
-        <span>Schema: <strong class="text-[#040404]">scan_report.schema.json</strong></span>
-        <span>Runtime: <strong class="text-[#040404]" id="footerRuntimeText">Dual-Mode Client / FastAPI</strong></span>
+        <span>Policy: <strong class="text-volt">w03-v1.0</strong></span>
+        <span>Schema: <strong class="text-white">scan_report.schema.json</strong></span>
+        <span>Runtime: <strong class="text-white" id="footerRuntimeText">Dual-Mode Client / FastAPI</strong></span>
       </div>
     </div>
   </footer>
@@ -822,49 +891,49 @@
   <!-- ========================================================================= -->
   <!-- MODAL: FASTAPI SERVER & BACKEND BRIDGE -->
   <!-- ========================================================================= -->
-  <div id="backendModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs hidden">
-    <div class="relative w-full max-w-2xl rounded-2xl border border-[rgba(0,0,0,0.12)] bg-[#ffffff] p-6 sm:p-8 space-y-6 shadow-2xl text-[#040404]">
-      <div class="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] pb-4">
+  <div id="backendModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs hidden font-mono">
+    <div class="relative w-full max-w-2xl rounded-2xl border border-hairline bg-surface p-6 sm:p-8 space-y-6 shadow-2xl text-white">
+      <div class="flex items-center justify-between border-b border-hairline pb-4">
         <div class="flex items-center gap-2.5">
-          <div class="p-2 rounded-lg bg-[#f6f6f6] border border-[rgba(0,0,0,0.08)]">
+          <div class="p-2 rounded-lg bg-[#0a0a0a] border border-hairline text-volt">
             <i class="fa-solid fa-terminal text-sm"></i>
           </div>
           <div>
-            <h3 class="text-base font-bold font-heading">FastAPI Server &amp; Pipeline Bridge</h3>
-            <p class="text-xs text-[#6b6b6b]">Autonomous client triage or connect to local Python backend</p>
+            <h3 class="text-base font-bold font-display uppercase tracking-wider">FastAPI Server &amp; Pipeline Bridge</h3>
+            <p class="text-xs text-[#888888]">Autonomous client triage or connect to local Python backend</p>
           </div>
         </div>
-        <button onclick="closeModal('backendModal')" class="p-2 text-[#6b6b6b] hover:text-[#040404]">
+        <button onclick="closeModal('backendModal')" class="p-2 text-[#888888] hover:text-white">
           <i class="fa-solid fa-xmark text-base"></i>
         </button>
       </div>
 
-      <div class="space-y-4 text-xs font-mono">
-        <div class="p-4 rounded-xl bg-[#f6f6f6] border border-[rgba(0,0,0,0.08)] space-y-2">
-          <div class="font-bold text-[#040404]">1. Launch Local FastAPI Web Server</div>
-          <div class="flex items-center justify-between p-2.5 bg-[#ffffff] rounded-lg border border-[rgba(0,0,0,0.08)] text-[#040404]">
+      <div class="space-y-4 text-xs">
+        <div class="p-4 rounded-xl bg-[#0a0a0a] border border-hairline space-y-2">
+          <div class="font-bold text-volt">1. Launch Local FastAPI Web Server</div>
+          <div class="flex items-center justify-between p-2.5 bg-surface rounded-lg border border-hairline text-white">
             <code>uvicorn trusttrace.web.routes:app --reload --port 8000</code>
-            <button onclick="copySnippet('uvicorn trusttrace.web.routes:app --reload --port 8000')" class="text-[#6b6b6b] hover:text-[#040404] font-bold">
+            <button onclick="copySnippet('uvicorn trusttrace.web.routes:app --reload --port 8000')" class="text-volt hover:text-white font-bold">
               <i class="fa-solid fa-copy"></i>
             </button>
           </div>
         </div>
 
-        <div class="p-4 rounded-xl bg-[#f6f6f6] border border-[rgba(0,0,0,0.08)] space-y-2">
-          <div class="font-bold text-[#040404]">2. Run Complete Repository Test Suite</div>
-          <div class="flex items-center justify-between p-2.5 bg-[#ffffff] rounded-lg border border-[rgba(0,0,0,0.08)] text-[#040404]">
+        <div class="p-4 rounded-xl bg-[#0a0a0a] border border-hairline space-y-2">
+          <div class="font-bold text-volt">2. Run Complete Repository Test Suite</div>
+          <div class="flex items-center justify-between p-2.5 bg-surface rounded-lg border border-hairline text-white">
             <code>python run_tests.py</code>
-            <button onclick="copySnippet('python run_tests.py')" class="text-[#6b6b6b] hover:text-[#040404] font-bold">
+            <button onclick="copySnippet('python run_tests.py')" class="text-volt hover:text-white font-bold">
               <i class="fa-solid fa-copy"></i>
             </button>
           </div>
         </div>
 
-        <div class="p-4 rounded-xl bg-[#f6f6f6] border border-[rgba(0,0,0,0.08)] space-y-2">
-          <div class="font-bold text-[#040404]">3. Live Custom Target Scan (REST API)</div>
-          <div class="flex items-center justify-between p-2.5 bg-[#ffffff] rounded-lg border border-[rgba(0,0,0,0.08)] text-[#040404]">
+        <div class="p-4 rounded-xl bg-[#0a0a0a] border border-hairline space-y-2">
+          <div class="font-bold text-volt">3. Live Custom Target Scan (REST API)</div>
+          <div class="flex items-center justify-between p-2.5 bg-surface rounded-lg border border-hairline text-white">
             <code>curl -X POST http://localhost:8000/scan/custom -d "url=https://example.com"</code>
-            <button onclick="copySnippet('curl -X POST http://localhost:8000/scan/custom -d \"url=https://example.com\"')" class="text-[#6b6b6b] hover:text-[#040404] font-bold">
+            <button onclick="copySnippet('curl -X POST http://localhost:8000/scan/custom -d \"url=https://example.com\"')" class="text-volt hover:text-white font-bold">
               <i class="fa-solid fa-copy"></i>
             </button>
           </div>
@@ -872,7 +941,7 @@
       </div>
 
       <div class="pt-2 text-right">
-        <button onclick="closeModal('backendModal')" class="px-5 py-2.5 bg-[#101010] text-white font-bold rounded-xl text-xs">
+        <button onclick="closeModal('backendModal')" class="px-5 py-2.5 bg-volt text-black font-display font-black rounded-xl text-xs uppercase tracking-wider">
           Close Bridge Guide
         </button>
       </div>
@@ -882,33 +951,33 @@
   <!-- ========================================================================= -->
   <!-- SCAN PROGRESSION MODAL -->
   <!-- ========================================================================= -->
-  <div id="scanModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs hidden">
-    <div class="relative w-full max-w-md rounded-2xl border border-[rgba(0,0,0,0.12)] bg-[#ffffff] p-6 space-y-5 shadow-2xl text-[#040404]">
-      <div class="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] pb-3">
+  <div id="scanModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs hidden font-mono">
+    <div class="relative w-full max-w-md rounded-2xl border border-hairline bg-surface p-6 space-y-5 shadow-2xl text-white">
+      <div class="flex items-center justify-between border-b border-hairline pb-3">
         <div class="flex items-center gap-2">
-          <div class="h-6 w-6 rounded bg-[#101010] text-white flex items-center justify-center text-xs">
+          <div class="h-6 w-6 rounded bg-volt text-black flex items-center justify-center text-xs font-black">
             <i class="fa-solid fa-radar animate-spin"></i>
           </div>
-          <h4 class="font-heading font-bold text-sm">Executing Bounded Trust Triage</h4>
+          <h4 class="font-display font-bold text-sm uppercase tracking-wider">Executing Bounded Trust Triage</h4>
         </div>
-        <span id="scanPercentText" class="text-xs font-mono font-bold">20%</span>
+        <span id="scanPercentText" class="text-xs font-mono font-bold text-volt">20%</span>
       </div>
 
       <!-- Progression Steps -->
-      <div id="scanStepsList" class="space-y-2.5 text-xs font-mono">
+      <div id="scanStepsList" class="space-y-2.5 text-xs">
         <!-- Injected via JS -->
       </div>
 
       <!-- Bar -->
-      <div class="h-1.5 w-full bg-[#f6f6f6] rounded-full overflow-hidden border border-[rgba(0,0,0,0.08)]">
-        <div id="scanProgressBar" class="h-full bg-[#101010] transition-all duration-150" style="width: 20%"></div>
+      <div class="h-1.5 w-full bg-[#0a0a0a] rounded-full overflow-hidden border border-hairline">
+        <div id="scanProgressBar" class="h-full bg-volt transition-all duration-150" style="width: 20%"></div>
       </div>
     </div>
   </div>
 
   <!-- Toast Notification -->
-  <div id="toast" class="fixed bottom-6 right-6 bg-[#101010] text-white px-4 py-2.5 rounded-xl font-mono text-xs shadow-2xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
-    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+  <div id="toast" class="fixed bottom-6 right-6 bg-surface border border-hairline text-white px-4 py-2.5 rounded-xl font-mono text-xs shadow-2xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i class="fa-solid fa-circle-check text-volt"></i>
     <span id="toastMsg">Action completed</span>
   </div>
 
@@ -917,7 +986,7 @@
   <!-- ========================================================================= -->
   <script>
     // -------------------------------------------------------------------------
-    // 1. Procedural Web Audio API Sound Synthesizer (No external sound assets)
+    // 1. Procedural Web Audio API Sound Synthesizer (Zero asset dependencies)
     // -------------------------------------------------------------------------
     class SoundEngine {
       constructor() {
@@ -962,7 +1031,7 @@
       }
 
       playScanTick(step) {
-        this.playClick(440 + (step * 80), 0.03);
+        this.playClick(480 + (step * 90), 0.03);
       }
 
       playAlert() {
@@ -974,7 +1043,7 @@
           const gain = this.ctx.createGain();
           osc.type = 'sawtooth';
           osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-          osc.frequency.setValueAtTime(260, this.ctx.currentTime + 0.08);
+          osc.frequency.setValueAtTime(240, this.ctx.currentTime + 0.08);
           gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.22);
           osc.connect(gain);
@@ -1373,7 +1442,7 @@
       }
     };
 
-    // Gallery Cases Metadata
+    // Gallery Cases Metadata (Baseline Project Style)
     const GALLERY_CASES = [
       {
         id: "case-01",
@@ -1530,9 +1599,9 @@
         }
         if (btn) {
           if (t === tabId) {
-            btn.className = 'px-3.5 py-1.5 rounded-lg transition text-[#040404] font-semibold bg-[#ffffff] shadow-sm';
+            btn.className = 'px-3.5 py-1.5 rounded-lg transition font-bold text-black bg-volt shadow-xs';
           } else {
-            btn.className = 'px-3.5 py-1.5 rounded-lg transition hover:text-[#040404] text-[#6b6b6b]';
+            btn.className = 'px-3.5 py-1.5 rounded-lg transition text-[#888888] hover:text-white';
           }
         }
       });
@@ -1553,31 +1622,31 @@
       const textEl = document.getElementById('preflightText');
 
       if (!text) {
-        textEl.innerHTML = '<i class="fa-solid fa-shield text-slate-500"></i><span>Intake Boundary: Passive Handshake Ready</span>';
-        alertEl.className = 'text-xs font-mono p-2.5 rounded-lg border bg-[#f6f6f6] border-[rgba(0,0,0,0.08)] text-[#6b6b6b] flex items-center justify-between';
+        textEl.innerHTML = '<i class="fa-solid fa-shield text-volt"></i><span>Intake Boundary: Passive Handshake Ready</span>';
+        alertEl.className = 'text-xs font-mono p-3 rounded-lg border bg-[#0a0a0a] border-hairline text-[#888888] flex items-center justify-between';
         return;
       }
 
       if (text.includes('@')) {
-        textEl.innerHTML = '<i class="fa-solid fa-ban text-rose-600"></i><span class="text-rose-950 font-bold">SEC-002: Embedded credentials prohibited in target URL</span>';
-        alertEl.className = 'text-xs font-mono p-2.5 rounded-lg border bg-rose-50 border-rose-200 text-rose-900 flex items-center justify-between';
+        textEl.innerHTML = '<i class="fa-solid fa-ban text-crimson"></i><span class="text-crimson font-bold">SEC-002: Embedded credentials prohibited in target URL</span>';
+        alertEl.className = 'text-xs font-mono p-3 rounded-lg border bg-crimson/10 border-crimson/50 text-crimson flex items-center justify-between';
         return;
       }
 
       if (text.includes('169.254.169.254') || text.includes('127.0.0.1') || text.includes('localhost')) {
-        textEl.innerHTML = '<i class="fa-solid fa-ban text-rose-600"></i><span class="text-rose-950 font-bold">SEC-001: Cloud metadata / loopback address rejected before network egress</span>';
-        alertEl.className = 'text-xs font-mono p-2.5 rounded-lg border bg-rose-50 border-rose-200 text-rose-900 flex items-center justify-between';
+        textEl.innerHTML = '<i class="fa-solid fa-ban text-crimson"></i><span class="text-crimson font-bold">SEC-001: Cloud metadata / loopback address rejected before network egress</span>';
+        alertEl.className = 'text-xs font-mono p-3 rounded-lg border bg-crimson/10 border-crimson/50 text-crimson flex items-center justify-between';
         return;
       }
 
       if (/[\u0400-\u04FF]/.test(text)) {
-        textEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-600"></i><span class="text-amber-950 font-bold">Homoglyph Alert: Cyrillic character detected in host label</span>';
-        alertEl.className = 'text-xs font-mono p-2.5 rounded-lg border bg-amber-50 border-amber-200 text-amber-900 flex items-center justify-between';
+        textEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amberAlert"></i><span class="text-amberAlert font-bold">Homoglyph Alert: Cyrillic character detected in host label</span>';
+        alertEl.className = 'text-xs font-mono p-3 rounded-lg border bg-amberAlert/10 border-amberAlert/50 text-amberAlert flex items-center justify-between';
         return;
       }
 
-      textEl.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i><span class="text-emerald-950">Intake Boundary: Hostname normalized; ready for passive audit</span>';
-      alertEl.className = 'text-xs font-mono p-2.5 rounded-lg border bg-emerald-50 border-emerald-200 text-emerald-900 flex items-center justify-between';
+      textEl.innerHTML = '<i class="fa-solid fa-circle-check text-volt"></i><span class="text-volt font-bold">Intake Boundary: Hostname normalized; ready for passive audit</span>';
+      alertEl.className = 'text-xs font-mono p-3 rounded-lg border bg-volt/10 border-hairlineVolt text-volt flex items-center justify-between';
     }
 
     // -------------------------------------------------------------------------
@@ -1603,22 +1672,22 @@
       let currentStep = 0;
       function renderSteps() {
         stepsContainer.innerHTML = SCAN_STEPS.map((s, idx) => {
-          let statusIcon = '<i class="fa-regular fa-circle text-[#cdcdcd]"></i>';
-          let textColor = 'text-[#6b6b6b]';
+          let statusIcon = '<i class="fa-regular fa-circle text-[#333333]"></i>';
+          let textColor = 'text-[#666666]';
           if (idx < currentStep) {
-            statusIcon = '<i class="fa-solid fa-circle-check text-emerald-600"></i>';
-            textColor = 'text-[#040404]';
+            statusIcon = '<i class="fa-solid fa-circle-check text-volt"></i>';
+            textColor = 'text-white';
           } else if (idx === currentStep) {
-            statusIcon = '<i class="fa-solid fa-circle-notch fa-spin text-[#101010]"></i>';
-            textColor = 'text-[#040404] font-bold';
+            statusIcon = '<i class="fa-solid fa-circle-notch fa-spin text-volt"></i>';
+            textColor = 'text-volt font-bold';
           }
           return `
-            <div class="flex items-center justify-between p-2 rounded-lg ${idx === currentStep ? 'bg-[#f6f6f6]' : ''}">
+            <div class="flex items-center justify-between p-2 rounded-lg ${idx === currentStep ? 'bg-[#181818] border border-hairlineVolt' : ''}">
               <div class="flex items-center gap-2 ${textColor}">
                 ${statusIcon}
                 <span>${s.title}</span>
               </div>
-              <span class="text-[10px] text-[#999999] font-mono">${s.code}</span>
+              <span class="text-[9px] text-volt font-mono font-bold">${s.code}</span>
             </div>
           `;
         }).join('');
@@ -1667,11 +1736,10 @@
 
         if (res.ok) {
           resolvedReport = await res.json();
-          document.getElementById('backendBadgeText').innerText = "FastAPI Connected";
+          document.getElementById('backendBadgeText').innerText = "FASTAPI: CONNECTED";
         }
       } catch (err) {
-        // Fallback to client-side scenario resolution
-        document.getElementById('backendBadgeText').innerText = "Client Engine Mode";
+        document.getElementById('backendBadgeText').innerText = "ENGINE: CLIENT MODE";
       }
 
       if (!resolvedReport) {
@@ -1780,19 +1848,18 @@
 
       // Decision badge
       const decEl = document.getElementById('passportDecisionBadge');
-      const decText = document.getElementById('passportDecisionText');
       if (rep.decision === 'caution') {
-        decEl.className = 'px-4 py-2 rounded-xl bg-amber-600 text-white font-bold text-sm tracking-wide uppercase inline-flex items-center gap-2';
+        decEl.className = 'px-4 py-2 rounded-xl bg-amberAlert text-black font-display font-black text-sm tracking-wider uppercase inline-flex items-center gap-2 shadow-lg shadow-amberAlert/20';
         decEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>Caution Advised</span>';
       } else if (rep.decision === 'rejected') {
-        decEl.className = 'px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-sm tracking-wide uppercase inline-flex items-center gap-2';
+        decEl.className = 'px-4 py-2 rounded-xl bg-crimson text-white font-display font-black text-sm tracking-wider uppercase inline-flex items-center gap-2 shadow-lg shadow-crimson/20';
         decEl.innerHTML = '<i class="fa-solid fa-ban"></i><span>Intake Rejected</span>';
       } else if (rep.decision === 'inconclusive') {
-        decEl.className = 'px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-sm tracking-wide uppercase inline-flex items-center gap-2';
+        decEl.className = 'px-4 py-2 rounded-xl bg-cyanSignal text-black font-display font-black text-sm tracking-wider uppercase inline-flex items-center gap-2 shadow-lg shadow-cyanSignal/20';
         decEl.innerHTML = '<i class="fa-solid fa-scale-unbalanced"></i><span>Abstention (Inconclusive)</span>';
       } else {
-        decEl.className = 'px-4 py-2 rounded-xl bg-[#101010] text-white font-bold text-sm tracking-wide uppercase inline-flex items-center gap-2';
-        decEl.innerHTML = '<i class="fa-solid fa-shield-check text-emerald-400"></i><span>No Threat Observed</span>';
+        decEl.className = 'px-4 py-2 rounded-xl bg-volt text-black font-display font-black text-sm tracking-wider uppercase inline-flex items-center gap-2 shadow-lg shadow-volt/20';
+        decEl.innerHTML = '<i class="fa-solid fa-shield-check"></i><span>No Threat Observed</span>';
       }
 
       // Confidence Band
@@ -1844,7 +1911,7 @@
 
       if (filtered.length === 0) {
         container.innerHTML = `
-          <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] text-xs font-mono text-[#6b6b6b] text-center">
+          <div class="p-4 rounded-xl border border-hairline bg-[#0a0a0a] text-xs font-mono text-[#666666] text-center">
             No findings matching current severity filter.
           </div>
         `;
@@ -1852,28 +1919,28 @@
       }
 
       container.innerHTML = filtered.map(f => {
-        let badgeColor = 'bg-blue-100 text-blue-900';
-        if (f.severity === 'high') badgeColor = 'bg-rose-100 text-rose-900';
-        if (f.severity === 'caution') badgeColor = 'bg-amber-100 text-amber-900';
+        let badgeColor = 'bg-cyanSignal/20 text-cyanSignal border border-cyanSignal/30';
+        if (f.severity === 'high') badgeColor = 'bg-crimson/20 text-crimson border border-crimson/30';
+        if (f.severity === 'caution') badgeColor = 'bg-amberAlert/20 text-amberAlert border border-amberAlert/30';
 
         const evPills = (f.evidence_ids || []).map(id => `
-          <span class="px-2 py-0.5 rounded bg-[#ffffff] border border-[rgba(0,0,0,0.1)] text-[#040404] font-bold text-[10px]">
+          <span class="px-2 py-0.5 rounded bg-[#0a0a0a] border border-hairline text-volt font-bold text-[9px] font-mono">
             <i class="fa-solid fa-link text-[8px] mr-1"></i>${id}
           </span>
         `).join('');
 
         return `
-          <div class="p-4 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] space-y-2 ethiack-card">
+          <div class="bento-card p-4 rounded-xl space-y-2">
             <div class="flex items-center justify-between text-xs font-mono">
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded ${badgeColor} font-bold text-[10px] uppercase">${f.severity}</span>
-                <span class="font-bold text-[#040404]">${f.finding_id}</span>
+                <span class="px-2 py-0.5 rounded ${badgeColor} font-bold text-[9px] uppercase tracking-wider">${f.severity}</span>
+                <span class="font-bold text-white">${f.finding_id}</span>
               </div>
-              <span class="text-[11px] text-[#6b6b6b]">${f.rule_id}</span>
+              <span class="text-[10px] text-volt">${f.rule_id}</span>
             </div>
-            <p class="text-xs text-[#040404] font-body leading-relaxed">${f.summary}</p>
+            <p class="text-xs text-[#cccccc] font-display leading-relaxed">${f.summary}</p>
             <div class="flex items-center gap-2 pt-1 font-mono text-xs">
-              <span class="text-[10px] text-[#6b6b6b]">Evidence Lineage:</span>
+              <span class="text-[10px] text-[#666666]">Evidence Lineage:</span>
               ${evPills}
             </div>
           </div>
@@ -1888,9 +1955,9 @@
         const btn = document.getElementById('findingFilter-' + s);
         if (btn) {
           if (s === sev) {
-            btn.className = 'px-2.5 py-1 rounded-lg bg-[#101010] text-white font-bold';
+            btn.className = 'px-2.5 py-1 rounded bg-volt text-black font-bold';
           } else {
-            btn.className = 'px-2.5 py-1 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]';
+            btn.className = 'px-2.5 py-1 rounded bg-[#0a0a0a] text-[#888888] hover:text-white';
           }
         }
       });
@@ -1900,74 +1967,74 @@
     function renderEvidenceTable(evidenceList) {
       const tbody = document.getElementById('evidenceTableBody');
       if (!evidenceList || evidenceList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-[#6b6b6b]">No evidence items attached.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-[#666666]">No evidence items attached.</td></tr>';
         return;
       }
 
       tbody.innerHTML = evidenceList.map(e => `
-        <tr class="hover:bg-[#f6f6f6] transition">
-          <td class="p-3 font-bold text-[#040404]">${e.evidence_id}</td>
-          <td class="p-3 text-[#6b6b6b]">${e.kind}</td>
-          <td class="p-3 text-[#040404] font-semibold">${e.source}</td>
-          <td class="p-3 text-[#6b6b6b]">${e.observed_at ? e.observed_at.substring(0, 19).replace('T', ' ') : 'N/A'}</td>
-          <td class="p-3 text-[#6b6b6b]">${e.reliability || 'direct'}</td>
-          <td class="p-3 text-[#6b6b6b]">${(e.limitations || []).join('; ') || 'None noted'}</td>
+        <tr class="hover:bg-[#161616] transition">
+          <td class="p-3 font-bold text-volt">${e.evidence_id}</td>
+          <td class="p-3 text-[#aaaaaa]">${e.kind}</td>
+          <td class="p-3 text-white font-semibold">${e.source}</td>
+          <td class="p-3 text-[#888888]">${e.observed_at ? e.observed_at.substring(0, 19).replace('T', ' ') : 'N/A'}</td>
+          <td class="p-3 text-[#888888]">${e.reliability || 'direct'}</td>
+          <td class="p-3 text-[#888888]">${(e.limitations || []).join('; ') || 'None noted'}</td>
         </tr>
       `).join('');
     }
 
     // -------------------------------------------------------------------------
-    // 7. Case Gallery Rendering
+    // 7. Case Gallery Rendering (Baseline Studio Showcase)
     // -------------------------------------------------------------------------
     function renderGallery() {
       const container = document.getElementById('galleryContainer');
       const filtered = GALLERY_CASES.filter(c => activeGalleryFilter === 'all' || c.category === activeGalleryFilter);
 
       container.innerHTML = filtered.map(c => {
-        let decBadge = '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">BENIGN</span>';
-        if (c.decision === 'caution') decBadge = '<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold">CAUTION</span>';
-        if (c.decision === 'rejected') decBadge = '<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-900 text-[10px] font-bold">REJECTED</span>';
-        if (c.decision === 'inconclusive') decBadge = '<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-900 text-[10px] font-bold">INCONCLUSIVE</span>';
+        let decBadge = '<span class="px-2 py-0.5 rounded bg-volt/20 text-volt text-[9px] font-bold border border-volt/30">BENIGN</span>';
+        if (c.decision === 'caution') decBadge = '<span class="px-2 py-0.5 rounded bg-amberAlert/20 text-amberAlert text-[9px] font-bold border border-amberAlert/30">CAUTION</span>';
+        if (c.decision === 'rejected') decBadge = '<span class="px-2 py-0.5 rounded bg-crimson/20 text-crimson text-[9px] font-bold border border-crimson/30">REJECTED</span>';
+        if (c.decision === 'inconclusive') decBadge = '<span class="px-2 py-0.5 rounded bg-cyanSignal/20 text-cyanSignal text-[9px] font-bold border border-cyanSignal/30">INCONCLUSIVE</span>';
 
         return `
-          <div class="ethiack-card rounded-2xl border border-[rgba(0,0,0,0.1)] bg-[#ffffff] p-6 space-y-4 shadow-sm flex flex-col justify-between">
+          <div class="bento-card rounded-2xl p-6 sm:p-7 space-y-4 flex flex-col justify-between">
             <div class="space-y-3">
               <div class="flex items-center justify-between text-xs font-mono">
-                <span class="text-[#6b6b6b] font-bold">CASE // ${c.number}</span>
+                <span class="text-volt font-bold">CASE // ${c.number}</span>
                 <div class="flex items-center gap-2">
-                  <span class="text-[#999999]">${c.year}</span>
+                  <span class="text-[#555555]">${c.year}</span>
                   ${decBadge}
                 </div>
               </div>
-              <h3 class="font-heading font-extrabold text-lg text-[#040404] tracking-[-0.03em] leading-tight">${c.title}</h3>
-              <div class="text-xs font-mono text-[#6b6b6b] flex items-center gap-1.5">
-                <i class="fa-solid fa-globe text-[10px]"></i>
-                <span class="text-[#040404] font-bold">${c.domain}</span>
+              <h3 class="font-display font-black text-xl text-white tracking-[-0.03em] leading-tight uppercase">${c.title}</h3>
+              <div class="text-xs font-mono text-[#888888] flex items-center gap-1.5">
+                <i class="fa-solid fa-globe text-[10px] text-volt"></i>
+                <span class="text-white font-bold">${c.domain}</span>
               </div>
-              <p class="text-xs text-[#6b6b6b] font-body leading-relaxed">${c.keyFinding}</p>
+              <p class="text-xs text-[#888888] font-display leading-relaxed">${c.keyFinding}</p>
 
-              <div class="grid grid-cols-3 gap-2 pt-2 text-[10px] font-mono border-t border-[rgba(0,0,0,0.06)]">
-                <div class="p-2 rounded bg-[#f6f6f6]">
-                  <div class="text-[#999999]">Transport</div>
-                  <div class="font-bold text-[#040404] truncate">${c.dimensionBreakdown.transport}</div>
+              <div class="grid grid-cols-3 gap-2 pt-2 text-[10px] font-mono border-t border-hairline">
+                <div class="p-2 rounded bg-[#0a0a0a]">
+                  <div class="text-[#555555]">Transport</div>
+                  <div class="font-bold text-volt truncate">${c.dimensionBreakdown.transport}</div>
                 </div>
-                <div class="p-2 rounded bg-[#f6f6f6]">
-                  <div class="text-[#999999]">Identity</div>
-                  <div class="font-bold text-[#040404] truncate">${c.dimensionBreakdown.identity}</div>
+                <div class="p-2 rounded bg-[#0a0a0a]">
+                  <div class="text-[#555555]">Identity</div>
+                  <div class="font-bold text-crimson truncate">${c.dimensionBreakdown.identity}</div>
                 </div>
-                <div class="p-2 rounded bg-[#f6f6f6]">
-                  <div class="text-[#999999]">Behavior</div>
-                  <div class="font-bold text-[#040404] truncate">${c.dimensionBreakdown.behavior}</div>
+                <div class="p-2 rounded bg-[#0a0a0a]">
+                  <div class="text-[#555555]">Behavior</div>
+                  <div class="font-bold text-white truncate">${c.dimensionBreakdown.behavior}</div>
                 </div>
               </div>
             </div>
 
-            <div class="pt-3 border-t border-[rgba(0,0,0,0.06)] flex items-center justify-between">
-              <span class="text-[10px] font-mono text-[#6b6b6b]">${c.metrics}</span>
+            <div class="pt-3 border-t border-hairline flex items-center justify-between">
+              <span class="text-[9px] font-mono text-[#666666]">${c.metrics}</span>
               <button onclick="loadScenario('${c.scenarioKey}', 'https://${c.domain}')"
-                class="px-3.5 py-1.5 rounded-lg bg-[#101010] text-white font-mono text-xs font-bold hover:bg-[#252525] transition flex items-center gap-1">
+                class="px-4 py-2 rounded-lg bg-volt text-black font-display font-black text-xs hover:bg-voltDark transition flex items-center gap-1 uppercase tracking-wider">
                 <span>Triage</span>
-                <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                <i class="fa-solid fa-arrow-right text-[9px]"></i>
               </button>
             </div>
           </div>
@@ -1982,9 +2049,9 @@
         const btn = document.getElementById('galFilter-' + c);
         if (btn) {
           if (c === cat) {
-            btn.className = 'px-3 py-1 rounded-lg bg-[#ffffff] text-[#040404] font-bold shadow-xs';
+            btn.className = 'px-3 py-1 rounded-lg bg-volt text-black font-bold';
           } else {
-            btn.className = 'px-3 py-1 rounded-lg text-[#6b6b6b] hover:text-[#040404]';
+            btn.className = 'px-3 py-1 rounded-lg text-[#888888] hover:text-white';
           }
         }
       });
@@ -2006,7 +2073,7 @@
 
       if (filtered.length === 0) {
         container.innerHTML = `
-          <div class="p-6 rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#f6f6f6] text-xs font-mono text-[#6b6b6b] text-center">
+          <div class="p-6 rounded-xl border border-hairline bg-[#0a0a0a] text-xs font-mono text-[#666666] text-center">
             No community threat reports found matching query.
           </div>
         `;
@@ -2014,26 +2081,26 @@
       }
 
       container.innerHTML = filtered.map(r => {
-        let stateBadge = '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">VERIFIED</span>';
-        if (r.verification_state === 'disputed') stateBadge = '<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-900 text-[10px] font-bold">DISPUTED</span>';
-        if (r.verification_state === 'unverified') stateBadge = '<span class="px-2 py-0.5 rounded bg-[#f6f6f6] border border-[rgba(0,0,0,0.1)] text-[#6b6b6b] text-[10px] font-bold">UNVERIFIED</span>';
+        let stateBadge = '<span class="px-2 py-0.5 rounded bg-volt/20 text-volt text-[9px] font-bold border border-volt/30">VERIFIED</span>';
+        if (r.verification_state === 'disputed') stateBadge = '<span class="px-2 py-0.5 rounded bg-cyanSignal/20 text-cyanSignal text-[9px] font-bold border border-cyanSignal/30">DISPUTED</span>';
+        if (r.verification_state === 'unverified') stateBadge = '<span class="px-2 py-0.5 rounded bg-[#0a0a0a] border border-hairline text-[#666666] text-[9px] font-bold">UNVERIFIED</span>';
 
         return `
-          <div class="ethiack-card rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#ffffff] p-4 space-y-2 text-xs font-mono">
+          <div class="bento-card rounded-xl p-4 space-y-2 text-xs font-mono">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
-                <span class="font-bold text-[#040404] text-sm">${r.normalized_domain}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-[#f6f6f6] text-[#6b6b6b]">${r.claim_type}</span>
+                <span class="font-bold text-white text-sm">${r.normalized_domain}</span>
+                <span class="text-[9px] px-2 py-0.5 rounded bg-[#0a0a0a] text-volt border border-hairline">${r.claim_type}</span>
               </div>
               <div class="flex items-center gap-2">
                 ${stateBadge}
-                <span class="text-[10px] text-[#999999]">${r.report_id}</span>
+                <span class="text-[9px] text-[#555555]">${r.report_id}</span>
               </div>
             </div>
-            <p class="text-[#6b6b6b] font-body text-xs">${r.note_sanitized || 'No notes provided.'}</p>
-            <div class="flex items-center justify-between pt-1 border-t border-[rgba(0,0,0,0.06)] text-[10px]">
-              <span class="text-[#6b6b6b]">Corroborated by <strong class="text-[#040404]">${r.independent_source_count}</strong> independent source families</span>
-              <button onclick="loadScenario('phishing_lookalike', 'https://${r.normalized_domain}')" class="text-[#040404] font-bold hover:underline flex items-center gap-1">
+            <p class="text-[#888888] font-display text-xs">${r.note_sanitized || 'No notes provided.'}</p>
+            <div class="flex items-center justify-between pt-1 border-t border-hairline text-[9px]">
+              <span class="text-[#666666]">Corroborated by <strong class="text-volt">${r.independent_source_count}</strong> independent source families</span>
+              <button onclick="loadScenario('phishing_lookalike', 'https://${r.normalized_domain}')" class="text-volt font-bold hover:underline flex items-center gap-1">
                 <span>Triage</span>
                 <i class="fa-solid fa-arrow-right text-[8px]"></i>
               </button>
@@ -2054,9 +2121,9 @@
         const btn = document.getElementById('commFilter-' + s);
         if (btn) {
           if (s === status) {
-            btn.className = 'px-3 py-1.5 rounded-lg bg-[#101010] text-white font-bold';
+            btn.className = 'px-3 py-1.5 rounded-lg bg-volt text-black font-bold';
           } else {
-            btn.className = 'px-3 py-1.5 rounded-lg bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]';
+            btn.className = 'px-3 py-1.5 rounded-lg bg-surface text-[#888888] hover:text-white';
           }
         }
       });
@@ -2117,11 +2184,11 @@
       const icon = document.getElementById('audioIcon');
       const label = document.getElementById('audioLabel');
       if (state) {
-        icon.className = 'fa-solid fa-volume-high text-xs';
+        icon.className = 'fa-solid fa-volume-high text-xs text-volt';
         label.innerText = 'SFX';
         showToast("Audio SFX Enabled");
       } else {
-        icon.className = 'fa-solid fa-volume-xmark text-xs text-slate-400';
+        icon.className = 'fa-solid fa-volume-xmark text-xs text-[#555555]';
         label.innerText = 'Muted';
         showToast("Audio SFX Muted");
       }
@@ -2152,7 +2219,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // 10. Custom Fluid Cursor Animation
+    // 10. Baseline Custom Fluid Magnetic Cursor
     // -------------------------------------------------------------------------
     const dot = document.getElementById('cursorDot');
     const follower = document.getElementById('cursorFollower');
@@ -2179,43 +2246,45 @@
     }
     requestAnimationFrame(animateFollower);
 
-    // Expand follower on interactive hover
+    // Expand follower on interactive element hover
     document.addEventListener('mouseover', (e) => {
-      if (e.target.closest('button, a, input, select, textarea, .ethiack-card')) {
+      if (e.target.closest('button, a, input, select, textarea, .bento-card')) {
         if (follower) {
-          follower.style.width = '48px';
-          follower.style.height = '48px';
-          follower.style.borderColor = '#101010';
+          follower.style.width = '42px';
+          follower.style.height = '42px';
+          follower.style.borderColor = '#CCFF00';
+          follower.style.backgroundColor = 'rgba(204, 255, 0, 0.05)';
         }
       }
     });
     document.addEventListener('mouseout', (e) => {
-      if (e.target.closest('button, a, input, select, textarea, .ethiack-card')) {
+      if (e.target.closest('button, a, input, select, textarea, .bento-card')) {
         if (follower) {
-          follower.style.width = '32px';
-          follower.style.height = '32px';
-          follower.style.borderColor = 'rgba(0, 0, 0, 0.25)';
+          follower.style.width = '28px';
+          follower.style.height = '28px';
+          follower.style.borderColor = 'rgba(204, 255, 0, 0.35)';
+          follower.style.backgroundColor = 'transparent';
         }
       }
     });
 
     // -------------------------------------------------------------------------
-    // 11. Initial Lifecycle Bootstrap
+    // 11. Initial Bootstrap
     // -------------------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       renderPassport(currentReport);
       renderGallery();
       renderThreatFeed();
 
-      // Check if backend is alive
+      // Probe backend
       fetch('/health')
         .then(res => {
           if (res.ok) {
-            document.getElementById('backendBadgeText').innerText = "FastAPI Connected";
+            document.getElementById('backendBadgeText').innerText = "FASTAPI: CONNECTED";
           }
         })
         .catch(() => {
-          document.getElementById('backendBadgeText').innerText = "Client Triage Ready";
+          document.getElementById('backendBadgeText').innerText = "ENGINE: CLIENT MODE";
         });
     });
   </script>
