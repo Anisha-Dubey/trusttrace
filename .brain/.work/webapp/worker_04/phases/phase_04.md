@@ -37,3 +37,4 @@ Elevate the TRUSTTRACE presentation layer with an editorial, high-contrast monoc
 ## Validation & Verification
 - Served dynamically by FastAPI `GET /` and functional when opened directly in any browser as standalone `index.html`.
 - Clean passes on all contract and schema validations.
+
