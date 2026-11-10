@@ -9,7 +9,7 @@ import uuid
 
 from .base import EvidenceProvider, EvidenceBatch
 from ..domain.models import EvidenceModel, CoverageModel, utc_now_iso
-from ..domain.enums import EvidenceStatus, Reliability
+from ..domain.enums import EvidenceStatus, Reliability, normalize_reliability
 
 
 class Worker01EvidenceAdapter(EvidenceProvider):
@@ -40,12 +40,7 @@ class Worker01EvidenceAdapter(EvidenceProvider):
                 status = EvidenceStatus.UNAVAILABLE
 
             rel_str = item.get("reliability")
-            reliability = None
-            if rel_str:
-                try:
-                    reliability = Reliability(rel_str)
-                except ValueError:
-                    reliability = Reliability.UNKNOWN
+            reliability = normalize_reliability(rel_str)
 
             limitations = list(item.get("limitations", []))
 

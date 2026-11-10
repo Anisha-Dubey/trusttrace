@@ -30,6 +30,8 @@ from ..policy.triage_engine import TriageEngine
 from ..policy.signal_taxonomy import SignalRecord, SignalKind, SignalConfidence
 from ..policy.integrity_auditor import ReportIntegrityAuditor
 from ..policy.uncertainty import ConfidenceBand
+from ..evidence.adapters.worker01_adapter import Worker01EvidenceAdapter
+from ..evidence.services.evidence_service import EvidenceService
 
 router = APIRouter(tags=["Web Interface & Triage"])
 
@@ -358,6 +360,15 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
                 detail=f"Report failed pre-publication integrity audit: {[i.to_dict() for i in audit_result.issues]}",
             )
 
+        # Ingest into EvidenceService for persistence
+        try:
+            adapter = Worker01EvidenceAdapter()
+            batch = adapter.adapt_payload(canonical_report["scan_id"], canonical_report)
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
+
         # Build response envelope with uncertainty assessment
         response_payload = dict(canonical_report)
         if triage_result.uncertainty:
@@ -379,6 +390,14 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
     # Step 1: Preflight Intake Gate (SSRF, credentials, unsupported scheme)
     if not eval_res.is_safe:
         rejected_report = boundary.build_rejected_report(scan_id, eval_res)
+        try:
+            adapter = Worker01EvidenceAdapter()
+            batch = adapter.adapt_payload(scan_id, rejected_report)
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
+
         audit_res = auditor.audit_report(rejected_report)
 
         response_payload = dict(rejected_report)
@@ -416,6 +435,13 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
                 "checks_not_run": len([e for e in evidence_items if e.get("status") not in ("observed", "failed", "unavailable")]),
             },
         )
+        try:
+            adapter = Worker01EvidenceAdapter()
+            batch = adapter.adapt_payload(scan_id, scan_output)
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
     except Exception as exc:
         # Graceful degradation on collection network error: emit truthful failure report
         evidence_items = [

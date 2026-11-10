@@ -507,6 +507,7 @@ class TestWorker01Worker02E2EIntegration(unittest.TestCase):
             mock_cert_fn=lambda h, p: {
                 "value": {
                     "is_valid": True,
+                    "hostname_match": True,
                     "hostname_matches": True,
                     "subject": {"commonName": h},
                     "issuer": {"organizationName": "Let's Encrypt"},

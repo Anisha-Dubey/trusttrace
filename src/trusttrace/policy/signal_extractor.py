@@ -136,7 +136,7 @@ class EvidenceSignalExtractor:
                     )
                     is_valid = bool(val.get("is_valid", False))
                     is_expired = bool(val.get("is_expired", False))
-                    hostname_match = bool(val.get("hostname_match", False))
+                    hostname_match = bool(val.get("hostname_match") or val.get("hostname_matches", False))
 
                     if is_expired:
                         signals.append(
