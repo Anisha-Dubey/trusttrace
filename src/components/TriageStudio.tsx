@@ -22,6 +22,7 @@ import { sound } from '../utils/audio';
 import LiquidCard from './LiquidCard';
 import LiquidButton from './LiquidButton';
 import { triggerLiquidWarp } from './LiquidFilter';
+import { useHanddrawnBorder } from '../utils/handdrawn';
 
 interface TriageStudioProps {
   currentUrl: string;
@@ -41,6 +42,10 @@ export default function TriageStudio({
   const [isScanning, setIsScanning] = useState(false);
   const [scanStep, setScanStep] = useState(0);
   const [selectedScenarioKey, setSelectedScenarioKey] = useState<string>('phishing_lookalike');
+
+  // Random hand-drawn border generators for input and telemetry container
+  const { style: inputBorder, morphBorder: morphInputBorder } = useHanddrawnBorder('input');
+  const { style: telemetryBorder, morphBorder: morphTelemetryBorder } = useHanddrawnBorder('box');
 
   const scanSteps = [
     { title: 'Intake Boundary Gate', desc: 'Validating RFC1918, SSRF loopback & credentials', code: 'SEC-001' },
@@ -210,7 +215,7 @@ export default function TriageStudio({
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="font-serif text-[#6B6B6B] text-base sm:text-xl max-w-2xl mx-auto leading-relaxed text-balance"
+          className="font-serif text-[#1F2937] text-base sm:text-xl max-w-2xl mx-auto leading-relaxed text-balance font-normal"
         >
           Inspect TLS transport cryptography, authoritative DNS delegation, identity provenance, and adversarial homoglyphs with deterministic boundaries.
         </motion.p>
@@ -240,8 +245,13 @@ export default function TriageStudio({
             onFocus={() => {
               sound.playHover();
               triggerLiquidWarp(6);
+              morphInputBorder();
             }}
-            className="w-full pl-10 sm:pl-14 pr-26 sm:pr-38 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50 handdrawn-input shadow-xs"
+            style={{
+              borderRadius: inputBorder.borderRadius,
+              borderWidth: inputBorder.borderWidth,
+            }}
+            className="w-full pl-10 sm:pl-14 pr-26 sm:pr-38 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50 shadow-xs"
           />
 
           <div className="absolute right-1.5 sm:right-3">
@@ -272,16 +282,16 @@ export default function TriageStudio({
 
         {/* Preflight Heuristic Status Pill */}
         {preflight && (
-          <div className="flex items-center justify-between text-xs font-mono px-2">
+          <div className="flex items-center justify-between text-xs sm:text-sm font-mono px-2">
             <div className="flex items-center gap-2">
-              <span className="text-[#6B6B6B]">Pre-Flight:</span>
+              <span className="text-[#374151] font-semibold">Pre-Flight:</span>
               <span
                 className={
                   preflight.type === 'danger'
-                    ? 'text-rose-600 font-medium'
+                    ? 'text-rose-700 font-bold'
                     : preflight.type === 'warning'
-                    ? 'text-amber-600 font-medium'
-                    : 'text-[#6B6B6B]'
+                    ? 'text-amber-700 font-bold'
+                    : 'text-[#1F2937] font-semibold'
                 }
               >
                 {preflight.label}
@@ -292,9 +302,9 @@ export default function TriageStudio({
                 sound.playClick(600);
                 onOpenInvariants();
               }}
-              className="text-[#6B6B6B] hover:text-[#040404] transition-colors flex items-center gap-1 cursor-pointer"
+              className="text-[#040404] hover:underline font-semibold transition-colors flex items-center gap-1 cursor-pointer"
             >
-              <Sparkles className="w-3 h-3 text-[#040404]" />
+              <Sparkles className="w-3.5 h-3.5 text-[#040404]" />
               <span>8 Invariants</span>
             </button>
           </div>
@@ -307,7 +317,11 @@ export default function TriageStudio({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border border-[#D9D9D9] bg-[#F6F6F6] handdrawn-box p-5 space-y-3"
+              style={{
+                borderRadius: telemetryBorder.borderRadius,
+                borderWidth: telemetryBorder.borderWidth,
+              }}
+              className="overflow-hidden border border-[#D9D9D9] bg-[#F6F6F6] p-5 space-y-3"
             >
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-[#040404] font-bold flex items-center gap-2">
@@ -355,10 +369,22 @@ export default function TriageStudio({
         </div>
 
         {/* 5 Scenario Liquid Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
           {scenarioPills.map((pill, idx) => {
             const Icon = pill.icon;
             const isSelected = selectedScenarioKey === pill.key;
+
+            const badgeBg =
+              pill.badge === 'HIGH RISK'
+                ? 'bg-[#040404] text-white border border-[#040404]'
+                : pill.badge === 'VERIFIED'
+                ? 'bg-emerald-800 text-white border border-emerald-900'
+                : pill.badge === 'CAUTION'
+                ? 'bg-amber-600 text-white border border-amber-700'
+                : pill.badge === 'INCONCLUSIVE'
+                ? 'bg-zinc-800 text-white border border-zinc-900'
+                : 'bg-rose-700 text-white border border-rose-800';
+
             return (
               <LiquidCard
                 key={pill.key}
@@ -366,29 +392,31 @@ export default function TriageStudio({
                 cursorBadge="AUDIT"
                 soundType="pill"
                 enableTilt={true}
-                enableLiquidWarp={true}
+                enableLiquidWarp={false}
                 variant="box"
-                className={`p-3.5 border text-left flex flex-col justify-between h-28 cursor-pointer select-none transition-all ${
+                className={`p-4 sm:p-4.5 border text-left flex flex-col justify-between min-h-[148px] cursor-pointer select-none transition-all ${
                   idx === 4 ? 'col-span-2 sm:col-span-1' : ''
                 } ${
                   isSelected
-                    ? 'border-[#040404] bg-[#FFFFFF] ring-1 ring-[#040404]'
+                    ? 'border-[#040404] bg-[#FFFFFF] ring-2 ring-[#040404] shadow-md'
                     : 'border-[#D9D9D9] bg-[#F6F6F6] hover:bg-[#FFFFFF] hover:border-[#040404]'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-heading font-bold text-[#040404] tracking-tight leading-tight">
+                <div className="flex items-start justify-between gap-1.5">
+                  <span className="text-sm font-heading font-extrabold text-[#040404] tracking-tight leading-snug">
                     {pill.label}
                   </span>
-                  <Icon className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />
+                  <Icon className="w-4 h-4 text-[#040404] shrink-0 mt-0.5" />
                 </div>
-                <div className="space-y-1">
-                  <div className="text-[10px] font-mono text-[#6B6B6B] leading-tight">
+                <div className="space-y-2.5 pt-2">
+                  <div className="text-xs sm:text-[13px] font-sans font-semibold text-[#1F2937] leading-snug">
                     {pill.sub}
                   </div>
-                  <span className="inline-block px-1.5 py-0.5 rounded bg-[#D9D9D9] text-[#040404] text-[9px] font-mono font-bold">
-                    {pill.badge}
-                  </span>
+                  <div>
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider shadow-xs ${badgeBg}`}>
+                      {pill.badge}
+                    </span>
+                  </div>
                 </div>
               </LiquidCard>
             );
@@ -407,7 +435,7 @@ export default function TriageStudio({
               Unbundled Trust Dimensions
             </span>
           </div>
-          <span className="text-xs font-mono text-[#6B6B6B]">Deterministic Multi-Signal Triage</span>
+          <span className="text-xs font-mono text-[#374151] font-semibold">Deterministic Multi-Signal Triage</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -417,22 +445,22 @@ export default function TriageStudio({
               cursorBadge="EXPLORE"
               soundType="liquid"
               enableTilt={true}
-              enableLiquidWarp={true}
+              enableLiquidWarp={false}
               variant="card"
-              className="p-6 border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404]"
+              className="p-6 border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404] hover:bg-[#FFFFFF]"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold text-[#6B6B6B] uppercase tracking-wider">
+                <span className="text-xs font-mono font-extrabold text-[#040404] uppercase tracking-wider">
                   {dim.id} // {dim.title}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono font-bold">
+                <span className="px-2.5 py-1 rounded-full bg-[#040404] text-white text-[10px] font-mono font-bold tracking-wide">
                   {dim.tag}
                 </span>
               </div>
-              <h3 className="text-lg font-serif font-bold text-[#040404]">
+              <h3 className="text-xl font-heading font-extrabold text-[#040404] tracking-tight">
                 {dim.title}
               </h3>
-              <p className="text-xs font-body text-[#6B6B6B] leading-relaxed">
+              <p className="text-sm font-sans font-medium text-[#1F2937] leading-relaxed">
                 {dim.desc}
               </p>
             </LiquidCard>

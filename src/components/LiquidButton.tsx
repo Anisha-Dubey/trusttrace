@@ -2,6 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { sound } from '../utils/audio';
 import { triggerLiquidWarp } from './LiquidFilter';
+import { useHanddrawnBorder, HanddrawnVariant } from '../utils/handdrawn';
 
 interface LiquidButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface LiquidButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
   variant?: 'primary' | 'secondary' | 'ghost';
   cursorBadge?: string;
   soundType?: 'click' | 'pill' | 'hover';
+  handdrawnVariant?: HanddrawnVariant;
 }
 
 export default function LiquidButton({
@@ -17,17 +19,25 @@ export default function LiquidButton({
   variant = 'primary',
   cursorBadge,
   soundType = 'click',
+  handdrawnVariant = 'button',
   onClick,
   onMouseEnter,
+  style: propStyle,
   ...rest
 }: LiquidButtonProps) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const [ripplePos, setRipplePos] = useState({ x: 0, y: 0, active: false });
 
+  // Procedural random handdrawn border
+  const { style: handdrawnStyle, morphBorder } = useHanddrawnBorder(handdrawnVariant);
+
   const handlePointerEnter = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {
       sound.playHover();
       triggerLiquidWarp(12);
+
+      // Randomize border on hover for organic sketch feel
+      morphBorder();
 
       if (btnRef.current) {
         const rect = btnRef.current.getBoundingClientRect();
@@ -39,7 +49,7 @@ export default function LiquidButton({
       }
       onMouseEnter?.(e as never);
     },
-    [onMouseEnter]
+    [onMouseEnter, morphBorder]
   );
 
   const handlePointerLeave = useCallback(() => {
@@ -54,9 +64,10 @@ export default function LiquidButton({
         sound.playPill();
       }
       triggerLiquidWarp(16);
+      morphBorder();
       onClick?.(e);
     },
-    [onClick, soundType]
+    [onClick, soundType, morphBorder]
   );
 
   const baseStyles =
@@ -73,7 +84,12 @@ export default function LiquidButton({
       onPointerLeave={handlePointerLeave}
       onClick={handleClick}
       data-cursor-text={cursorBadge}
-      className={`relative overflow-hidden transition-all duration-200 active:scale-95 cursor-pointer font-mono select-none handdrawn-btn ${baseStyles} ${className}`}
+      style={{
+        borderRadius: handdrawnStyle.borderRadius,
+        borderWidth: handdrawnStyle.borderWidth,
+        ...propStyle,
+      }}
+      className={`relative overflow-hidden transition-[border-radius,box-shadow,transform] duration-300 active:scale-95 cursor-pointer font-mono select-none ${baseStyles} ${className}`}
       {...rest}
     >
       {/* Hand-drawn liquid droplet ink ripple from pointer entry point */}

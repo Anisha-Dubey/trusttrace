@@ -5,27 +5,27 @@ import { ArrowUpRight } from 'lucide-react';
 export default function CustomCursor() {
   const [visible, setVisible] = useState(false);
   const [isPointer, setIsPointer] = useState(false);
+  const [isTextInput, setIsTextInput] = useState(false);
   const [cursorText, setCursorText] = useState<string | null>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
 
-  // Osply Fluid spring physics: high responsiveness with liquid inertia
-  const cursorX = useSpring(0, { damping: 22, stiffness: 380 });
-  const cursorY = useSpring(0, { damping: 22, stiffness: 380 });
-  const dotX = useSpring(0, { damping: 40, stiffness: 850 });
-  const dotY = useSpring(0, { damping: 40, stiffness: 850 });
+  // Osply Fluid spring physics:
+  // - cursorX/cursorY: liquid outer aura with soft momentum
+  // - dotX/dotY: instantaneous central tracking dot (near-zero latency precision)
+  const cursorX = useSpring(0, { damping: 24, stiffness: 420 });
+  const cursorY = useSpring(0, { damping: 24, stiffness: 420 });
+  const dotX = useSpring(0, { damping: 55, stiffness: 1400 });
+  const dotY = useSpring(0, { damping: 55, stiffness: 1400 });
 
   // Liquid velocity squish tracking
-  const scaleX = useSpring(1, { damping: 15, stiffness: 300 });
-  const scaleY = useSpring(1, { damping: 15, stiffness: 300 });
+  const scaleX = useSpring(1, { damping: 18, stiffness: 320 });
+  const scaleY = useSpring(1, { damping: 18, stiffness: 320 });
   const rotation = useMotionValue(0);
 
   const lastPos = useRef({ x: 0, y: 0, time: 0 });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const isTouch = window.matchMedia('(pointer: coarse), (hover: none)').matches || 'ontouchstart' in window;
-    if (isTouch) return;
 
     const handleTouchStart = () => setVisible(false);
 
@@ -53,12 +53,16 @@ export default function CustomCursor() {
       cursorY.set(e.clientY);
       dotX.set(e.clientX);
       dotY.set(e.clientY);
+
       if (!visible) setVisible(true);
 
       const target = e.target as HTMLElement | null;
       if (target) {
+        const isText = Boolean(target.closest('input, textarea, [contenteditable="true"]'));
+        setIsTextInput(isText);
+
         const isInteractive = Boolean(
-          target.closest('button, a, input, select, textarea, [role="button"], .cursor-pointer, [data-cursor-text]')
+          target.closest('button, a, select, [role="button"], .cursor-pointer, [data-cursor-text]')
         );
         setIsPointer(isInteractive);
 
@@ -105,7 +109,10 @@ export default function CustomCursor() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden hidden md:block">
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-[99999] overflow-hidden select-none"
+    >
       {/* Osply Liquid Fluid Cursor Aura */}
       <motion.div
         style={{
@@ -118,10 +125,10 @@ export default function CustomCursor() {
           translateY: '-50%',
         }}
         animate={{
-          scale: isMouseDown ? 0.8 : cursorText ? 1 : isPointer ? 1.45 : 1,
+          scale: isMouseDown ? 0.75 : cursorText ? 1 : isTextInput ? 0.4 : isPointer ? 1.5 : 1,
           opacity: 1,
         }}
-        transition={{ type: 'spring', damping: 20, stiffness: 350 }}
+        transition={{ type: 'spring', damping: 22, stiffness: 380 }}
         className="fixed top-0 left-0 flex items-center justify-center pointer-events-none select-none"
       >
         {cursorText ? (
@@ -135,12 +142,14 @@ export default function CustomCursor() {
             <span>{cursorText}</span>
             <ArrowUpRight className="w-3 h-3 text-white" />
           </motion.div>
+        ) : isTextInput ? (
+          <div className="h-4 w-4 rounded-full border border-[#040404]/30 bg-transparent" />
         ) : (
           <div
             className={`rounded-full transition-all duration-200 ${
               isPointer
                 ? 'h-10 w-10 border-2 border-[#040404] bg-[#040404]/5 backdrop-blur-[0.5px]'
-                : 'h-8 w-8 border border-[rgb(0_0_0/22%)] bg-transparent'
+                : 'h-8 w-8 border border-[rgb(0_0_0/25%)] bg-transparent'
             }`}
             style={{
               filter: isPointer ? 'url(#liquid-glass-refract)' : 'none',
@@ -149,7 +158,7 @@ export default function CustomCursor() {
         )}
       </motion.div>
 
-      {/* Central Sharp Tracking Dot */}
+      {/* Central Sharp Tracking Dot / Text Caret */}
       {!cursorText && (
         <motion.div
           style={{
@@ -159,11 +168,14 @@ export default function CustomCursor() {
             translateY: '-50%',
           }}
           animate={{
-            scale: isMouseDown ? 1.6 : isPointer ? 0.4 : 1,
+            scale: isMouseDown ? 1.6 : isPointer ? 0.5 : 1,
+            height: isTextInput ? 18 : 6,
+            width: isTextInput ? 2 : 6,
+            borderRadius: isTextInput ? 1 : 9999,
             backgroundColor: '#040404',
           }}
-          transition={{ duration: 0.08 }}
-          className="fixed top-0 left-0 h-1.5 w-1.5 rounded-full pointer-events-none"
+          transition={{ duration: 0.06 }}
+          className="fixed top-0 left-0 pointer-events-none shadow-xs"
         />
       )}
     </div>

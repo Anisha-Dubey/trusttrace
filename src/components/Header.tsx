@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Volume2, VolumeX, Code, Terminal, Shield, ArrowUpRight } from 'lucide-react';
 import { sound } from '../utils/audio';
 import { triggerLiquidWarp } from './LiquidFilter';
+import { useHanddrawnBorder } from '../utils/handdrawn';
 
 interface HeaderProps {
   activeTab: 'studio' | 'gallery' | 'passport' | 'community' | 'invariants' | 'backend';
@@ -24,6 +25,13 @@ export default function Header({
   onShowToast,
 }: HeaderProps) {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  // Independent randomized hand-drawn borders for header action items
+  const { style: sfxBorder, morphBorder: morphSfx } = useHanddrawnBorder('pill');
+  const { style: jsonBorder, morphBorder: morphJson } = useHanddrawnBorder('pill');
+  const { style: apiBorder, morphBorder: morphApi } = useHanddrawnBorder('pill');
+  const { style: ctaBorder, morphBorder: morphCta } = useHanddrawnBorder('button');
+  const { style: logoBorder } = useHanddrawnBorder('box');
 
   useEffect(() => {
     const unsubscribe = sound.subscribe((active) => {
@@ -63,7 +71,13 @@ export default function Header({
             onMouseEnter={() => sound.playHover()}
             className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
           >
-            <div className="h-8 w-8 rounded-lg bg-[#040404] text-white flex items-center justify-center group-hover:scale-105 group-hover:rotate-1 transition-transform shrink-0 shadow-xs">
+            <div
+              style={{
+                borderRadius: logoBorder.borderRadius,
+                borderWidth: logoBorder.borderWidth,
+              }}
+              className="h-8 w-8 bg-[#040404] text-white flex items-center justify-center group-hover:scale-105 group-hover:rotate-1 transition-transform shrink-0 shadow-xs"
+            >
               <Shield className="w-4 h-4" />
             </div>
             <div className="flex items-baseline gap-2">
@@ -118,8 +132,15 @@ export default function Header({
             onClick={toggleSound}
             data-cursor-text="AUDIO"
             title={soundEnabled ? 'Mute Sound Effects' : 'Enable Sound Effects'}
-            onMouseEnter={() => sound.playHover()}
-            className={`px-3 py-1.5 border text-xs font-mono transition-all flex items-center gap-2 cursor-pointer handdrawn-pill ${
+            onMouseEnter={() => {
+              sound.playHover();
+              morphSfx();
+            }}
+            style={{
+              borderRadius: sfxBorder.borderRadius,
+              borderWidth: sfxBorder.borderWidth,
+            }}
+            className={`px-3 py-1.5 border text-xs font-mono transition-all flex items-center gap-2 cursor-pointer ${
               soundEnabled
                 ? 'bg-[#F6F6F6] border-[#D9D9D9] text-[#040404] hover:border-[#040404]'
                 : 'bg-transparent border-[#D9D9D9] text-[#6B6B6B] hover:text-[#040404]'
@@ -160,12 +181,20 @@ export default function Header({
             onClick={() => {
               sound.playClick(700);
               triggerLiquidWarp(8);
+              morphJson();
               onToggleJson();
             }}
             data-cursor-text="JSON"
             title="Inspect Canonical JSON Schema"
-            onMouseEnter={() => sound.playHover()}
-            className="p-1.5 sm:px-2.5 sm:py-1.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#6B6B6B] hover:text-[#040404] transition-all text-xs hidden sm:flex items-center gap-1 font-mono cursor-pointer"
+            onMouseEnter={() => {
+              sound.playHover();
+              morphJson();
+            }}
+            style={{
+              borderRadius: jsonBorder.borderRadius,
+              borderWidth: jsonBorder.borderWidth,
+            }}
+            className="p-1.5 sm:px-2.5 sm:py-1.5 bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#6B6B6B] hover:text-[#040404] transition-all text-xs hidden sm:flex items-center gap-1 font-mono cursor-pointer"
           >
             <Code className="w-3.5 h-3.5" />
             <span className="text-[10px]">JSON</span>
@@ -176,11 +205,19 @@ export default function Header({
             onClick={() => {
               sound.playClick(600);
               triggerLiquidWarp(8);
+              morphApi();
               onOpenBackendModal();
             }}
             data-cursor-text="PYTHON"
-            onMouseEnter={() => sound.playHover()}
-            className="px-2.5 sm:px-3 py-1.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] hover:bg-white transition-all text-xs font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
+            onMouseEnter={() => {
+              sound.playHover();
+              morphApi();
+            }}
+            style={{
+              borderRadius: apiBorder.borderRadius,
+              borderWidth: apiBorder.borderWidth,
+            }}
+            className="px-2.5 sm:px-3 py-1.5 bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] hover:bg-white transition-all text-xs font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
           >
             <Terminal className="w-3.5 h-3.5 text-[#040404]" />
             <span>FastAPI</span>
@@ -191,11 +228,19 @@ export default function Header({
             onClick={() => {
               sound.playClick(600);
               triggerLiquidWarp(12);
+              morphCta();
               setActiveTab('studio');
             }}
             data-cursor-text="START"
-            onMouseEnter={() => sound.playHover()}
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 handdrawn-btn bg-[#040404] hover:bg-[#101010] text-white font-medium text-xs tracking-tight transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap cursor-pointer shadow-sm"
+            onMouseEnter={() => {
+              sound.playHover();
+              morphCta();
+            }}
+            style={{
+              borderRadius: ctaBorder.borderRadius,
+              borderWidth: ctaBorder.borderWidth,
+            }}
+            className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-[#040404] hover:bg-[#101010] text-white font-medium text-xs tracking-tight transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap cursor-pointer shadow-sm"
           >
             <span className="hidden xs:inline">Run Triage</span>
             <span className="xs:hidden">Triage</span>

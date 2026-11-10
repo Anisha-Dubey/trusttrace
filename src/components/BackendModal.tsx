@@ -40,12 +40,12 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-2xl rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-4 sm:p-8 space-y-5 sm:space-y-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto text-[#040404]"
+          className="relative w-full max-w-2xl rounded-[32px] sm:rounded-[36px] border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-8 space-y-5 sm:space-y-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto text-[#040404]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[rgb(0_0_0/10%)] pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] text-[#040404]">
+              <div className="p-2.5 rounded-2xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] text-[#040404]">
                 <Terminal className="w-5 h-5" />
               </div>
               <div>
