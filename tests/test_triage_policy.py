@@ -86,6 +86,16 @@ from trusttrace.policy import (
     generate_deterministic_finding_id,
     normalize_signal_confidence,
     parse_and_validate_target,
+    # Phase 08
+    CandidateAction,
+    AsymmetricCostConfig,
+    MinimaxEvaluationResult,
+    MinimaxDecisionEngine,
+    CostSensitivePolicyAssessment,
+    CostSensitivePolicyEvaluator,
+    DEFAULT_COST_PROFILES,
+    DETERMINISTIC_ACTION_PRECEDENCE,
+    is_cost_close,
 )
 import json
 from datetime import datetime, timezone, timedelta
@@ -3788,6 +3798,259 @@ class TestPhase07MultimodalAblationAndMasking(unittest.TestCase):
         self.assertEqual(len(res.availability_mask.unmapped_records), 1)
         self.assertEqual(res.availability_mask.unmapped_records[0]["kind"], "quantum_telemetry_probe")
         self.assertTrue(any(d.code == DiagnosticCode.UNSUPPORTED_EVIDENCE_KIND for d in res.diagnostics))
+
+
+# ─── Worker 03 Phase 08: Asymmetric Cost Calibration & Minimax Rules ──
+
+
+class TestPhase08CostCalibration(unittest.TestCase):
+    """Worker 03 Phase 08: Asymmetric Cost Configuration and Minimax Decision Rules."""
+
+    def setUp(self):
+        self.default_cfg = AsymmetricCostConfig(
+            profile_name="test_analyst",
+            cost_false_negative=50.0,
+            cost_false_positive=10.0,
+            cost_abstain=2.0,
+            cost_true_positive=0.0,
+            cost_true_negative=0.0,
+        )
+        self.engine = MinimaxDecisionEngine(self.default_cfg)
+
+    def test_01_cost_config_rationality_validation(self):
+        """01: Validates cost rationality, finiteness, and denominator safety."""
+        cfg = AsymmetricCostConfig("valid", 100.0, 20.0, 5.0, 1.0, 2.0)
+        self.assertEqual(cfg.denominator_threat, 19.0)
+        self.assertEqual(cfg.denominator_clean, 98.0)
+
+    def test_02_cost_config_rejection_of_non_finite_values(self):
+        """02: Rejects NaN, +inf, -inf with ValueError."""
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("nan", float("nan"), 10.0, 2.0)
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("inf", float("inf"), 10.0, 2.0)
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("ninf", 50.0, float("-inf"), 2.0)
+
+    def test_03_cost_config_rejection_of_negative_and_zero_review_cost(self):
+        """03: Rejects negative costs and zero review cost."""
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("neg", -10.0, 10.0, 2.0)
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("zero_a", 50.0, 10.0, 0.0)
+
+    def test_04_cost_config_denominator_positivity_enforced(self):
+        """04: Rejects C_FP <= C_TP and C_FN <= C_TN to prevent zero denominators."""
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("zero_den_threat", 50.0, 10.0, 2.0, cost_true_positive=10.0)
+        with self.assertRaises(ValueError):
+            AsymmetricCostConfig("zero_den_clean", 50.0, 10.0, 2.0, cost_true_negative=50.0)
+
+    def test_05_probability_interval_validation_endpoints(self):
+        """05: Rejects endpoints outside [0.0, 1.0], lower > upper, and non-finite endpoints."""
+        with self.assertRaises(ValueError):
+            self.engine.evaluate_interval(-0.1, 0.5)
+        with self.assertRaises(ValueError):
+            self.engine.evaluate_interval(0.2, 1.1)
+        with self.assertRaises(ValueError):
+            self.engine.evaluate_interval(0.8, 0.2)
+        with self.assertRaises(ValueError):
+            self.engine.evaluate_interval(float("nan"), 0.5)
+
+    def test_06_rejection_of_ordinal_bands_as_probability_intervals(self):
+        """06: Explicitly raises TypeError if ordinal ConfidenceBand or string is passed."""
+        with self.assertRaises(TypeError):
+            self.engine.evaluate_interval("sufficient_for_scoped_observation", 0.9)  # type: ignore
+        with self.assertRaises(TypeError):
+            self.engine.evaluate_interval(0.1, ConfidenceBand.LIMITED_OBSERVATION)  # type: ignore
+
+    def test_07_threshold_clamping_for_extreme_review_costs(self):
+        """07: Thresholds clamp to [0.0, 1.0] when C_A >= C_FP or C_A >= C_FN."""
+        cfg_high_a = AsymmetricCostConfig("high_a", 50.0, 10.0, 15.0)  # C_A > C_FP
+        self.assertLessEqual(cfg_high_a.raw_theta_threat, 0.0)
+        self.assertEqual(cfg_high_a.theta_threat_clamped, 0.0)
+
+        cfg_extreme_a = AsymmetricCostConfig("ext_a", 50.0, 10.0, 60.0)  # C_A > C_FN
+        self.assertGreaterEqual(cfg_extreme_a.raw_theta_clean, 1.0)
+        self.assertEqual(cfg_extreme_a.theta_clean_clamped, 1.0)
+
+    def test_08_decision_governed_by_raw_worst_case_costs(self):
+        """08: Decision evaluates raw worst-case costs R_bar(d) directly."""
+        # For lower_p=0.9, upper_p=1.0:
+        # R_bar(D_M) = 0.9*0 + 0.1*10 = 1.0
+        # R_bar(D_I) = 2.0
+        # R_bar(D_B) = 1.0*50 + 0 = 50.0
+        # Optimal is D_M (1.0 < 2.0 < 50.0)
+        res = self.engine.evaluate_interval(0.9, 1.0)
+        self.assertEqual(res.optimal_action, CandidateAction.THREAT)
+        self.assertFalse(res.is_tied)
+        self.assertAlmostEqual(res.minimum_cost, 1.0, places=7)
+
+    def test_09_exact_boundary_equality_two_way_threat_abstain(self):
+        """09: Exact boundary p_lower = theta_threat yields tie, resolves via D_I precedence."""
+        # theta_threat = (10 - 2) / 10 = 0.8
+        # At lower_p = 0.8: R_bar(D_M) = (1 - 0.8) * 10 = 2.0 == R_bar(D_I)
+        # Tie between D_I and D_M resolves to D_I
+        res = self.engine.evaluate_interval(0.8, 1.0)
+        self.assertTrue(res.is_tied)
+        self.assertIn(CandidateAction.INCONCLUSIVE, res.tied_actions)
+        self.assertIn(CandidateAction.THREAT, res.tied_actions)
+        self.assertEqual(res.optimal_action, CandidateAction.INCONCLUSIVE)
+
+    def test_10_exact_boundary_equality_two_way_clean_abstain(self):
+        """10: Exact boundary p_upper = theta_clean yields tie, resolves via D_I precedence."""
+        # theta_clean = 2 / 50 = 0.04
+        # At upper_p = 0.04: R_bar(D_B) = 0.04 * 50 = 2.0 == R_bar(D_I)
+        # Tie between D_I and D_B resolves to D_I
+        res = self.engine.evaluate_interval(0.0, 0.04)
+        self.assertTrue(res.is_tied)
+        self.assertIn(CandidateAction.INCONCLUSIVE, res.tied_actions)
+        self.assertIn(CandidateAction.CLEAN, res.tied_actions)
+        self.assertEqual(res.optimal_action, CandidateAction.INCONCLUSIVE)
+
+    def test_11_epsilon_above_theta_threat_selects_threat(self):
+        """11: lower_p = theta_threat + 1e-7 strictly selects THREAT without tie."""
+        res = self.engine.evaluate_interval(0.8 + 1e-7, 1.0)
+        self.assertEqual(res.optimal_action, CandidateAction.THREAT)
+        self.assertFalse(res.is_tied)
+
+    def test_12_epsilon_below_theta_clean_selects_clean(self):
+        """12: upper_p = theta_clean - 1e-7 strictly selects CLEAN without tie."""
+        res = self.engine.evaluate_interval(0.0, 0.04 - 1e-7)
+        self.assertEqual(res.optimal_action, CandidateAction.CLEAN)
+        self.assertFalse(res.is_tied)
+
+    def test_13_deterministic_three_way_tie_resolves_to_inconclusive(self):
+        """13: Three-way tie R_bar(D_M) == R_bar(D_B) == R_bar(D_I) deterministically resolves to D_I."""
+        # At lower_p = 0.8 and upper_p = 0.8? But lower must be <= upper.
+        # Construct symmetric cost config where theta_threat == theta_clean = 0.5:
+        # C_FP = 10, C_FN = 10, C_A = 5, C_TP = 0, C_TN = 0
+        # theta_threat = (10 - 5) / 10 = 0.5
+        # theta_clean = 5 / 10 = 0.5
+        # At interval [0.5, 0.5]:
+        # R_bar(D_M) = (1 - 0.5)*10 = 5.0
+        # R_bar(D_B) = 0.5*10 = 5.0
+        # R_bar(D_I) = 5.0
+        sym_cfg = AsymmetricCostConfig("sym_three_way", 10.0, 10.0, 5.0)
+        sym_eng = MinimaxDecisionEngine(sym_cfg)
+        res = sym_eng.evaluate_interval(0.5, 0.5)
+        self.assertTrue(res.is_tied)
+        self.assertEqual(len(res.tied_actions), 3)
+        self.assertEqual(res.optimal_action, CandidateAction.INCONCLUSIVE)
+
+    def test_14_scale_invariance_small_cost_magnitudes(self):
+        """14: Verifies tie detection at small cost magnitudes (1e-6)."""
+        small_cfg = AsymmetricCostConfig(
+            "small",
+            cost_false_negative=5e-5,
+            cost_false_positive=1e-5,
+            cost_abstain=2e-6,
+        )
+        small_eng = MinimaxDecisionEngine(small_cfg)
+        # theta_threat = (1e-5 - 2e-6) / 1e-5 = 0.8
+        res = small_eng.evaluate_interval(0.8, 1.0)
+        self.assertTrue(res.is_tied)
+        self.assertEqual(res.optimal_action, CandidateAction.INCONCLUSIVE)
+
+    def test_15_scale_invariance_large_cost_magnitudes(self):
+        """15: Verifies tie detection at large cost magnitudes (1e6)."""
+        large_cfg = AsymmetricCostConfig(
+            "large",
+            cost_false_negative=5e7,
+            cost_false_positive=1e7,
+            cost_abstain=2e6,
+        )
+        large_eng = MinimaxDecisionEngine(large_cfg)
+        res = large_eng.evaluate_interval(0.8, 1.0)
+        self.assertTrue(res.is_tied)
+        self.assertEqual(res.optimal_action, CandidateAction.INCONCLUSIVE)
+
+    def test_16_statistical_calibration_disabled_flag(self):
+        """16: statistical_calibration_active is False in standard evaluation."""
+        res = self.engine.evaluate_interval(0.2, 0.8)
+        self.assertFalse(res.statistical_calibration_active)
+
+    def test_17_cost_sensitive_policy_evaluator_threat_override(self):
+        """17: Policy evaluator preserves positive threat containment under cost profile."""
+        evaluator = CostSensitivePolicyEvaluator(self.default_cfg)
+        assess = evaluator.assess_triage(
+            decision="high_risk",
+            confidence_band="sufficient_for_scoped_observation",
+            modality_statuses={"dns": "observed_complete", "tls": "failed"},
+            has_positive_threat=True,
+        )
+        self.assertEqual(assess.action_recommendation, CandidateAction.THREAT)
+        self.assertEqual(assess.review_urgency, "high")
+
+    def test_18_cost_sensitive_policy_evaluator_incomplete_modality_abstains(self):
+        """18: Clean decision with incomplete modalities forces INCONCLUSIVE under cost profile."""
+        evaluator = CostSensitivePolicyEvaluator(self.default_cfg)
+        assess = evaluator.assess_triage(
+            decision="no_threat_observed",
+            confidence_band="sufficient_for_scoped_observation",
+            modality_statuses={"dns": "observed_complete", "tls": "failed"},
+            has_positive_threat=False,
+        )
+        self.assertEqual(assess.action_recommendation, CandidateAction.INCONCLUSIVE)
+        self.assertEqual(assess.review_urgency, "normal")
+
+    def test_19_cost_sensitive_policy_evaluator_complete_clean_succeeds(self):
+        """19: Complete modality baseline with no threat indicators recommends CLEAN."""
+        evaluator = CostSensitivePolicyEvaluator(self.default_cfg)
+        assess = evaluator.assess_triage(
+            decision="no_threat_observed",
+            confidence_band="sufficient_for_scoped_observation",
+            modality_statuses={"dns": "observed_complete", "tls": "observed_complete"},
+            has_positive_threat=False,
+        )
+        self.assertEqual(assess.action_recommendation, CandidateAction.CLEAN)
+        self.assertEqual(assess.review_urgency, "low")
+
+    def test_20_triage_engine_evaluate_with_cost_calibration_integration(self):
+        """20: Integration test verifying TriageEngine.evaluate_with_cost_calibration."""
+        target = "https://clean.example.com"
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        p_in = PolicyInput(
+            scan_id="p08-int-01",
+            target=target,
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_intelligence",
+                    source="threat_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "threat_type": None},
+                ),
+            ),
+        )
+        engine = TriageEngine()
+        res = engine.evaluate_with_cost_calibration(p_in, self.default_cfg)
+        self.assertEqual(res.decision, "no_threat_observed")
+        self.assertIsNotNone(res.cost_assessment)
+        self.assertEqual(res.cost_assessment.action_recommendation, CandidateAction.CLEAN)
+
+
 
 
 if __name__ == "__main__":

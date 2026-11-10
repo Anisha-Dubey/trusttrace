@@ -119,6 +119,7 @@ class TriageResult:
     diagnostics: Tuple[DiagnosticRecord, ...] = field(default_factory=tuple)
     uncertainty: Optional[UncertaintyAssessment] = None
     availability_mask: Optional[ModalityAvailabilityMask] = None
+    cost_assessment: Optional[Any] = None
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -1053,6 +1054,42 @@ class TriageEngine:
 
         min_ceiling = min(ceilings, key=lambda c: SEVERITY_ORDER.get(c, 999))
         return min_ceiling
+
+    # ─── Phase 08 Integrated Helper Method ────────────────────────────
+
+    def evaluate_with_cost_calibration(
+        self,
+        policy_input: Union[PolicyInput, Mapping[str, Any], Any],
+        cost_config: Optional[Any] = None,
+    ) -> TriageResult:
+        """Evaluate triage result and attach Phase 08 CostSensitivePolicyAssessment."""
+        result = self.evaluate_evidence(policy_input)
+        from .calibration import CostSensitivePolicyEvaluator, DEFAULT_COST_PROFILES
+
+        evaluator = CostSensitivePolicyEvaluator(cost_config or DEFAULT_COST_PROFILES["analyst_triage"])
+        has_pos = any(s.kind == SignalKind.THREAT_FEED_MATCH for s in getattr(result, "signals", []))
+        if not has_pos and result.decision in ("confirmed_threat", "suspicious_threat", "high_risk"):
+            has_pos = True
+
+        modality_statuses = (
+            {k.value: p.status.value for k, p in result.availability_mask.modalities.items()}
+            if result.availability_mask and hasattr(result.availability_mask, "modalities")
+            else {}
+        )
+        conf_band = (
+            result.uncertainty.confidence_band.value
+            if result.uncertainty and result.uncertainty.confidence_band
+            else "unknown"
+        )
+
+        cost_assessment = evaluator.assess_triage(
+            decision=result.decision,
+            confidence_band=conf_band,
+            modality_statuses=modality_statuses,
+            has_positive_threat=has_pos,
+        )
+        result.cost_assessment = cost_assessment
+        return result
 
 
 def _now_iso() -> str:

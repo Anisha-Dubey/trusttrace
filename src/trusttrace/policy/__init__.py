@@ -14,6 +14,17 @@ Modules:
 - regression: Deterministic policy-version regression runner and diff reporting
 """
 
+from .calibration import (
+    AsymmetricCostConfig,
+    CandidateAction,
+    CostSensitivePolicyAssessment,
+    CostSensitivePolicyEvaluator,
+    DEFAULT_COST_PROFILES,
+    DETERMINISTIC_ACTION_PRECEDENCE,
+    MinimaxDecisionEngine,
+    MinimaxEvaluationResult,
+    is_cost_close,
+)
 from .decision_log import DecisionAuditRecord, DecisionLog, DecisionLogEntry
 from .diagnostics import (
     DiagnosticCode,
@@ -170,4 +181,14 @@ __all__ = [
     "ModalityAvailabilityGate",
     "GateResult",
     "parse_and_validate_target",
+    # Asymmetric Cost Calibration (Phase 08)
+    "CandidateAction",
+    "AsymmetricCostConfig",
+    "MinimaxEvaluationResult",
+    "MinimaxDecisionEngine",
+    "CostSensitivePolicyAssessment",
+    "CostSensitivePolicyEvaluator",
+    "DEFAULT_COST_PROFILES",
+    "DETERMINISTIC_ACTION_PRECEDENCE",
+    "is_cost_close",
 ]
