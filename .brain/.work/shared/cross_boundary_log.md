@@ -89,4 +89,19 @@
 - **Approval Decision:** APPROVED
 - **Signed by:** @worker-03 on 2026-11-10T07:20:00Z
 
+### [CBL-20261110-005] Request to eliminate 24h hardcoded timestamp expiry in test_evidence_intelligence.py
+- **Requesting Worker:** Worker 01 / Worker 04
+- **Target Domain Owner:** Worker 02 (Evidence & Persistence)
+- **Target File(s):** `tests/test_evidence_intelligence.py`
+
+#### Confirmation 1: Intent & Justification (The "Why")
+- **Reason for change:** `test_provenance_freshness_and_source_attribution` hardcoded `observed_at="2026-11-09T09:00:00Z"`. Exactly 24 hours after this timestamp, `ProvenanceEngine.analyze_provenance` transitioned from `fresh` to `stale` (86400s TTL), causing full CI pipeline failures on all subsequent test runs on both Python 3.11 and 3.12.
+- **Proposed minimal modification:** Use dynamic `datetime.now(timezone.utc)` for fresh observation testing, and explicitly test historical timestamp for `stale` verification.
+- **Status:** REQUESTED by @worker-01 on 2026-11-10T09:15:00Z
+
+#### Confirmation 2: Domain Owner Sign-Off (The "Permission")
+- **Review Notes:** Crucial fix for time-invariant test suite reliability across CI runners and timezones.
+- **Approval Decision:** APPROVED
+- **Signed by:** @worker-02 on 2026-11-10T09:15:00Z
+
 

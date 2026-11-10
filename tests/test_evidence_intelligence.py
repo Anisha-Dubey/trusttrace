@@ -260,14 +260,17 @@ class TestEvidenceIntelligence(unittest.TestCase):
 
     def test_provenance_freshness_and_source_attribution(self):
         """Verify provenance analysis accurately tracks sources, latency, and freshness."""
+        now = datetime.now(timezone.utc)
+        obs_iso = now.isoformat().replace("+00:00", "Z")
+        ing_iso = datetime.fromtimestamp(now.timestamp() + 2, tz=timezone.utc).isoformat().replace("+00:00", "Z")
         ev = EvidenceModel(
             evidence_id="ev-prov-001",
             scan_id="scan-prov",
             kind="tls_hostname_validation",
             source="fixture_adapter",
             source_type="fixture",
-            observed_at="2026-11-09T09:00:00Z",
-            ingested_at="2026-11-09T09:00:02Z",
+            observed_at=obs_iso,
+            ingested_at=ing_iso,
             status=EvidenceStatus.OBSERVED,
             reliability=Reliability.DIRECT_OBSERVATION,
             limitations=["Fixture evidence"],
@@ -277,6 +280,22 @@ class TestEvidenceIntelligence(unittest.TestCase):
         self.assertTrue(prov.is_fixture)
         self.assertEqual(prov.reliability, "direct_observation")
         self.assertEqual(prov.freshness_state, "fresh")
+
+        # Also verify stale detection when beyond TTL
+        stale_ev = EvidenceModel(
+            evidence_id="ev-prov-002",
+            scan_id="scan-prov",
+            kind="tls_hostname_validation",
+            source="fixture_adapter",
+            source_type="fixture",
+            observed_at="2020-01-01T00:00:00Z",
+            ingested_at="2020-01-01T00:00:02Z",
+            status=EvidenceStatus.OBSERVED,
+            reliability=Reliability.DIRECT_OBSERVATION,
+            limitations=["Old evidence"],
+        )
+        stale_prov = self.provenance_engine.analyze_provenance(stale_ev)
+        self.assertEqual(stale_prov.freshness_state, "stale")
 
     def test_historical_observation_preservation(self):
         """Verify multiple observations for domain/scan are preserved chronologically."""
