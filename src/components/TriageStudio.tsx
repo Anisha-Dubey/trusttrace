@@ -72,12 +72,30 @@ export default function TriageStudio({
         sound.playScanBlip(step);
       } else {
         clearInterval(interval);
-        setTimeout(() => {
+        setTimeout(async () => {
           let report: PassportRecord;
-          if (scenarioKey && CANONICAL_SCENARIOS[scenarioKey]) {
-            report = CANONICAL_SCENARIOS[scenarioKey];
-          } else {
-            report = evaluateCustomTargetLocally(targetUrl);
+          try {
+            const apiRes = await fetch('/api/v1/triage/demo', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: targetUrl,
+                scenario: scenarioKey || 'custom',
+              }),
+            });
+            if (apiRes.ok) {
+              report = await apiRes.json();
+            } else if (scenarioKey && CANONICAL_SCENARIOS[scenarioKey]) {
+              report = CANONICAL_SCENARIOS[scenarioKey];
+            } else {
+              report = evaluateCustomTargetLocally(targetUrl);
+            }
+          } catch {
+            if (scenarioKey && CANONICAL_SCENARIOS[scenarioKey]) {
+              report = CANONICAL_SCENARIOS[scenarioKey];
+            } else {
+              report = evaluateCustomTargetLocally(targetUrl);
+            }
           }
 
           if (report.status === 'rejected' || report.decision === 'rejected') {
@@ -366,8 +384,10 @@ export default function TriageStudio({
           {scenarioPills.map((pill, idx) => {
             const Icon = pill.icon;
             const isSelected = selectedScenarioKey === pill.key;
-            // Clean neutral light-gray pill with dark monospace typography (zero saturated colors)
-            const badgeBg = 'bg-[#E5E7EB] text-[#111827] border border-[#D1D5DB]/80';
+            // Clean neutral pill: solid black when selected, light gray when unselected (zero saturated colors)
+            const badgeBg = isSelected
+              ? 'bg-[#040404] text-white border border-[#040404]'
+              : 'bg-[#E5E7EB] text-[#111827] border border-[#D1D5DB]/80';
 
             return (
               <LiquidCard

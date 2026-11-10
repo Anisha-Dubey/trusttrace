@@ -64,9 +64,24 @@ class TestWebInterfaceRegression(unittest.TestCase):
         # Reset rate limiter
         default_rate_limiter.reset()
 
+    def tearDown(self):
+        """Clean up in-memory database engines to prevent ResourceWarnings."""
+        try:
+            if hasattr(self, "test_db") and self.test_db and hasattr(self.test_db, "engine"):
+                self.test_db.engine.dispose()
+        except Exception:
+            pass
+
     def _extract_canonical_report(self, response_data: dict) -> dict:
-        """Strip presentation-only metadata (uncertainty, abstention, audit) to validate core schema."""
-        ignored_keys = {"uncertainty", "abstention", "audit"}
+        """Strip presentation-only metadata to validate core schema compliance."""
+        ignored_keys = {
+            "uncertainty",
+            "abstention",
+            "audit",
+            "cost_assessment",
+            "counterfactual",
+            "claim_matrix",
+        }
         return {k: v for k, v in response_data.items() if k not in ignored_keys}
 
     # =========================================================================
@@ -284,6 +299,99 @@ class TestWebInterfaceRegression(unittest.TestCase):
         first_item = feed_data["items"][0]
         self.assertEqual(first_item["normalized_domain"], "suspicious-phish-portal.org")
         self.assertEqual(first_item["claim_type"], "phishing")
+
+    # =========================================================================
+    # 5. Worker 03 Phase 08, 09, 10 Secondary Analysis Endpoints
+    # =========================================================================
+
+    def test_11_cost_profiles_endpoint(self):
+        """GET /api/v1/cost-profiles returns standard deployment cost profiles."""
+        res = self.client.get("/api/v1/cost-profiles")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("profiles", data)
+        self.assertIn("analyst_triage", data["profiles"])
+        self.assertIn("enterprise_blocking", data["profiles"])
+        profile = data["profiles"]["analyst_triage"]
+        self.assertEqual(profile["cost_false_negative"], 50.0)
+        self.assertEqual(profile["cost_false_positive"], 10.0)
+        self.assertEqual(profile["cost_abstain"], 2.0)
+
+    def test_12_cost_assessment_endpoint(self):
+        """POST /api/v1/scans/{id}/cost-assessment evaluates asymmetric minimax cost action."""
+        res = self.client.post(
+            "/api/v1/scans/scan-demo-phish-001/cost-assessment",
+            json={
+                "profile_name": "analyst_triage",
+                "scenario": "phishing_lookalike"
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("cost_assessment", data)
+        ca = data["cost_assessment"]
+        self.assertIn(ca["optimal_action"], ("threat", "clean", "inconclusive"))
+        self.assertIn("worst_case_costs", ca)
+        self.assertIn("minimum_cost", ca)
+        self.assertIn("cost_config", data)
+
+    def test_13_counterfactual_endpoint(self):
+        """POST /api/v1/scans/{id}/counterfactual computes deterministic sensitivity."""
+        res = self.client.post(
+            "/api/v1/scans/scan-demo-phish-001/counterfactual",
+            json={
+                "target_disposition": "clean",
+                "scenario": "phishing_lookalike"
+            }
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("status", data)
+        self.assertIn("disclaimer", data)
+        self.assertIn("Hypothetical scenario based strictly on mathematical decision-boundary", data["disclaimer"])
+        self.assertIn(data["status"], ("SUCCESS", "UNREACHABLE"))
+        self.assertIn("resulting_disposition", data)
+        self.assertIn("explanation", data)
+        self.assertIn("perturbations", data)
+
+        # Expired TLS check
+        res_exp = self.client.post(
+            "/api/v1/scans/scan-demo-expired-001/counterfactual",
+            json={
+                "target_disposition": "clean",
+                "scenario": "expired_tls"
+            }
+        )
+        self.assertEqual(res_exp.status_code, 200)
+        data_exp = res_exp.json()
+        self.assertIn("status", data_exp)
+        self.assertIn(data_exp["status"], ("SUCCESS", "UNREACHABLE"))
+        self.assertIn("disclaimer", data_exp)
+
+    def test_14_claim_matrix_endpoint(self):
+        """GET & POST /api/v1/scans/{id}/claim-matrix returns verified claim-to-evidence lineage."""
+        res = self.client.get("/api/v1/scans/scan-demo-phish-001/claim-matrix")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("entries", data)
+        self.assertGreaterEqual(data["total_claims"], 1)
+        self.assertIn("matrix_integrity_passed", data)
+        for entry in data["entries"]:
+            self.assertIn("claim", entry)
+            self.assertIn("status", entry)
+            self.assertIn(entry["status"], ("supported", "partially_supported", "contradicted", "unsupported"))
+
+    def test_15_triage_demo_includes_phase_8_9_10(self):
+        """POST /api/v1/triage/demo automatically includes cost, counterfactual, and claim matrix."""
+        res = self.client.post("/api/v1/triage/demo", json={
+            "url": "https://bank-secure-lоgin.com",
+            "scenario": "phishing_lookalike"
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("cost_assessment", data)
+        self.assertIn("counterfactual", data)
+        self.assertIn("claim_matrix", data)
 
 
 if __name__ == "__main__":

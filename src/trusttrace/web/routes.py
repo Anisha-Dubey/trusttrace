@@ -14,6 +14,7 @@ Adheres strictly to TRUSTTRACE core invariants:
 from __future__ import annotations
 
 import json
+import math
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,8 +29,23 @@ from ..collectors.orchestrator import ScanOrchestrator
 from ..policy.policy_input import PolicyInput
 from ..policy.triage_engine import TriageEngine
 from ..policy.signal_taxonomy import SignalRecord, SignalKind, SignalConfidence
+from ..policy.signal_extractor import EvidenceSignalExtractor
 from ..policy.integrity_auditor import ReportIntegrityAuditor
 from ..policy.uncertainty import ConfidenceBand
+from ..policy.calibration import (
+    AsymmetricCostConfig,
+    DEFAULT_COST_PROFILES,
+    CandidateAction,
+)
+from ..policy.counterfactual import (
+    CounterfactualExplanationEngine,
+    CounterfactualResult,
+    COUNTERFACTUAL_DISCLAIMER,
+)
+from ..policy.claim_matrix import (
+    ClaimEvidenceMatrixGenerator,
+    ClaimEvidenceMatrixResult,
+)
 from ..evidence.adapters.worker01_adapter import Worker01EvidenceAdapter
 from ..evidence.services.evidence_service import EvidenceService
 
@@ -41,6 +57,9 @@ INDEX_HTML_PATH = REPO_ROOT / "index.html"
 DIST_DIR = REPO_ROOT / "dist"
 DIST_INDEX_HTML_PATH = DIST_DIR / "index.html"
 
+# In-memory scan cache for quick access by scan_id across secondary analysis endpoints
+_SCAN_CACHE: Dict[str, Tuple[PolicyInput, Any, List[Dict[str, Any]]]] = {}
+
 
 class TriageDemoRequest(BaseModel):
     """Request payload for web triage assessment."""
@@ -48,9 +67,47 @@ class TriageDemoRequest(BaseModel):
     scenario: Optional[str] = Field("custom", description="Demonstration scenario identifier or 'custom'")
 
 
+class CostAssessmentRequest(BaseModel):
+    """Request payload for asymmetric operational cost evaluation (Phase 08)."""
+    profile_name: Optional[str] = Field("analyst_triage", description="Preset cost profile name")
+    cost_false_negative: Optional[float] = Field(None, description="C_FN: Cost of false negative (missed threat)")
+    cost_false_positive: Optional[float] = Field(None, description="C_FP: Cost of false positive (false alarm)")
+    cost_abstain: Optional[float] = Field(None, description="C_A: Cost of manual analyst review")
+    cost_true_positive: Optional[float] = Field(0.0, description="C_TP: Cost of true positive")
+    cost_true_negative: Optional[float] = Field(0.0, description="C_TN: Cost of true negative")
+    scenario: Optional[str] = Field(None, description="Optional scenario ID if scan_id not in cache")
+    url: Optional[str] = Field(None, description="Optional target URL")
+
+
+class CounterfactualRequest(BaseModel):
+    """Request payload for deterministic counterfactual sensitivity (Phase 09)."""
+    target_disposition: Optional[str] = Field("clean", description="Target disposition: 'clean', 'threat', 'inconclusive'")
+    scenario: Optional[str] = Field(None, description="Optional scenario ID if scan_id not in cache")
+    url: Optional[str] = Field(None, description="Optional target URL")
+
+
+class ClaimMatrixRequest(BaseModel):
+    """Request payload for claim-to-evidence matrix query (Phase 10)."""
+    scenario: Optional[str] = Field(None, description="Optional scenario ID if scan_id not in cache")
+    url: Optional[str] = Field(None, description="Optional target URL")
+
+
 def _now_iso() -> str:
     """Return current UTC timestamp in ISO-8601 format."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _sanitize_json_floats(obj: Any) -> Any:
+    """Ensure all float values are compliant with standard JSON (replace Inf/NaN with None)."""
+    if isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_json_floats(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_json_floats(v) for v in obj]
+    return obj
 
 
 def _build_scenario_policy_input(
@@ -371,6 +428,10 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
         except Exception:
             pass
 
+        # Cache for subsequent secondary queries
+        _SCAN_CACHE[canonical_report["scan_id"]] = (policy_input, triage_result, raw_evidence)
+        _SCAN_CACHE[scenario] = (policy_input, triage_result, raw_evidence)
+
         # Build response envelope with uncertainty assessment
         response_payload = dict(canonical_report)
         if triage_result.uncertainty:
@@ -378,6 +439,31 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
             if triage_result.uncertainty.abstention_notice:
                 response_payload["abstention"] = triage_result.uncertainty.abstention_notice.to_dict()
         response_payload["audit"] = audit_result.to_dict()
+
+        # Phase 08: Cost Calibration
+        try:
+            evaluated_cost = engine.evaluate_with_cost_calibration(policy_input)
+            if evaluated_cost.cost_assessment:
+                response_payload["cost_assessment"] = _sanitize_json_floats(evaluated_cost.cost_assessment.to_dict())
+        except Exception:
+            pass
+
+        # Phase 09: Deterministic Counterfactual Sensitivity
+        try:
+            extractor = EvidenceSignalExtractor()
+            extracted_sigs = list(extractor.extract_signals(policy_input).signals)
+            target_cf = "no_threat_observed" if triage_result.decision != "no_threat_observed" else "confirmed_threat"
+            cf_res = engine.evaluate_with_counterfactual(signals=extracted_sigs, target_disposition=target_cf, scan_id=canonical_report["scan_id"])
+            response_payload["counterfactual"] = _sanitize_json_floats(cf_res.to_dict())
+        except Exception:
+            pass
+
+        # Phase 10: Claim-to-Evidence Matrix
+        try:
+            matrix_res = engine.generate_claim_matrix(policy_input, triage_result=triage_result)
+            response_payload["claim_matrix"] = _sanitize_json_floats(matrix_res.to_dict())
+        except Exception:
+            pass
 
         return response_payload
 
@@ -508,7 +594,171 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
             response_payload["abstention"] = triage_result.uncertainty.abstention_notice.to_dict()
     response_payload["audit"] = audit_res.to_dict()
 
+    # Cache scan for subsequent secondary queries
+    _SCAN_CACHE[scan_id] = (policy_input, triage_result, evidence_items)
+
+    # Phase 08: Cost Calibration
+    try:
+        evaluated_cost = engine.evaluate_with_cost_calibration(policy_input)
+        if evaluated_cost.cost_assessment:
+            response_payload["cost_assessment"] = _sanitize_json_floats(evaluated_cost.cost_assessment.to_dict())
+    except Exception:
+        pass
+
+    # Phase 09: Deterministic Counterfactual Sensitivity
+    try:
+        extractor = EvidenceSignalExtractor()
+        extracted_sigs = list(extractor.extract_signals(policy_input).signals)
+        target_cf = "no_threat_observed" if triage_result.decision != "no_threat_observed" else "confirmed_threat"
+        cf_res = engine.evaluate_with_counterfactual(signals=extracted_sigs, target_disposition=target_cf, scan_id=scan_id)
+        response_payload["counterfactual"] = _sanitize_json_floats(cf_res.to_dict())
+    except Exception:
+        pass
+
+    # Phase 10: Claim-to-Evidence Matrix
+    try:
+        matrix_res = engine.generate_claim_matrix(policy_input, triage_result=triage_result)
+        response_payload["claim_matrix"] = _sanitize_json_floats(matrix_res.to_dict())
+    except Exception:
+        pass
+
     return response_payload
+
+
+def _resolve_scan_or_scenario(
+    scan_id: str,
+    scenario: Optional[str] = None,
+    url: Optional[str] = None,
+) -> Tuple[PolicyInput, Any, List[Dict[str, Any]]]:
+    """Resolve PolicyInput and TriageResult by scan_id or scenario fixture."""
+    if scan_id in _SCAN_CACHE:
+        return _SCAN_CACHE[scan_id]
+
+    scen_key = scenario
+    if not scen_key:
+        sid_lower = scan_id.lower()
+        if "phish" in sid_lower:
+            scen_key = "phishing_lookalike"
+        elif "exp" in sid_lower:
+            scen_key = "expired_tls"
+        elif "legit" in sid_lower:
+            scen_key = "legitimate"
+        elif "conflict" in sid_lower or "dispute" in sid_lower:
+            scen_key = "conflicting"
+        else:
+            scen_key = "phishing_lookalike"
+
+    target_url = url or "https://bank-secure-lоgin.com"
+    if scen_key == "expired_tls":
+        target_url = url or "https://legacy-portal.internal-corp.net"
+    elif scen_key == "legitimate":
+        target_url = url or "https://example.com"
+    elif scen_key == "conflicting":
+        target_url = url or "https://disputed-exchange.io"
+
+    pi, cov, ev_list = _build_scenario_policy_input(scen_key, target_url)
+    engine = TriageEngine()
+    res = engine.evaluate_evidence(pi)
+    _SCAN_CACHE[scan_id] = (pi, res, ev_list)
+    return pi, res, ev_list
+
+
+@router.get("/api/v1/cost-profiles")
+async def get_cost_profiles():
+    """Phase 08: Retrieve standard deployment operational cost profiles."""
+    from ..policy.calibration import DEFAULT_COST_PROFILES
+
+    return {
+        "profiles": {
+            k: v.to_dict() for k, v in DEFAULT_COST_PROFILES.items()
+        },
+        "default": "analyst_triage",
+    }
+
+
+@router.post("/api/v1/scans/{scan_id}/cost-assessment")
+async def evaluate_cost_assessment(scan_id: str, req: Optional[CostAssessmentRequest] = None):
+    """Phase 08: Evaluate asymmetric operational cost calibration for a scan."""
+    from ..policy.calibration import AsymmetricCostConfig, DEFAULT_COST_PROFILES, MinimaxDecisionEngine
+
+    req = req or CostAssessmentRequest()
+    policy_input, triage_res, _ = _resolve_scan_or_scenario(scan_id, req.scenario, req.url)
+
+    if (
+        req.cost_false_negative is not None
+        and req.cost_false_positive is not None
+        and req.cost_abstain is not None
+    ):
+        cost_cfg = AsymmetricCostConfig(
+            profile_name=req.profile_name or "custom",
+            cost_false_negative=float(req.cost_false_negative),
+            cost_false_positive=float(req.cost_false_positive),
+            cost_abstain=float(req.cost_abstain),
+            cost_true_positive=float(req.cost_true_positive or 0.0),
+            cost_true_negative=float(req.cost_true_negative or 0.0),
+        )
+    else:
+        profile_key = req.profile_name if (req.profile_name and req.profile_name in DEFAULT_COST_PROFILES) else "analyst_triage"
+        cost_cfg = DEFAULT_COST_PROFILES[profile_key]
+
+    engine = TriageEngine()
+    evaluated = engine.evaluate_with_cost_calibration(policy_input, cost_cfg)
+    minimax = MinimaxDecisionEngine(cost_cfg).evaluate_interval(0.0, 1.0)
+    ca_dict = evaluated.cost_assessment.to_dict() if evaluated.cost_assessment else {}
+    ca_dict["optimal_action"] = minimax.optimal_action.value
+    ca_dict["worst_case_costs"] = minimax.worst_case_costs
+    ca_dict["minimum_cost"] = minimax.minimum_cost
+    ca_dict["minimax_evaluation"] = minimax.to_dict()
+    return _sanitize_json_floats({
+        "scan_id": scan_id,
+        "decision": evaluated.decision,
+        "cost_assessment": ca_dict,
+        "cost_config": cost_cfg.to_dict(),
+    })
+
+
+@router.post("/api/v1/scans/{scan_id}/counterfactual")
+async def evaluate_counterfactual(scan_id: str, req: Optional[CounterfactualRequest] = None):
+    """Phase 09: Compute deterministic counterfactual sensitivity to target disposition."""
+    req = req or CounterfactualRequest()
+    policy_input, triage_res, _ = _resolve_scan_or_scenario(scan_id, req.scenario, req.url)
+
+    engine = TriageEngine()
+    extractor = EvidenceSignalExtractor()
+    extracted = extractor.extract_signals(policy_input)
+
+    target_disp = req.target_disposition or "clean"
+    disp_map = {
+        "clean": "no_threat_observed",
+        "no_threat_observed": "no_threat_observed",
+        "threat": "confirmed_threat",
+        "confirmed_threat": "confirmed_threat",
+        "high_risk": "confirmed_threat",
+        "inconclusive": "inconclusive",
+        "caution": "caution",
+        "suspicious_threat": "suspicious_threat",
+    }
+    canonical_target = disp_map.get(target_disp.lower(), target_disp)
+
+    cf_res = engine.evaluate_with_counterfactual(
+        signals=list(extracted.signals),
+        target_disposition=canonical_target,
+        scan_id=scan_id,
+    )
+    return _sanitize_json_floats(cf_res.to_dict())
+
+
+@router.get("/api/v1/scans/{scan_id}/claim-matrix")
+@router.post("/api/v1/scans/{scan_id}/claim-matrix")
+async def get_claim_matrix(scan_id: str, req: Optional[ClaimMatrixRequest] = None):
+    """Phase 10: Extract claims from report and audit evidence traceability lineage."""
+    scenario = req.scenario if req else None
+    url = req.url if req else None
+    policy_input, triage_res, _ = _resolve_scan_or_scenario(scan_id, scenario, url)
+
+    engine = TriageEngine()
+    matrix = engine.generate_claim_matrix(policy_input, triage_result=triage_res)
+    return matrix.to_dict()
 
 
 @router.get("/", response_class=HTMLResponse)

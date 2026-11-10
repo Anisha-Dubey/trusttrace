@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { PassportRecord } from '../types/triage';
 import { sound } from '../utils/audio';
+import ClaimLineageMatrix from './ClaimLineageMatrix';
+import CounterfactualPanel from './CounterfactualPanel';
+import CostCalibrationPanel from './CostCalibrationPanel';
 
 interface EvidencePassportViewProps {
   report: PassportRecord;
@@ -34,7 +37,7 @@ export default function EvidencePassportView({
   onOpenInvariants,
 }: EvidencePassportViewProps) {
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'findings' | 'evidence'>('findings');
+  const [activeTab, setActiveTab] = useState<'findings' | 'evidence' | 'claim_matrix' | 'counterfactual' | 'cost_calibration'>('findings');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'caution' | 'info'>('all');
   const jsonRef = useRef<HTMLDivElement>(null);
 
@@ -325,6 +328,48 @@ export default function EvidencePassportView({
             >
               Traceable Evidence ({report.evidence.length})
             </button>
+
+            <button
+              onClick={() => {
+                sound.playClick(600);
+                setActiveTab('claim_matrix');
+              }}
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-heading transition-colors font-bold ${
+                activeTab === 'claim_matrix'
+                  ? 'bg-[#101010] text-white'
+                  : 'bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]'
+              }`}
+            >
+              Claim Matrix (Phase 10)
+            </button>
+
+            <button
+              onClick={() => {
+                sound.playClick(600);
+                setActiveTab('counterfactual');
+              }}
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-heading transition-colors font-bold ${
+                activeTab === 'counterfactual'
+                  ? 'bg-[#101010] text-white'
+                  : 'bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]'
+              }`}
+            >
+              What-If Boundary (Phase 09)
+            </button>
+
+            <button
+              onClick={() => {
+                sound.playClick(600);
+                setActiveTab('cost_calibration');
+              }}
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-heading transition-colors font-bold ${
+                activeTab === 'cost_calibration'
+                  ? 'bg-[#101010] text-white'
+                  : 'bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]'
+              }`}
+            >
+              Cost Calibration (Phase 08)
+            </button>
           </div>
 
           {activeTab === 'findings' && (
@@ -348,7 +393,7 @@ export default function EvidencePassportView({
         </div>
 
         {/* Tab Content */}
-        <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {activeTab === 'findings' ? (
             filteredFindings.length === 0 ? (
               <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] handdrawn-box">
@@ -384,7 +429,7 @@ export default function EvidencePassportView({
                 </div>
               ))
             )
-          ) : (
+          ) : activeTab === 'evidence' ? (
             report.evidence.length === 0 ? (
               <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] handdrawn-box">
                 No external evidence records collected.
@@ -413,6 +458,22 @@ export default function EvidencePassportView({
                 </div>
               ))
             )
+          ) : activeTab === 'claim_matrix' ? (
+            <ClaimLineageMatrix
+              report={report}
+              onShowToast={onShowToast}
+              onSelectEvidence={(evidenceId) => setActiveTab('evidence')}
+            />
+          ) : activeTab === 'counterfactual' ? (
+            <CounterfactualPanel
+              report={report}
+              onShowToast={onShowToast}
+            />
+          ) : (
+            <CostCalibrationPanel
+              report={report}
+              onShowToast={onShowToast}
+            />
           )}
         </div>
       </div>

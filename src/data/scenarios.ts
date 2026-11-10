@@ -80,7 +80,121 @@ export const CANONICAL_SCENARIOS: Record<string, PassportRecord> = {
     limitations: [
       "CORE THESIS: Valid DV TLS certificate does NOT verify organizational authenticity.",
       "Zero active browser DOM or JavaScript execution performed."
-    ]
+    ],
+    cost_assessment: {
+      cost_profile_name: "analyst_triage",
+      action_recommendation: "threat",
+      optimal_action: "threat",
+      disposition_input: "caution",
+      availability_status_vector: {
+        dns: "observed_complete",
+        tls: "observed_complete",
+        threat_intel: "observed_complete",
+        community: "missing"
+      },
+      confidence_band: "sufficient_for_scoped_observation",
+      review_urgency: "high",
+      cost_rationale: "Profile 'analyst_triage': Confusable homoglyph lookalike overrides clean signals to avoid breach penalty C_FN=50.0.",
+      worst_case_costs: {
+        threat: 10.0,
+        inconclusive: 2.0,
+        clean: 50.0
+      },
+      minimum_cost: 2.0
+    },
+    counterfactual: {
+      original_disposition: "caution",
+      target_disposition: "no_threat_observed",
+      status: "SUCCESS",
+      perturbations: [
+        {
+          rule_name: "threat_feed_delisting",
+          action: "replace_signal",
+          removed_signals: ["threat_feed_match"],
+          added_signals: ["no_threat_match"],
+          feasibility: "reputation_dependent",
+          cost_weight: 5.0,
+          description: "Simulate external third-party delisting from security feed."
+        }
+      ],
+      hamming_distance: 1,
+      feasibility_score: 5.0,
+      resulting_disposition: "no_threat_observed",
+      resulting_findings: [],
+      explanation: "Target clean disposition requires 1 feed delisting modification.",
+      disclaimer: "Hypothetical scenario based strictly on mathematical decision-boundary sensitivity."
+    },
+    claim_matrix: {
+      scan_id: "scan-phish-homoglyph-001",
+      target: "bank-secure-lоgin.com",
+      total_claims: 3,
+      supported_count: 3,
+      partially_supported_count: 0,
+      contradicted_count: 0,
+      unsupported_count: 0,
+      entries: [
+        {
+          claim: {
+            claim_id: "CLM-001",
+            category: "derived_assessment",
+            statement: "Triage disposition is evaluated as 'caution'.",
+            target: "bank-secure-lоgin.com",
+            modality: "policy",
+            evidence_ids: [],
+            rule_id: "TRIAGE-DECISION-RULE"
+          },
+          status: "supported",
+          supporting_evidence_ids: ["ev-tls-001", "ev-idn-003"],
+          contradicting_evidence_ids: [],
+          is_fresh: true,
+          provenance_reliabilities: ["direct_observation"],
+          derivation_rule_verified: true,
+          diagnostics: [],
+          lineage_rationale: "Adjudication derived deterministically through canonical policy rules."
+        },
+        {
+          claim: {
+            claim_id: "CLM-002",
+            category: "derived_assessment",
+            statement: "Target domain contains Cyrillic homoglyph lookalike character 'о' (U+043E) imitating Latin 'o'.",
+            target: "bank-secure-lоgin.com",
+            modality: "identity",
+            finding_id: "f-idn-002",
+            evidence_ids: ["ev-idn-003"],
+            rule_id: "idn-confusable-homoglyph"
+          },
+          status: "supported",
+          supporting_evidence_ids: ["ev-idn-003"],
+          contradicting_evidence_ids: [],
+          is_fresh: true,
+          provenance_reliabilities: ["direct_observation"],
+          derivation_rule_verified: true,
+          diagnostics: [],
+          lineage_rationale: "Direct observation of Unicode mixed-script confusable in domain label."
+        },
+        {
+          claim: {
+            claim_id: "CLM-003",
+            category: "derived_assessment",
+            statement: "Valid DV TLS certificate issued by Let's Encrypt proves transport encryption only, not identity.",
+            target: "bank-secure-lоgin.com",
+            modality: "certificate",
+            finding_id: "f-tls-enc-001",
+            evidence_ids: ["ev-tls-001"],
+            rule_id: "tls-dv-unverified-identity"
+          },
+          status: "supported",
+          supporting_evidence_ids: ["ev-tls-001"],
+          contradicting_evidence_ids: [],
+          is_fresh: true,
+          provenance_reliabilities: ["direct_observation"],
+          derivation_rule_verified: true,
+          diagnostics: [],
+          lineage_rationale: "TLS-001 Invariant: Domain-validated cert covers transport cryptography only."
+        }
+      ],
+      matrix_integrity_passed: true
+    }
   },
 
   legitimate: {
