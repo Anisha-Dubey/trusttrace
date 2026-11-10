@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import json
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Union
 import uuid
 
 from .diagnostics import (
@@ -180,8 +180,8 @@ class TriageEngine:
 
         return self.integrity_auditor.audit_report(candidate_report)
 
-    def evaluate_evidence(self, policy_input: PolicyInput) -> TriageResult:
-        """Evaluate raw PolicyInput through validation, signal extraction, and triage.
+    def evaluate_evidence(self, policy_input: Union[PolicyInput, Mapping[str, Any], Any]) -> TriageResult:
+        """Evaluate raw PolicyInput or canonical dict through validation, signal extraction, and triage.
 
         Pipeline:
         1. Parse issue rejection gate.
@@ -194,6 +194,16 @@ class TriageEngine:
         8. Coverage deficit limitations merger.
         9. Uncertainty quantification & abstention notice generation.
         """
+        if not isinstance(policy_input, PolicyInput):
+            if hasattr(policy_input, "to_v1_contract_dict") and callable(getattr(policy_input, "to_v1_contract_dict")):
+                policy_input = PolicyInput.from_v1_dict(policy_input.to_v1_contract_dict(), strict=False)
+            elif hasattr(policy_input, "model_dump") and callable(getattr(policy_input, "model_dump")):
+                policy_input = PolicyInput.from_v1_dict(policy_input.model_dump(), strict=False)
+            elif isinstance(policy_input, Mapping):
+                policy_input = PolicyInput.from_v1_dict(policy_input, strict=False)
+            else:
+                raise TypeError(f"Expected PolicyInput or mapping, got {type(policy_input)}")
+
         diagnostics_collector = DiagnosticCollector()
 
         # Step 1: Parse issue rejection gate

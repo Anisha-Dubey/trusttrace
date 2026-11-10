@@ -1,6 +1,6 @@
 # worker_03 status
 
-**PHASES 01, 02, 03 & 04 COMPLETED & TESTED.**
+**PHASES 01, 02, 03, 04 & CROSS-WORKER POLICY INTEGRATION COMPLETED & TESTED.**
 
 - **Phase 01 (Explainable triage policy)**: Deterministic rule engine with 6 named rules, signal taxonomy with 18 signal kinds across 4 dimensions, decision audit log, and conservative disposition ceilings. All policy table invariants enforced.
 - **Phase 02 (Controlled evaluation and claim audit)**: 7 golden evaluation fixtures all passing, honest metrics with sample-size caveats, and pitch claim auditor flagging unsupported accuracy/safety/novelty claims.
@@ -19,4 +19,11 @@
   - Automated report integrity auditor (`integrity_auditor.py`) enforcing 6 core invariants (`INV-TLS-001`, `INV-EVID-002`, `INV-COV-001`, `INV-CLAIM-001`, `INV-FINDING-001`, `INV-COV-002`).
   - Context-aware anti-marketing assertion detection.
   - Strict v1 schema compatibility preserved in `to_report_fragment()`.
-- **Test Metrics**: 97 tests passing in 0.010s with zero regressions. Full repo runner passes 223/223 tests. All worker boundaries respected.
+- **Cross-Worker Policy Integration**:
+  - `PolicyInput` natively ingests Worker 02 Pydantic models (`EvidenceModel`, `CoverageModel`) via `to_v1_contract_dict()`, `model_dump()`, or `dict()`.
+  - Added `PolicyInput.from_components()` for heterogeneous evidence construction.
+  - Hardened `SignalRecord` with helpful error diagnostics for bare string callsites and added `SignalRecord.create()` factory helper.
+  - Broadened `TriageEngine.evaluate_evidence()` to accept `PolicyInput`, dicts, or Pydantic models.
+  - Completed comprehensive integration audit (`worker_03_integration_audit.md`) and remediation plan (`worker_03_integration_remediation_plan.md`).
+- **Test Metrics**: 107 tests passing in `tests/test_triage_policy.py`. Full repo runner passes 233/233 tests (1 skipped). All worker boundaries strictly preserved.
+- **External Dependencies**: Worker 04 web callsites (DEF-01) and test suite (DEF-02); Worker 02 pre-publication integrity auditor hook (DEF-04). Worker 03 responsibilities are 100% complete independently.

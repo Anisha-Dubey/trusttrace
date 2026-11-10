@@ -159,7 +159,11 @@ class SignalRecord:
     def __post_init__(self) -> None:
         """Validate collections and normalize confidence."""
         if isinstance(self.evidence_ids, (str, bytes)):
-            raise TypeError("evidence_ids must be a sequence of strings, not a bare string")
+            raise TypeError(
+                f"evidence_ids must be a sequence of strings, not a bare string. "
+                f"Got bare string {self.evidence_ids!r}. If calling positionally, "
+                f"the argument order is (kind, evidence_ids, source, ...)."
+            )
         if not isinstance(self.evidence_ids, (list, tuple)):
             raise TypeError(f"evidence_ids must be a list or tuple, got {type(self.evidence_ids)}")
         for eid in self.evidence_ids:
@@ -169,6 +173,30 @@ class SignalRecord:
         # Ensure confidence is a string/enum
         if not isinstance(self.confidence, (SignalConfidence, str)):
             self.confidence = normalize_signal_confidence(self.confidence)
+
+    @classmethod
+    def create(
+        cls,
+        kind: SignalKind,
+        source: str,
+        evidence_ids: Union[str, Sequence[str]],
+        confidence: Union[SignalConfidence, str] = SignalConfidence.OBSERVED,
+        value: Optional[Any] = None,
+        limitations: Optional[Sequence[str]] = None,
+    ) -> "SignalRecord":
+        """Convenience factory ensuring named arguments and proper sequence conversion."""
+        if isinstance(evidence_ids, (str, bytes)):
+            ev_list = [evidence_ids]
+        else:
+            ev_list = list(evidence_ids)
+        return cls(
+            kind=kind,
+            evidence_ids=ev_list,
+            source=source,
+            confidence=confidence,
+            value=value,
+            limitations=list(limitations) if limitations else [],
+        )
 
     @property
     def confidence_level(self) -> SignalConfidence:

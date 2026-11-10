@@ -107,11 +107,18 @@ class EvidenceItem:
     @classmethod
     def from_dict(
         cls,
-        data: Mapping[str, Any],
+        data: Any,
         path_prefix: str = "evidence",
         strict: bool = True,
     ) -> Tuple[Optional[EvidenceItem], List[ParseIssue]]:
-        """Parse an evidence dictionary into an EvidenceItem."""
+        """Parse an evidence dictionary or model into an EvidenceItem."""
+        if hasattr(data, "to_v1_contract_dict") and callable(getattr(data, "to_v1_contract_dict")):
+            data = data.to_v1_contract_dict()
+        elif hasattr(data, "model_dump") and callable(getattr(data, "model_dump")):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(getattr(data, "dict")):
+            data = data.dict()
+
         if not isinstance(data, Mapping):
             issue = ParseIssue(path=path_prefix, message="Evidence item must be a mapping", invalid_value=data)
             if strict:
@@ -240,11 +247,16 @@ class CoverageSummary:
     @classmethod
     def from_dict(
         cls,
-        data: Mapping[str, Any],
+        data: Any,
         path_prefix: str = "coverage",
         strict: bool = True,
     ) -> Tuple[Optional[CoverageSummary], List[ParseIssue]]:
-        """Parse coverage summary dictionary with strict type and arithmetic checks."""
+        """Parse coverage summary dictionary or model with strict type and arithmetic checks."""
+        if hasattr(data, "model_dump") and callable(getattr(data, "model_dump")):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(getattr(data, "dict")):
+            data = data.dict()
+
         if not isinstance(data, Mapping):
             issue = ParseIssue(path=path_prefix, message="Coverage summary must be a mapping", invalid_value=data)
             if strict:
@@ -336,11 +348,16 @@ class CommunityReportItem:
     @classmethod
     def from_dict(
         cls,
-        data: Mapping[str, Any],
+        data: Any,
         path_prefix: str = "community_reports",
         strict: bool = True,
     ) -> Tuple[Optional[CommunityReportItem], List[ParseIssue]]:
-        """Parse community report dictionary with strict type checking."""
+        """Parse community report dictionary or model with strict type checking."""
+        if hasattr(data, "model_dump") and callable(getattr(data, "model_dump")):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(getattr(data, "dict")):
+            data = data.dict()
+
         if not isinstance(data, Mapping):
             issue = ParseIssue(path=path_prefix, message="Community report item must be a mapping", invalid_value=data)
             if strict:
@@ -456,10 +473,15 @@ class PolicyInput:
     @classmethod
     def from_v1_dict(
         cls,
-        data: Mapping[str, Any],
+        data: Any,
         strict: bool = True,
     ) -> PolicyInput:
-        """Parse canonical v1 dictionary into strongly-typed, immutable PolicyInput."""
+        """Parse canonical v1 dictionary or model into strongly-typed, immutable PolicyInput."""
+        if hasattr(data, "model_dump") and callable(getattr(data, "model_dump")):
+            data = data.model_dump()
+        elif hasattr(data, "dict") and callable(getattr(data, "dict")):
+            data = data.dict()
+
         if not isinstance(data, Mapping):
             issue = ParseIssue(path="$", message="Top-level input must be a mapping", invalid_value=data)
             if strict:
@@ -588,3 +610,30 @@ class PolicyInput:
             parse_issues=tuple(issues),
             unparsed_fields=MappingProxyType(top_unparsed),
         )
+
+    @classmethod
+    def from_components(
+        cls,
+        scan_id: str,
+        target: str,
+        evidence: Sequence[Any] = (),
+        coverage: Optional[Any] = None,
+        community_reports: Sequence[Any] = (),
+        scan_profile: str = "standard",
+        strict: bool = True,
+    ) -> PolicyInput:
+        """Create a PolicyInput directly from component objects or dictionaries.
+
+        Accepts either raw dicts or Worker 02 models (EvidenceModel, CoverageModel).
+        """
+        raw_dict: Dict[str, Any] = {
+            "scan_id": scan_id,
+            "target": target,
+            "scan_profile": scan_profile,
+            "evidence": list(evidence),
+        }
+        if coverage is not None:
+            raw_dict["coverage"] = coverage
+        if community_reports:
+            raw_dict["community_reports"] = list(community_reports)
+        return cls.from_v1_dict(raw_dict, strict=strict)

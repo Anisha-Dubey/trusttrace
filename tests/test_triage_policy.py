@@ -2148,5 +2148,337 @@ class TestReportIntegrityAuditor(unittest.TestCase):
         self.assertTrue(any(i.rule_id == AuditRuleId.FINDING_001.value for i in res.issues))
 
 
+class Worker03IntegrationRemediationTests(unittest.TestCase):
+    """Regression tests for Worker 03 integration interfaces and cross-worker interop."""
+
+    def test_signal_record_clear_error_message_on_bare_string_evidence_id(self):
+        """SignalRecord raises TypeError with clear guidance when evidence_ids is a bare string."""
+        with self.assertRaises(TypeError) as ctx:
+            SignalRecord(SignalKind.TLS_VALID, "tls_collector", "Valid DV Cert by Let's Encrypt")  # type: ignore[arg-type]
+        self.assertIn("bare string", str(ctx.exception))
+        self.assertIn("order is (kind, evidence_ids, source, ...)", str(ctx.exception))
+
+    def test_signal_record_create_factory(self):
+        """SignalRecord.create provides a safe named-parameter constructor."""
+        sig1 = SignalRecord.create(
+            kind=SignalKind.TLS_VALID,
+            source="tls_collector",
+            evidence_ids="ev-tls-001",
+            value="Valid Let's Encrypt cert",
+        )
+        self.assertEqual(sig1.evidence_ids, ["ev-tls-001"])
+        self.assertEqual(sig1.source, "tls_collector")
+        self.assertEqual(sig1.kind, SignalKind.TLS_VALID)
+
+        sig2 = SignalRecord.create(
+            kind=SignalKind.TLS_HOSTNAME_MATCH,
+            source="tls_collector",
+            evidence_ids=["ev-tls-001", "ev-dns-001"],
+        )
+        self.assertEqual(sig2.evidence_ids, ["ev-tls-001", "ev-dns-001"])
+
+    def test_policy_input_accepts_worker_02_evidence_and_coverage_models(self):
+        """PolicyInput seamlessly accepts Worker 02 EvidenceModel and CoverageModel instances."""
+        from trusttrace.evidence.domain.models import EvidenceModel, CoverageModel
+        from trusttrace.evidence.domain.enums import EvidenceStatus, Reliability
+
+        ev = EvidenceModel(
+            evidence_id="ev-w02-test-01",
+            scan_id="scan-rem-001",
+            kind="tls_certificate",
+            value={"is_valid": True, "hostname_match": True},
+            source="tls_collector",
+            observed_at="2026-11-10T00:00:00Z",
+            status=EvidenceStatus.OBSERVED,
+            reliability=Reliability.DIRECT_OBSERVATION,
+            limitations=["Technical hygiene only"],
+        )
+        cov = CoverageModel(
+            checks_total=4,
+            checks_observed=4,
+            checks_failed=0,
+            checks_not_run=0,
+        )
+
+        # 1. Via from_components
+        inp = PolicyInput.from_components(
+            scan_id="scan-rem-001",
+            target="example.com",
+            evidence=[ev],
+            coverage=cov,
+        )
+        self.assertTrue(inp.is_valid)
+        self.assertEqual(len(inp.evidence), 1)
+        self.assertEqual(inp.evidence[0].evidence_id, "ev-w02-test-01")
+        self.assertIsNotNone(inp.coverage)
+        self.assertEqual(inp.coverage.checks_total, 4)
+        self.assertTrue(inp.coverage.is_aggregate_complete())
+
+        # 2. Via from_v1_dict with nested models
+        inp2 = PolicyInput.from_v1_dict(
+            {
+                "scan_id": "scan-rem-002",
+                "target": "example.com",
+                "evidence": [ev],
+                "coverage": cov,
+            }
+        )
+        self.assertTrue(inp2.is_valid)
+        self.assertEqual(inp2.evidence[0].source, "tls_collector")
+
+    def test_triage_engine_evaluate_evidence_accepts_dict_and_models(self):
+        """TriageEngine.evaluate_evidence accepts PolicyInput, canonical dicts, or components."""
+        from trusttrace.evidence.domain.models import EvidenceModel, CoverageModel
+        from trusttrace.evidence.domain.enums import EvidenceStatus, Reliability
+
+        ev = EvidenceModel(
+            evidence_id="ev-rem-tls-01",
+            kind="tls_certificate",
+            value={"is_valid": True, "hostname_match": True},
+            source="tls_collector",
+            observed_at="2026-11-10T00:00:00Z",
+            status=EvidenceStatus.OBSERVED,
+            reliability=Reliability.DIRECT_OBSERVATION,
+        )
+        cov = CoverageModel(
+            checks_total=4,
+            checks_observed=1,
+            checks_failed=0,
+            checks_not_run=3,
+        )
+
+        engine = TriageEngine()
+
+        # Evaluate directly from dict containing models
+        res = engine.evaluate_evidence({
+            "scan_id": "scan-e2e-001",
+            "target": "safe-test.corp",
+            "evidence": [ev],
+            "coverage": cov,
+        })
+
+        self.assertIsInstance(res, TriageResult)
+        self.assertEqual(res.dimensions["certificate"], "valid_for_hostname")
+        self.assertEqual(res.dimensions["identity"], "unverified")  # TLS-001 preserved
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertIsNotNone(res.uncertainty)
+        self.assertIsNotNone(res.uncertainty.abstention_notice)
+
+    def test_full_worker_02_worker_03_pipeline_with_integrity_audit(self):
+        """Verify complete pipeline execution from Worker 02 models through triage and audit."""
+        from trusttrace.evidence.domain.models import EvidenceModel, CoverageModel
+        from trusttrace.evidence.domain.enums import EvidenceStatus, Reliability
+
+        ev1 = EvidenceModel(
+            evidence_id="ev-pipe-tls-01",
+            kind="tls_certificate",
+            value={"is_valid": True, "hostname_match": True},
+            source="tls_collector",
+            observed_at="2026-11-10T00:00:00Z",
+            status=EvidenceStatus.OBSERVED,
+            reliability=Reliability.DIRECT_OBSERVATION,
+        )
+        cov = CoverageModel(
+            checks_total=4,
+            checks_observed=4,
+            checks_failed=0,
+            checks_not_run=0,
+        )
+
+        policy_input = PolicyInput.from_components(
+            scan_id="scan-full-001",
+            target="audited-target.com",
+            evidence=[ev1],
+            coverage=cov,
+        )
+
+        engine = TriageEngine()
+        triage_result = engine.evaluate_evidence(policy_input)
+
+        # Audit candidate report via auditor
+        audit_res = engine.audit_triage_result(triage_result, policy_input=policy_input)
+        self.assertTrue(audit_res.is_valid)
+        self.assertEqual(audit_res.error_count, 0)
+
+    def test_malformed_and_missing_evidence_resilience(self):
+        """Malformed evidence items in non-strict mode are quarantined without uncaught exception."""
+        malformed_raw = {
+            "scan_id": "scan-malformed-001",
+            "target": "example.org",
+            "evidence": [
+                {"evidence_id": 12345, "kind": "broken_id"},  # non-string evidence_id
+                "not-even-a-dict",  # non-dict item
+            ],
+        }
+        inp = PolicyInput.from_v1_dict(malformed_raw, strict=False)
+        self.assertFalse(inp.is_valid)
+        self.assertGreater(len(inp.parse_issues), 0)
+
+        # evaluate_evidence quarantines invalid input gracefully
+        engine = TriageEngine()
+        res = engine.evaluate_evidence(inp)
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertTrue(any("parse issues" in lim for lim in res.limitations))
+
+    def test_collector_failures_and_partial_coverage_abstention(self):
+        """Failed collectors and partial coverage trigger explicit abstention notice and limitations."""
+        failed_raw = {
+            "scan_id": "scan-fail-001",
+            "target": "failed-test.net",
+            "evidence": [
+                {
+                    "evidence_id": "ev-dns-fail-01",
+                    "kind": "dns_resolution",
+                    "source": "dns_collector",
+                    "observed_at": "2026-11-10T00:00:00Z",
+                    "status": "failed",
+                    "reliability": "direct_observation",
+                    "value": None,
+                    "limitations": ["DNS server timed out"],
+                }
+            ],
+            "coverage": {
+                "checks_total": 4,
+                "checks_observed": 0,
+                "checks_failed": 1,
+                "checks_not_run": 3,
+            },
+        }
+        engine = TriageEngine()
+        res = engine.evaluate_evidence(failed_raw)
+
+        # Invariant EVID-001: collector failure must never be clean or safe
+        self.assertNotEqual(res.decision, "clean")
+        self.assertNotEqual(res.decision, "safe")
+        self.assertEqual(res.decision, "inconclusive")
+        self.assertIsNotNone(res.uncertainty)
+        self.assertIsNotNone(res.uncertainty.abstention_notice)
+        self.assertTrue(any("Coverage is partial" in lim for lim in res.limitations))
+
+    def test_conflicting_and_stale_evidence_handling(self):
+        """Stale timestamps and conflicting signals generate uncertainty and cap confidence."""
+        stale_observed_at = "2020-01-01T00:00:00Z"
+        raw_input = {
+            "scan_id": "scan-stale-001",
+            "target": "stale-target.org",
+            "evidence": [
+                {
+                    "evidence_id": "ev-stale-tls-01",
+                    "kind": "tls_certificate",
+                    "source": "tls_collector",
+                    "observed_at": stale_observed_at,
+                    "status": "observed",
+                    "reliability": "direct_observation",
+                    "value": {"is_valid": True, "hostname_match": True},
+                },
+                {
+                    "evidence_id": "ev-threat-01",
+                    "kind": "threat_intelligence",
+                    "source": "virustotal",
+                    "observed_at": "2026-11-10T00:00:00Z",
+                    "status": "observed",
+                    "reliability": "provider_assertion",
+                    "value": {"match": True, "provider": "virustotal", "threat_type": "phishing", "confidence": "high"},
+                },
+            ],
+            "coverage": {
+                "checks_total": 2,
+                "checks_observed": 2,
+                "checks_failed": 0,
+                "checks_not_run": 0,
+            },
+        }
+        engine = TriageEngine()
+        res = engine.evaluate_evidence(raw_input)
+
+        # Stale evidence detected in uncertainty assessment
+        unc_types = [u.uncertainty_type for u in res.uncertainty.uncertainties]
+        self.assertIn(UncertaintyType.TEMPORAL_STALENESS, unc_types)
+
+    def test_positive_threat_preservation_across_collector_failure(self):
+        """Positive threat match is preserved even when an unrelated collector fails."""
+        mixed_input = {
+            "scan_id": "scan-mixed-001",
+            "target": "phish-corp.xyz",
+            "evidence": [
+                {
+                    "evidence_id": "ev-threat-pos-01",
+                    "kind": "threat_intelligence",
+                    "source": "openphish",
+                    "observed_at": "2026-11-10T00:00:00Z",
+                    "status": "observed",
+                    "reliability": "provider_assertion",
+                    "value": {"match": True, "provider": "openphish", "threat_type": "phishing", "confidence": "high"},
+                },
+                {
+                    "evidence_id": "ev-http-fail-01",
+                    "kind": "http_response",
+                    "source": "http_collector",
+                    "observed_at": "2026-11-10T00:00:00Z",
+                    "status": "failed",
+                    "reliability": "direct_observation",
+                    "value": None,
+                    "limitations": ["HTTP GET connection reset by peer"],
+                },
+            ],
+            "coverage": {
+                "checks_total": 2,
+                "checks_observed": 1,
+                "checks_failed": 1,
+                "checks_not_run": 0,
+            },
+        }
+        engine = TriageEngine()
+        res = engine.evaluate_evidence(mixed_input)
+
+        # Threat finding is preserved, high-risk verdict
+        self.assertEqual(res.decision, "high_risk")
+        self.assertGreater(len(res.findings), 0)
+        self.assertEqual(res.findings[0]["severity"], "high")
+
+    def test_report_integrity_auditor_all_invariants(self):
+        """ReportIntegrityAuditor catches all major audit invariant violations."""
+        auditor = ReportIntegrityAuditor()
+
+        # Invariant 1: Missing top-level fields / illegal affirmative clean
+        res1 = auditor.audit_report({"decision": "clean"})
+        self.assertFalse(res1.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.EVID_002.value for i in res1.issues))
+
+        # Invariant 2: Coverage sum arithmetic violation (checks_total == 4, but observed 2 + failed 1 + not_run 0 == 3)
+        bad_cov_report = {
+            "scan_id": "s1", "target": "t.com", "decision": "inconclusive", "status": "completed",
+            "dimensions": {"identity": "unverified", "certificate": "valid_for_hostname", "behavior": "no_threat_observed", "evidence_quality": "sufficient"},
+            "coverage": {"checks_total": 4, "checks_observed": 2, "checks_failed": 1, "checks_not_run": 0},  # sum is 3 != 4
+            "evidence": [], "findings": [], "limitations": [],
+        }
+        res2 = auditor.audit_report(bad_cov_report)
+        self.assertFalse(res2.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.COV_002.value for i in res2.issues))
+
+        # Invariant 3: TLS-001 (Valid TLS claiming supported identity without auth credentials)
+        tls001_violation = {
+            "scan_id": "s2", "target": "t.com", "decision": "inconclusive", "status": "completed",
+            "dimensions": {"identity": "supported", "certificate": "valid_for_hostname", "behavior": "no_threat_observed", "evidence_quality": "sufficient"},
+            "coverage": {"checks_total": 1, "checks_observed": 1, "checks_failed": 0, "checks_not_run": 0},
+            "evidence": [{"evidence_id": "e1", "kind": "tls_certificate", "source": "tls", "observed_at": "2026-11-10T00:00:00Z", "status": "observed"}],
+            "findings": [], "limitations": [],
+        }
+        res3 = auditor.audit_report(tls001_violation)
+        self.assertFalse(res3.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.TLS_001.value for i in res3.issues))
+
+        # Invariant 4: EVID-002 (Affirmative safe claim is strictly forbidden)
+        evid002_violation = {
+            "scan_id": "s4", "target": "t.com", "decision": "safe", "status": "completed",
+            "dimensions": {"identity": "unverified", "certificate": "valid_for_hostname", "behavior": "no_threat_observed", "evidence_quality": "sufficient"},
+            "coverage": {"checks_total": 1, "checks_observed": 1, "checks_failed": 0, "checks_not_run": 0},
+            "evidence": [], "findings": [], "limitations": [],
+        }
+        res4 = auditor.audit_report(evid002_violation)
+        self.assertFalse(res4.is_valid)
+        self.assertTrue(any(i.rule_id == AuditRuleId.EVID_002.value for i in res4.issues))
+
+
 if __name__ == "__main__":
     unittest.main()
