@@ -20,7 +20,7 @@
 
 ## Test Results
 - `tests/test_web_interface.py`: 10/10 tests passing.
-- `run_tests.py`: 243/243 tests passing (1 skipped).
+- `run_tests.py`: 258/258 tests passing (1 skipped).
 - Contract & Fixture Invariants: 8/8 checks passed.
 
 ## Stage Demo Scenarios
