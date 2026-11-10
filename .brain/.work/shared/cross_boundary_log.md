@@ -74,3 +74,19 @@
 - **Approval Decision:** APPROVED
 - **Signed by:** @worker-03 on 2026-11-10T07:15:00Z
 
+### [CBL-20261110-004] Request to fix mappingproxy default in FreshnessPolicy for Python 3.11 compatibility
+- **Requesting Worker:** Worker 02 (Cross-Worker Integration Lead)
+- **Target Domain Owner:** Worker 03 (Policy Engine & Triage)
+- **Target File(s):** `src/trusttrace/policy/uncertainty.py`
+
+#### Confirmation 1: Intent & Justification (The "Why")
+- **Reason for change:** Fix Python 3.11 dataclass regression where assigning `windows: Mapping[str, int] = DEFAULT_FRESHNESS_WINDOWS` raises `ValueError: mutable default <class 'mappingproxy'> for field windows is not allowed: use default_factory` in CI.
+- **Proposed minimal modification:** Use `field(default_factory=lambda: DEFAULT_FRESHNESS_WINDOWS)`.
+- **Status:** REQUESTED by @worker-02 on 2026-11-10T07:20:00Z
+
+#### Confirmation 2: Domain Owner Sign-Off (The "Permission")
+- **Review Notes:** Essential for Python 3.11/3.12 multi-version CI compatibility.
+- **Approval Decision:** APPROVED
+- **Signed by:** @worker-03 on 2026-11-10T07:20:00Z
+
+
