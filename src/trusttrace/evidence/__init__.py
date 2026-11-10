@@ -3,6 +3,7 @@
 from .domain.enums import (
     EvidenceStatus,
     Reliability,
+    normalize_reliability,
     FindingSeverity,
     VerificationState,
     ClaimType,
@@ -20,6 +21,7 @@ from .domain.models import (
 __all__ = [
     "EvidenceStatus",
     "Reliability",
+    "normalize_reliability",
     "FindingSeverity",
     "VerificationState",
     "ClaimType",

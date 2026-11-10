@@ -3,6 +3,7 @@
 from .enums import (
     EvidenceStatus,
     Reliability,
+    normalize_reliability,
     FindingSeverity,
     VerificationState,
     ClaimType,
@@ -26,6 +27,7 @@ from .models import (
 __all__ = [
     "EvidenceStatus",
     "Reliability",
+    "normalize_reliability",
     "FindingSeverity",
     "VerificationState",
     "ClaimType",

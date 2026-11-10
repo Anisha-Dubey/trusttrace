@@ -1,32 +1,42 @@
 # worker_02 status
 
-**PHASE 01, PHASE 02, PHASE 8 & WORKER 01+02 INTEGRATION COMPLETED, HARDENED, MIGRATED & INDEPENDENTLY VERIFIED.**
+**CROSS-WORKER INTEGRATION, POLICY TRIAGE ENGINE, PRE-PUBLICATION AUDITOR & END-TO-END PERSISTENCE COMPLETED & INDEPENDENTLY VERIFIED.**
 
-- **Phase 01 (Evidence Intelligence, Provenance Engine, Persistence & Finding Linkage)**: Complete and verified (`tests/test_evidence_intelligence.py` and `tests/test_evidence_adapters.py`).
-- **Phase 02 (Collaborative Threat Intelligence, Deduplication, Moderation & Audit History)**: Complete and verified (`tests/test_community_intelligence.py`).
-- **Phase 8, 8.1 & 8.2 Final PostgreSQL Verification & Isolated Database Proof**: Complete and independently verified.
-  - **PG-01 / Database URL Configuration**: Unified `resolve_database_url()` resolution contract across `TRUSTTRACE_DB_URL`, `TRUSTTRACE_PG_URL`, `DATABASE_URL`, and SQLite fallback. Preserves explicit programmatic test configurations without env override hijacking.
-  - **PG-02 / Real PostgreSQL 15 Integration Suite (11 Tests)**: 11 dedicated integration tests in `tests/test_postgres_integration.py` running against live PostgreSQL 15 service in GitHub Actions CI. Validated isolated empty DB migration to HEAD (PG-MIG-01 with dynamically created/dropped database), downgrade to BASE, re-upgrade, schema/index/constraint inspection, concurrent submissions, source family idempotency, dispute transitions, rollback isolation, and multi-process corroboration.
-  - **PG-MIG-01 / Fresh DB Isolation & Cleanup Hardening**: `test_01_postgres_empty_db_to_alembic_head` and `test_02_postgres_migration_downgrade_to_base_and_reupgrade` create, verify empty, migrate, and cleanly drop dedicated temporary PostgreSQL databases (`tt_fresh_mig_<uuid>`) via maintenance connection with `AUTOCOMMIT`. `_isolated_postgres_database` terminates active backends before `DROP DATABASE`, verifies removal via `pg_database`, always disposes maintenance engine, and surfaces cleanup failures without masking original test errors.
-  - **PG-03 / CI Pipeline Green**: GitHub Actions run passes 100% on both Python 3.11 and Python 3.12 matrices.
-  - **SEC-01 / Task 1**: Production startup authentication validation. Lifespan context halts startup immediately if production credentials are missing, weak, or duplicated across roles. Zero credential leakage in logs.
-  - **SEC-02 / Task 2**: Fail-closed Redis rate limiter. Production strictly requires Redis; rejects protected submissions safely with 503 if Redis is unreachable; never silently falls back to process-local memory.
-  - **SEC-03 / Task 3**: Atomic Redis operations. Single Lua script evaluates replay token, IP sliding window, and domain sliding window atomically with microsecond timestamps and UUID4 nonces. Rejected requests leave zero state.
-  - **SEC-04 / Task 4**: Server-bound provider identities. Principal tokens bind strictly to permitted source families. Public unauthenticated submissions strictly default to `community_user` (HTTP 400 on spoof attempt); cross-provider collector impersonation rejected with HTTP 403.
-  - **SEC-05 / Task 5**: Multi-process database-backed corroboration consistency. Row-level locking on PostgreSQL (`with_for_update()`) and normalized `community_domain_source_families` junction table with unique composite constraint enforce single counting per canonical source family across concurrent instances.
-  - **SEC-06 / Task 6**: Alembic database migrations verified. Clean upgrade from empty database to HEAD and downgrade to BASE verified on PostgreSQL 15 and SQLite.
-  - **SEC-07 / Task 7**: GitHub Actions CI verified. Matrix builds on Python 3.11 and 3.12 with live PostgreSQL 15 and Redis 7 service containers pass 100%.
-  - **SEC-08 / Task 8**: 18-point adversarial & concurrency regression suite in `tests/test_phase8_adversarial_suite.py` passing 100%.
-- **Worker 01 + Worker 02 End-to-End Integration Suite**: Dedicated suite in `tests/test_e2e_worker01_worker02_integration.py` (10 tests passing):
-  - `test_01_e2e_valid_url_full_lifecycle`: Full path from URL intake -> SSRF validation -> collector output -> contract JSON schema validation -> Worker 02 adapter -> evidence persistence -> SHA-256 provenance fingerprinting -> findings linkage -> coverage metrics -> Worker 03 triage policy.
-  - `test_02_e2e_prohibited_ssrf_rejection_flow`: Loopback, link-local, credentials, and invalid scheme rejections conform to contract schemas and are ingested into Worker 02 persistence with truthful blocked/unavailable status.
-  - `test_03_e2e_partial_collection_and_missingness_handling`: Partial scans with timeouts truthfully report missingness without guessing, and triage engine returns inconclusive.
-  - `test_04_e2e_referential_integrity_and_dangling_evidence_prevention`: Findings linking nonexistent or cross-scan evidence fail transactionally with zero orphaned rows.
-  - `test_05_e2e_community_report_with_persisted_scan_evidence`: Community reports linking scan evidence verify matching domain context; cross-domain evidence linkage is rejected.
-  - `test_06_e2e_duplicate_evidence_idempotency`: Ingesting identical batches is strictly idempotent and does not inflate evidence or corroboration counts.
-  - `test_07_e2e_real_collector_orchestration_happy_path`: Real `ScanOrchestrator` runs hermetically mocked DNS, TLS, and HTTP collectors; verifies schema compliance, adapts to `EvidenceBatch`, persists in database, computes SHA-256 fingerprints, and links findings.
-  - `test_08_e2e_real_collector_orchestration_partial_timeout`: Real `ScanOrchestrator` with simulated collector timeouts produces truthful partial coverage and inconclusive triage without guessing.
-  - `test_09_e2e_real_collector_orchestration_cancellation`: Real `ScanOrchestrator` with `CancellationToken` terminates in-flight collection truthfully and records cancellation state.
-  - `test_10_e2e_real_collector_ssrf_egress_blocking`: Real `ScanOrchestrator` halts prior to collector execution when target violates SSRF, loopback, or credential policy.
-- **Overall Suite**: 155+ unit/integration tests in `run_tests.py` + 11 PostgreSQL CI integration tests passing (100% PASS), plus 8 canonical fixture/schema invariant checks passing.
-- **Branch**: `feature/worker-02-evidence-intelligence` (synchronized with `origin/main` at `9291e4e`).
+## Active Branch & Workstream
+- **Branch**: `fix/worker02-cross-worker-integration`
+- **Upstream Sync**: Synchronized with `origin/main` (commit `7354365058f101e5ada2af34e7ccb0eb2309dbc2`)
+- **Overall Suite**: 244 automated unit/integration tests (`python run_tests.py` -> 243 passed, 1 skipped, 0 failures, 0 errors, 100% PASS) + 8 canonical contract fixture invariant checks (100% PASS).
+- **Worker Boundary Protocols**: `python scripts/check_worker_boundaries.py` -> 100% PASS with Ask Twice Protocol sign-offs recorded in `.brain/.work/shared/cross_boundary_log.md` (`[CBL-20261110-002]` and `[CBL-20261110-003]`).
+
+---
+
+## Cross-Worker Remediation Summary (Issues A through F)
+
+- **Issue A (Worker 03 TriageEngine Ingestion Hook)**:
+  `EvidenceService.ingest_batch()` now builds canonical `PolicyInput.from_components()`, queries Worker 03's `TriageEngine.evaluate_evidence()`, and idempotently persists real evaluated decisions (`high_risk`, `caution`, `no_threat_observed`, `inconclusive`), dimensions, limitations, policy versions, and generated findings into SQLite/PostgreSQL. Zero orphan findings permitted.
+
+- **Issue B (DEF-04 Report Integrity Pre-Publication Audit)**:
+  `EvidenceService.get_scan_report()` now audits candidate reports with `ReportIntegrityAuditor.audit_report()` before publication. Enforces `INV-TLS-001`, `INV-EVID-002`, `INV-COV-001`, `INV-CLAIM-001`, `INV-FINDING-001`, and `INV-COV-002`. Reports violating invariants are withheld (`status="withheld"`, `decision="inconclusive"`, structured audit error payload). Added `audit_scan_report()` helper method.
+
+- **Issue C (Reliability Enum Tier String Normalization)**:
+  Implemented `normalize_reliability()`. Automatically maps shorthand tier strings (`"high"` $\rightarrow$ `direct_observation`, `"medium"` $\rightarrow$ `derived_signal`, `"low"` $\rightarrow$ `user_report`) alongside canonical values. Pydantic v2 `EvidenceModel` validator normalizes input strings seamlessly.
+
+- **Issue D (Named Collector Coverage Engine)**:
+  `EvidenceService.calculate_coverage()` distinguishes raw evidence record count from distinct named check families (`url_intake`, `dns_resolution`, `tls_certificate`, `http_headers`, `redirect_chain`). Deduplicates multiple observations per check, applies failure precedence ($\text{FAILED} > \text{OBSERVED} > \text{NOT\_RUN}$), and guarantees `checks_total == checks_observed + checks_failed + checks_not_run`.
+
+- **Issue E (Web Demo Route Fixes & End-to-End Scan Persistence)**:
+  - **DEF-01 Resolved**: Fixed all `SignalRecord` calls in `src/trusttrace/web/routes.py` to use `SignalRecord.create(...)`, eliminating 100% of HTTP 500 `TypeError` crashes on `/api/v1/triage/demo`.
+  - **DEF-05 Resolved**: Attached `result.uncertainty.to_dict()` to demo responses, enabling frontend to display the confidence band and abstention notice.
+  - **End-to-End Persistence**: Connected custom URLs in `/api/v1/triage/demo` to `ScanOrchestrator` -> `Worker01EvidenceAdapter` -> `EvidenceService.ingest_batch()` so live scans are durably persisted in the database.
+
+- **Issue F (Pydantic v2 / PolicyInput Compatibility)**:
+  `CoverageModel` and `DimensionsModel` now provide `to_v1_contract_dict()`. `EvidenceModel.to_v1_contract_dict()` guarantees a non-empty `reliability` string. `SignalExtractor` recognizes both `"hostname_match"` and `"hostname_matches"`.
+
+---
+
+## Historical Verification Baseline
+
+- **Phase 01 (Evidence Intelligence & Provenance Engine)**: Complete and verified (`tests/test_evidence_intelligence.py` and `tests/test_evidence_adapters.py`).
+- **Phase 02 (Collaborative Threat Intelligence & Deduplication)**: Complete and verified (`tests/test_community_intelligence.py`).
+- **Phase 8, 8.1 & 8.2 (PostgreSQL Isolation & Concurrency Verification)**: Complete and verified with live PostgreSQL 15 containers in GitHub Actions CI (11 dedicated PostgreSQL integration tests, fresh dynamic database migration proof).
+- **Worker 01 + Worker 02 Integration Suite**: 10 tests in `tests/test_e2e_worker01_worker02_integration.py` exercising real collectors, orchestrator, timeout budgets, and SSRF blocking.

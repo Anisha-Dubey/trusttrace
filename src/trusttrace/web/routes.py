@@ -2,7 +2,8 @@
 
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+import uuid
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -10,7 +11,13 @@ from pydantic import BaseModel
 from ..intake.boundary import IntakeBoundary
 from ..policy.triage_engine import TriageEngine
 from ..policy.signal_taxonomy import SignalRecord, SignalKind
+from ..policy.policy_input import PolicyInput
 from ..evidence.adapters.fixture_adapter import FixtureEvidenceAdapter
+from ..evidence.adapters.worker01_adapter import Worker01EvidenceAdapter
+from ..evidence.adapters.base import EvidenceBatch
+from ..evidence.domain.models import EvidenceModel, CoverageModel
+from ..evidence.domain.enums import EvidenceStatus, Reliability
+from ..evidence.services.evidence_service import EvidenceService
 
 router = APIRouter(tags=["Web Interface & Triage"])
 
@@ -39,14 +46,91 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
     if scenario == "phishing_lookalike":
         engine = TriageEngine()
         signals = [
-            SignalRecord(SignalKind.TLS_VALID, "tls_collector", "Valid DV Cert by Let's Encrypt"),
-            SignalRecord(SignalKind.TLS_HOSTNAME_MATCH, "tls_collector", "Certificate matches domain"),
-            SignalRecord(SignalKind.IDN_LOOKALIKE, "url_policy", "Cyrillic homoglyph lookalike character in domain name"),
-            SignalRecord(SignalKind.COLLECTOR_SUCCESS, "intake_boundary", "Metadata checks complete; active browser execution blocked"),
+            SignalRecord.create(
+                kind=SignalKind.TLS_VALID,
+                source="tls_collector",
+                evidence_ids=["ev-tls-001"],
+                value="Valid DV Cert by Let's Encrypt",
+            ),
+            SignalRecord.create(
+                kind=SignalKind.TLS_HOSTNAME_MATCH,
+                source="tls_collector",
+                evidence_ids=["ev-tls-001"],
+                value="Certificate matches domain",
+            ),
+            SignalRecord.create(
+                kind=SignalKind.IDN_LOOKALIKE,
+                source="url_policy",
+                evidence_ids=["ev-idn-003"],
+                value="Cyrillic homoglyph lookalike character in domain name",
+            ),
+            SignalRecord.create(
+                kind=SignalKind.COLLECTOR_SUCCESS,
+                source="intake_boundary",
+                evidence_ids=["ev-rdap-002"],
+                value="Metadata checks complete; active browser execution blocked",
+            ),
         ]
-        result = engine.evaluate(signals)
+        result = engine.evaluate(signals, scan_id="scan-demo-phish-001")
         fragment = result.to_report_fragment()
-        return {
+
+        uncertainty_payload = None
+        if hasattr(result, "uncertainty") and result.uncertainty:
+            uncertainty_payload = result.uncertainty.to_dict()
+
+        batch = EvidenceBatch(
+            scan_id="scan-demo-phish-001",
+            items=[
+                EvidenceModel(
+                    evidence_id="ev-tls-001",
+                    scan_id="scan-demo-phish-001",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T00:30:00Z",
+                    status=EvidenceStatus.OBSERVED,
+                    reliability=Reliability.DIRECT_OBSERVATION,
+                    limitations=["Valid DV TLS proves transport encryption only, not identity."],
+                ),
+                EvidenceModel(
+                    evidence_id="ev-rdap-002",
+                    scan_id="scan-demo-phish-001",
+                    kind="rdap_registration",
+                    source="rdap_collector",
+                    observed_at="2026-11-10T00:30:00Z",
+                    status=EvidenceStatus.OBSERVED,
+                    reliability=Reliability.DERIVED_SIGNAL,
+                    limitations=["Privacy guard enabled on registrant record."],
+                ),
+                EvidenceModel(
+                    evidence_id="ev-idn-003",
+                    scan_id="scan-demo-phish-001",
+                    kind="url_canonicalization",
+                    source="url_policy",
+                    observed_at="2026-11-10T00:30:00Z",
+                    status=EvidenceStatus.OBSERVED,
+                    reliability=Reliability.DIRECT_OBSERVATION,
+                    limitations=["Unicode confusable homoglyph detected."],
+                ),
+            ],
+            metadata={
+                "submitted_url_redacted": url or "https://bank-secure-lоgin.com",
+                "normalized_host": "bank-secure-lоgin.com",
+                "status": "completed",
+                "decision": fragment["decision"],
+                "policy_version": "w03-v1.0",
+            },
+            limitations=[
+                "DEMO FIXTURE: Demonstrates that valid TLS does NOT imply organizational legitimacy.",
+                "Zero browser execution performed.",
+            ],
+        )
+        try:
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
+
+        response_dict = {
             "scan_id": "scan-demo-phish-001",
             "submitted_url_redacted": url or "https://bank-secure-lоgin.com",
             "normalized_host": "bank-secure-lоgin.com",
@@ -95,17 +179,64 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
             ],
             "policy_version": "w03-v1.0",
         }
+        if uncertainty_payload:
+            response_dict["uncertainty"] = uncertainty_payload
+        return response_dict
 
     # Scenario 3: Expired TLS certificate
     if scenario == "expired_tls":
         engine = TriageEngine()
         signals = [
-            SignalRecord(SignalKind.TLS_EXPIRED, "tls_collector", "Certificate expired 5 days ago"),
-            SignalRecord(SignalKind.COLLECTOR_SUCCESS, "intake_boundary", "Standard metadata checks completed"),
+            SignalRecord.create(
+                kind=SignalKind.TLS_EXPIRED,
+                source="tls_collector",
+                evidence_ids=["ev-tls-exp-01"],
+                value="Certificate expired 5 days ago",
+            ),
+            SignalRecord.create(
+                kind=SignalKind.COLLECTOR_SUCCESS,
+                source="intake_boundary",
+                evidence_ids=["ev-tls-exp-01"],
+                value="Standard metadata checks completed",
+            ),
         ]
-        result = engine.evaluate(signals)
+        result = engine.evaluate(signals, scan_id="scan-demo-expired-001")
         fragment = result.to_report_fragment()
-        return {
+
+        uncertainty_payload = None
+        if hasattr(result, "uncertainty") and result.uncertainty:
+            uncertainty_payload = result.uncertainty.to_dict()
+
+        batch = EvidenceBatch(
+            scan_id="scan-demo-expired-001",
+            items=[
+                EvidenceModel(
+                    evidence_id="ev-tls-exp-01",
+                    scan_id="scan-demo-expired-001",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at="2026-11-10T00:30:00Z",
+                    status=EvidenceStatus.FAILED,
+                    reliability=Reliability.DIRECT_OBSERVATION,
+                    limitations=["Certificate is expired; technical hygiene warning, not sole proof of malice."],
+                )
+            ],
+            metadata={
+                "submitted_url_redacted": url or "https://legacy-portal.internal-corp.net",
+                "normalized_host": "legacy-portal.internal-corp.net",
+                "status": "completed",
+                "decision": fragment["decision"],
+                "policy_version": "w03-v1.0",
+            },
+            limitations=["TLS-002: Expired certificate alone does not establish phishing intent."],
+        )
+        try:
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
+
+        response_dict = {
             "scan_id": "scan-demo-expired-001",
             "submitted_url_redacted": url or "https://legacy-portal.internal-corp.net",
             "normalized_host": "legacy-portal.internal-corp.net",
@@ -128,6 +259,9 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
             "limitations": ["TLS-002: Expired certificate alone does not establish phishing intent."],
             "policy_version": "w03-v1.0",
         }
+        if uncertainty_payload:
+            response_dict["uncertainty"] = uncertainty_payload
+        return response_dict
 
     # Scenario 4: Conflicting Reports
     if scenario == "conflicting":
@@ -135,59 +269,56 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
         if fixture_path.exists():
             return json.loads(fixture_path.read_text(encoding="utf-8"))
 
-    # Custom URL Evaluation via Worker 01 Intake Boundary
+    # Custom URL Evaluation via Worker 01 Intake Boundary & ScanOrchestrator
     if not url:
         raise HTTPException(status_code=400, detail="URL is required for custom triage.")
 
     boundary = IntakeBoundary()
-    is_valid, error_code, error_msg, report = boundary.evaluate_url(url, "scan-live-user-001")
+    scan_id = f"scan-live-{uuid.uuid4().hex[:8]}"
+    eval_res = boundary.evaluate_target(url)
 
-    if not is_valid and report:
-        # Canonical rejection report (e.g. SSRF prohibited IP or embedded credentials)
-        return report
+    if not eval_res.is_safe:
+        rejection_report = boundary.build_rejected_report(scan_id, eval_res)
+        try:
+            adapter = Worker01EvidenceAdapter()
+            batch = adapter.adapt_payload(scan_id, rejection_report)
+            ev_service = EvidenceService()
+            ev_service.ingest_batch(batch)
+        except Exception:
+            pass
+        return rejection_report
 
-    # If valid target, run safe triage assessment
-    engine = TriageEngine()
-    signals = [
-        SignalRecord(SignalKind.TLS_VALID, "tls_collector", f"Destination validated for {url}"),
-        SignalRecord(SignalKind.TLS_HOSTNAME_MATCH, "tls_collector", "Hostname matches destination"),
-        SignalRecord(SignalKind.NO_THREAT_MATCH, "reputation_feed", "No negative blacklist entry observed"),
-        SignalRecord(SignalKind.COLLECTOR_SUCCESS, "intake_boundary", "SSRF, DNS and Scheme validated safely"),
-    ]
-    result = engine.evaluate(signals)
-    fragment = result.to_report_fragment()
+    # If valid target, run safe bounded collector orchestration and persist through EvidenceService
+    from ..collectors.orchestrator import ScanOrchestrator
 
-    return {
-        "scan_id": "scan-live-user-001",
-        "submitted_url_redacted": url,
-        "normalized_host": url.split("//")[-1].split("/")[0].split(":")[0],
-        "status": "completed",
-        "decision": fragment["decision"],
-        "dimensions": fragment["dimensions"],
-        "coverage": {
-            "checks_total": 4,
-            "checks_observed": 4,
-            "checks_failed": 0,
-            "checks_not_run": 0,
-        },
-        "findings": fragment["findings"],
-        "evidence": [
-            {
-                "evidence_id": "ev-live-intake-01",
-                "kind": "intake_validation",
-                "source": "worker_01_intake",
-                "observed_at": "2026-11-10T00:30:00Z",
-                "status": "observed",
-                "reliability": "high",
-                "limitations": ["Passed URL policy, IDNA normalization, and SSRF loopback/private IP checks."],
-            }
-        ],
-        "limitations": [
-            "Passive assessment only; live scanning adheres to strict egress bounds.",
-            "EVID-002: Negative threat match does not imply guaranteed safety.",
-        ],
-        "policy_version": "w03-v1.0",
-    }
+    orchestrator = ScanOrchestrator(intake_boundary=boundary)
+    collector_payload = orchestrator.run_scan(scan_id=scan_id, raw_url=url)
+
+    adapter = Worker01EvidenceAdapter()
+    batch = adapter.adapt_payload(scan_id, collector_payload)
+    ev_service = EvidenceService()
+    ev_service.ingest_batch(batch)
+
+    persisted_report = ev_service.get_scan_report(scan_id)
+    if persisted_report:
+        # Include uncertainty if available
+        try:
+            policy_input = PolicyInput.from_components(
+                scan_id=scan_id,
+                target=persisted_report.get("normalized_host") or "unknown",
+                evidence=batch.items,
+                coverage=batch.suggested_coverage,
+                strict=False,
+            )
+            t_res = TriageEngine().evaluate_evidence(policy_input)
+            if hasattr(t_res, "uncertainty") and t_res.uncertainty:
+                persisted_report["uncertainty"] = t_res.uncertainty.to_dict()
+        except Exception:
+            pass
+        return persisted_report
+
+    return collector_payload
+
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -659,6 +790,21 @@ async def serve_dashboard():
         li.textContent = l;
         limList.appendChild(li);
       });
+
+      if (data.uncertainty) {
+        if (data.uncertainty.confidence_band) {
+          const li = document.createElement('li');
+          li.className = 'text-amber-300 font-bold';
+          li.textContent = `UNCERTAINTY: Confidence Band [${data.uncertainty.confidence_band.toUpperCase()}] — ${data.uncertainty.summary || ''}`;
+          limList.appendChild(li);
+        }
+        if (data.uncertainty.abstention_notice) {
+          const li = document.createElement('li');
+          li.className = 'text-rose-400 font-bold';
+          li.textContent = `ABSTENTION NOTICE: ${data.uncertainty.abstention_notice.reason || ''} (Action: ${data.uncertainty.abstention_notice.recommended_action || ''})`;
+          limList.appendChild(li);
+        }
+      }
 
       // Smooth scroll to results
       document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });

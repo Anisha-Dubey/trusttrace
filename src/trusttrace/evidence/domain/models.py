@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .enums import (
     EvidenceStatus,
     Reliability,
+    normalize_reliability,
     FindingSeverity,
     VerificationState,
     ClaimType,
@@ -40,6 +41,13 @@ class EvidenceModel(BaseModel):
     limitations: List[str] = Field(default_factory=list, description="Explicit caveats and scope limits")
     schema_version: str = Field("1.0", description="Contract version")
 
+    @field_validator("reliability", mode="before")
+    @classmethod
+    def normalize_reliability_field(cls, v: Any) -> Optional[Reliability]:
+        if v is None:
+            return None
+        return normalize_reliability(v)
+
     @field_validator("observed_at", "ingested_at")
     @classmethod
     def validate_utc_timestamp(cls, v: Optional[str]) -> Optional[str]:
@@ -54,18 +62,16 @@ class EvidenceModel(BaseModel):
 
     def to_v1_contract_dict(self) -> Dict[str, Any]:
         """Convert to dict matching scan_report.schema.json #/$defs/evidence."""
-        d = {
+        return {
             "evidence_id": self.evidence_id,
             "kind": self.kind,
             "value": self.value,
             "source": self.source,
             "observed_at": self.observed_at,
             "status": self.status.value,
+            "reliability": self.reliability.value if self.reliability is not None else Reliability.UNKNOWN.value,
             "limitations": self.limitations,
         }
-        if self.reliability is not None:
-            d["reliability"] = self.reliability.value
-        return d
 
 
 class FindingModel(BaseModel):
@@ -131,6 +137,15 @@ class CoverageModel(BaseModel):
             )
         return self
 
+    def to_v1_contract_dict(self) -> Dict[str, Any]:
+        """Convert to dict matching scan_report.schema.json #/$defs/coverage."""
+        return {
+            "checks_total": self.checks_total,
+            "checks_observed": self.checks_observed,
+            "checks_failed": self.checks_failed,
+            "checks_not_run": self.checks_not_run,
+        }
+
 
 class DimensionsModel(BaseModel):
     """Scan report assessment dimensions."""
@@ -139,6 +154,15 @@ class DimensionsModel(BaseModel):
     certificate: CertificateDimension
     behavior: BehaviorDimension
     evidence_quality: EvidenceQualityDimension
+
+    def to_v1_contract_dict(self) -> Dict[str, Any]:
+        """Convert to dict matching scan_report.schema.json #/$defs/dimensions."""
+        return {
+            "identity": self.identity.value,
+            "certificate": self.certificate.value,
+            "behavior": self.behavior.value,
+            "evidence_quality": self.evidence_quality.value,
+        }
 
 
 class CommunityReportModel(BaseModel):

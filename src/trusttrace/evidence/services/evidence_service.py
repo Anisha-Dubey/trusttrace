@@ -1,7 +1,8 @@
 """Evidence Ingestion, Coverage, and Provenance Service for Worker 02."""
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Tuple
+import json
+from typing import Dict, Any, List, Optional, Tuple, Sequence
 import uuid
 
 from ..domain.models import (
@@ -10,10 +11,18 @@ from ..domain.models import (
     CoverageModel,
     utc_now_iso,
 )
-from ..domain.enums import EvidenceStatus, Reliability, FindingSeverity
+from ..domain.enums import (
+    EvidenceStatus,
+    Reliability,
+    normalize_reliability,
+    FindingSeverity,
+)
 from ..adapters.base import EvidenceBatch
 from ..persistence.repository import EvidenceRepository
 from ..persistence.database import DatabaseManager, default_db
+from ...policy.triage_engine import TriageEngine, TriageResult
+from ...policy.integrity_auditor import ReportIntegrityAuditor, ReportAuditResult, AuditSeverity
+from ...policy.policy_input import PolicyInput
 
 
 @dataclass
@@ -27,39 +36,93 @@ class IngestionResult:
     coverage: Optional[CoverageModel] = None
 
 
+def classify_check_category(kind: str, source: str) -> str:
+    """Map evidence kind or source to canonical named collector check categories."""
+    k = (kind or "").strip().lower()
+    s = (source or "").strip().lower()
+
+    if any(term in k for term in ("intake", "url_policy", "canonical", "ssrf", "target_policy")) or \
+       any(term in s for term in ("intake", "url_policy", "ssrf")):
+        return "url_intake"
+
+    if any(term in k for term in ("dns", "resolver", "nameserver")) or \
+       any(term in s for term in ("dns",)):
+        return "dns_resolution"
+
+    if any(term in k for term in ("tls", "ssl", "cert", "cipher")) or \
+       any(term in s for term in ("tls", "ssl")):
+        return "tls_certificate"
+
+    if any(term in k for term in ("header", "http_status", "response_header")) or \
+       any(term in s for term in ("http_header", "bounded_http")):
+        return "http_headers"
+
+    if any(term in k for term in ("redirect",)) or \
+       any(term in s for term in ("redirect",)):
+        return "redirect_chain"
+
+    if k:
+        return k
+    return s or "unknown_check"
+
+
 class EvidenceService:
-    """Service handling evidence ingestion pipeline, provenance tracking, and coverage."""
+    """Service handling evidence ingestion pipeline, provenance tracking, coverage, and triage integration."""
 
     def __init__(
         self,
         repository: Optional[EvidenceRepository] = None,
         db_manager: Optional[DatabaseManager] = None,
+        triage_engine: Optional[TriageEngine] = None,
+        integrity_auditor: Optional[ReportIntegrityAuditor] = None,
     ):
         self.db = db_manager or default_db
         self.repo = repository or EvidenceRepository(db_manager=self.db)
         self.repo.init_tables()
+        self.triage_engine = triage_engine if triage_engine is not None else TriageEngine()
+        self.integrity_auditor = integrity_auditor if integrity_auditor is not None else (
+            self.triage_engine.integrity_auditor if hasattr(self.triage_engine, "integrity_auditor") else ReportIntegrityAuditor()
+        )
 
     def calculate_coverage(
         self,
         evidence_items: List[EvidenceModel],
         expected_total_checks: int = 4,
     ) -> CoverageModel:
-        """Calculate coverage metrics enforcing the invariant: total = observed + failed + not_run.
-        
-        Mapping policy:
-        - status == OBSERVED -> checks_observed += 1
-        - status == FAILED -> checks_failed += 1
-        - status in (NOT_RUN, UNAVAILABLE, BLOCKED) -> checks_not_run += 1
-        
-        If total known distinct collector checks is less than expected_total_checks (e.g. 4 for standard profile),
-        the unexecuted remainder is accounted for in checks_not_run.
+        """Calculate coverage metrics distinguishing named collector checks from raw evidence-record count.
+
+        Enforces the mathematical invariant: checks_total == checks_observed + checks_failed + checks_not_run.
+
+        Policy:
+        - Groups evidence records by named check category (url_intake, dns_resolution, tls_certificate,
+          http_headers, redirect_chain, etc.).
+        - Evaluates each named check's composite status:
+          * If any record in category is FAILED -> check state is FAILED
+          * Else if any record is OBSERVED -> check state is OBSERVED
+          * Else if any record is BLOCKED -> check state is BLOCKED
+          * Else if any record is UNAVAILABLE -> check state is UNAVAILABLE
+          * Else -> check state is NOT_RUN
+        - Counts distinct checks observed vs failed vs not_run.
+        - If distinct checks evaluated < expected_total_checks (e.g. 4 for standard profile),
+          the unexecuted remainder is accounted for in checks_not_run.
         """
-        observed = sum(1 for e in evidence_items if e.status == EvidenceStatus.OBSERVED)
-        failed = sum(1 for e in evidence_items if e.status == EvidenceStatus.FAILED)
-        not_run = sum(
-            1 for e in evidence_items
-            if e.status in (EvidenceStatus.NOT_RUN, EvidenceStatus.UNAVAILABLE, EvidenceStatus.BLOCKED)
-        )
+        check_categories: Dict[str, List[EvidenceStatus]] = {}
+        for ev in evidence_items:
+            cat = classify_check_category(ev.kind, ev.source)
+            check_categories.setdefault(cat, []).append(ev.status)
+
+        observed = 0
+        failed = 0
+        not_run = 0
+
+        for cat, statuses in check_categories.items():
+            if any(s == EvidenceStatus.FAILED for s in statuses):
+                failed += 1
+            elif any(s == EvidenceStatus.OBSERVED for s in statuses):
+                observed += 1
+            else:
+                # BLOCKED, UNAVAILABLE, NOT_RUN
+                not_run += 1
 
         total_tracked = observed + failed + not_run
         if total_tracked < expected_total_checks:
@@ -76,7 +139,16 @@ class EvidenceService:
         )
 
     def ingest_batch(self, batch: EvidenceBatch) -> IngestionResult:
-        """Execute the transactional evidence ingestion pipeline for a batch."""
+        """Execute the transactional evidence ingestion pipeline for a batch.
+
+        1. Ensures scan record exists.
+        2. Validates and persists each evidence item idempotently.
+        3. Recomputes scan coverage.
+        4. Evaluates evidence via Worker 03 TriageEngine:
+           - Constructs canonical PolicyInput.from_components().
+           - Persists decision, policy version, and updated scan status.
+           - Persists generated findings referencing persisted evidence idempotently.
+        """
         with self.db.session_scope() as session:
             # Step 1: Ensure scan record exists
             self.repo.ensure_scan(
@@ -94,7 +166,7 @@ class EvidenceService:
             deduped = 0
             persisted_models: List[EvidenceModel] = []
 
-            # Step 2-8: Validate and persist each evidence item idempotently
+            # Step 2: Validate and persist each evidence item idempotently
             for item in batch.items:
                 model, was_created = self.repo.save_evidence(
                     session=session,
@@ -107,13 +179,106 @@ class EvidenceService:
                 else:
                     deduped += 1
 
-            # Step 9: Recompute and update scan coverage
-            coverage = batch.suggested_coverage or self.calculate_coverage(persisted_models)
+            # Fetch all evidence for this scan (including prior batches)
+            all_scan_evidence = self.repo.get_evidence_by_scan(session, batch.scan_id)
+
+            # Step 3: Recompute and update scan coverage
+            coverage = batch.suggested_coverage or self.calculate_coverage(all_scan_evidence)
             self.repo.update_scan(
                 session,
                 scan_id=batch.scan_id,
                 coverage=coverage,
             )
+
+            # Step 4: Worker 03 Triage Evaluation & Findings Persistence
+            decision = batch.metadata.get("decision", "inconclusive")
+            policy_version = batch.metadata.get("policy_version", "1.0")
+            merged_limitations = list(batch.limitations)
+
+            if self.triage_engine is not None:
+                norm_host = batch.metadata.get("normalized_host")
+                community_reports: List[Any] = []
+                if norm_host:
+                    try:
+                        raw_reports = self.repo.get_reports_by_domain(session, norm_host)
+                        community_reports = [r.to_v1_contract_dict() for r in raw_reports]
+                    except Exception:
+                        pass
+
+                try:
+                    policy_input = PolicyInput.from_components(
+                        scan_id=batch.scan_id,
+                        target=norm_host or "target-unspecified",
+                        evidence=all_scan_evidence,
+                        coverage=coverage,
+                        community_reports=community_reports,
+                        strict=False,
+                    )
+                    triage_result = self.triage_engine.evaluate_evidence(policy_input)
+
+                    decision = triage_result.decision
+                    policy_version = triage_result.policy_version
+
+                    # Merge triage limitations
+                    for lim in triage_result.limitations:
+                        if lim not in merged_limitations:
+                            merged_limitations.append(lim)
+
+                    # Determine scan status
+                    scan_status = "completed"
+                    if decision == "inconclusive":
+                        scan_status = "partial" if coverage.checks_failed > 0 else "completed"
+                    elif decision == "failed":
+                        scan_status = "failed"
+
+                    # Persist generated findings idempotently
+                    persisted_evidence_ids = {e.evidence_id for e in all_scan_evidence}
+                    for f_dict in triage_result.findings:
+                        raw_eids = f_dict.get("evidence_ids", [])
+                        valid_eids = [eid for eid in raw_eids if eid in persisted_evidence_ids]
+                        if not valid_eids:
+                            continue
+
+                        severity_val = f_dict.get("severity", "info")
+                        try:
+                            finding_severity = FindingSeverity(severity_val)
+                        except ValueError:
+                            finding_severity = FindingSeverity.INFO
+
+                        finding_model = FindingModel(
+                            finding_id=f_dict["finding_id"],
+                            scan_id=batch.scan_id,
+                            kind=f_dict.get("kind", "security_finding"),
+                            severity=finding_severity,
+                            summary=f_dict.get("summary", ""),
+                            evidence_ids=valid_eids,
+                            rule_id=f_dict.get("rule_id", "triage_rule"),
+                            rule_version=f_dict.get("rule_version", policy_version),
+                            created_at=f_dict.get("created_at") or utc_now_iso(),
+                            limitations=f_dict.get("limitations", []),
+                        )
+                        self.repo.save_finding(session, batch.scan_id, finding_model)
+
+                    # Update scan with evaluated decision, policy version, and status
+                    self.repo.update_scan(
+                        session,
+                        scan_id=batch.scan_id,
+                        status=scan_status,
+                        decision=decision,
+                        policy_version=policy_version,
+                        completed_at=utc_now_iso(),
+                        limitations=merged_limitations,
+                    )
+
+                except Exception as ex:
+                    # In case of triage engine exception, preserve evidence and record diagnostic
+                    merged_limitations.append(f"Triage evaluation error: {str(ex)}")
+                    self.repo.update_scan(
+                        session,
+                        scan_id=batch.scan_id,
+                        decision="inconclusive",
+                        limitations=merged_limitations,
+                    )
 
             return IngestionResult(
                 scan_id=batch.scan_id,
@@ -143,7 +308,7 @@ class EvidenceService:
         status = EvidenceStatus(status_val)
 
         rel_val = payload.get("reliability")
-        reliability = Reliability(rel_val) if rel_val else None
+        reliability = normalize_reliability(rel_val)
 
         model = EvidenceModel(
             evidence_id=ev_id,
@@ -187,8 +352,20 @@ class EvidenceService:
         with self.db.session_scope() as session:
             return self.repo.save_finding(session, scan_id, finding)
 
-    def get_scan_report(self, scan_id: str) -> Optional[Dict[str, Any]]:
-        """Assemble a complete report conforming to scan_report.schema.json."""
+    def audit_scan_report(self, scan_id: str) -> Optional[ReportAuditResult]:
+        """Audit a persisted scan report against safety and integrity invariants."""
+        report = self.get_scan_report(scan_id, enforce_audit=False)
+        if not report:
+            return None
+        return self.integrity_auditor.audit_report(report)
+
+    def get_scan_report(
+        self,
+        scan_id: str,
+        enforce_audit: bool = True,
+        include_audit: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Assemble a complete report conforming to scan_report.schema.json, audited prior to publication."""
         with self.db.session_scope() as session:
             scan = self.repo.get_scan(session, scan_id)
             if not scan:
@@ -218,6 +395,8 @@ class EvidenceService:
             for ev in evidence_items:
                 if ev.kind == "tls_hostname_validation":
                     certificate_dim = "valid_for_hostname" if ev.status == EvidenceStatus.OBSERVED else "invalid_or_expired"
+                elif ev.kind == "tls_certificate" and certificate_dim == "not_checked":
+                    certificate_dim = "valid_for_hostname" if ev.status == EvidenceStatus.OBSERVED else "invalid_or_expired"
 
             identity_dim = "unverified"
             if has_blocked:
@@ -229,10 +408,39 @@ class EvidenceService:
             elif scan.decision in ("high_risk", "caution"):
                 behavior_dim = "suspicious"
 
-            import json
+            # Refine dimensions through TriageEngine evaluation if available
+            if self.triage_engine is not None:
+                try:
+                    policy_input = PolicyInput.from_components(
+                        scan_id=scan.scan_id,
+                        target=scan.normalized_host or "target-unspecified",
+                        evidence=evidence_items,
+                        coverage=coverage,
+                        strict=False,
+                    )
+                    triage_result = self.triage_engine.evaluate_evidence(policy_input)
+                    if triage_result and triage_result.dimensions:
+                        identity_dim = triage_result.dimensions.get("identity", identity_dim)
+                        certificate_dim = triage_result.dimensions.get("certificate", certificate_dim)
+                        behavior_dim = triage_result.dimensions.get("behavior", behavior_dim)
+                        evidence_quality = triage_result.dimensions.get("evidence_quality", evidence_quality)
+                except Exception:
+                    pass
+
             scan_limitations = json.loads(scan.limitations_json) if scan.limitations_json else []
 
-            report = {
+            # Invariant COV-001: Disclose partial coverage when decision is no_threat_observed
+            if (coverage.checks_failed > 0 or coverage.checks_not_run > 0) and scan.decision == "no_threat_observed":
+                has_cov_disclosure = any(
+                    any(term in lim.lower() for term in ("partial", "not executed", "limited scope", "unexecuted", "failed check"))
+                    for lim in scan_limitations
+                )
+                if not has_cov_disclosure:
+                    scan_limitations.append(
+                        f"Partial coverage disclosure (INV-COV-001): {coverage.checks_failed} failed and {coverage.checks_not_run} unexecuted checks; scan scope was limited."
+                    )
+
+            candidate_report: Dict[str, Any] = {
                 "schema_version": "1.0",
                 "scan_id": scan.scan_id,
                 "submitted_url_redacted": scan.submitted_url_redacted,
@@ -248,9 +456,31 @@ class EvidenceService:
                     "behavior": behavior_dim,
                     "evidence_quality": evidence_quality,
                 },
-                "coverage": coverage.model_dump(),
+                "coverage": coverage.to_v1_contract_dict(),
                 "evidence": [e.to_v1_contract_dict() for e in evidence_items],
                 "findings": [f.to_v1_contract_dict() for f in findings],
                 "limitations": scan_limitations,
             }
-            return report
+
+            # DEF-04: Report Integrity Pre-Publication Audit
+            if enforce_audit and self.integrity_auditor is not None:
+                audit_result = self.integrity_auditor.audit_report(candidate_report)
+                if not audit_result.is_valid:
+                    # Report fails safety invariants: withhold report publication
+                    candidate_report["status"] = "withheld"
+                    candidate_report["decision"] = "inconclusive"
+                    candidate_report["audit_passed"] = False
+                    candidate_report["audit_errors"] = [
+                        issue.to_dict() for issue in audit_result.issues if issue.severity == AuditSeverity.ERROR
+                    ]
+                    candidate_report["audit_warnings"] = [
+                        issue.to_dict() for issue in audit_result.issues if issue.severity == AuditSeverity.WARNING
+                    ]
+                    candidate_report["limitations"].append(
+                        f"REPORT INTEGRITY AUDIT FAILED ({audit_result.error_count} error violations): Publication withheld."
+                    )
+                else:
+                    if include_audit:
+                        candidate_report["audit"] = audit_result.to_dict()
+
+            return candidate_report

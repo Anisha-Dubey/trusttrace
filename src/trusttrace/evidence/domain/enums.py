@@ -1,6 +1,7 @@
 """Domain enums for Worker 02 matching TRUSTTRACE v1 contracts."""
 
 from enum import Enum
+from typing import Optional, Union
 
 
 class EvidenceStatus(str, Enum):
@@ -17,6 +18,64 @@ class Reliability(str, Enum):
     DERIVED_SIGNAL = "derived_signal"
     USER_REPORT = "user_report"
     UNKNOWN = "unknown"
+
+
+def normalize_reliability(
+    value: Optional[Union[str, Reliability]],
+    default: Optional[Reliability] = None,
+) -> Optional[Reliability]:
+    """Normalize input strings or enums into canonical Reliability values.
+
+    Handles canonical strings:
+        - "direct_observation" -> Reliability.DIRECT_OBSERVATION
+        - "provider_assertion" -> Reliability.PROVIDER_ASSERTION
+        - "derived_signal"     -> Reliability.DERIVED_SIGNAL
+        - "user_report"        -> Reliability.USER_REPORT
+        - "unknown"            -> Reliability.UNKNOWN
+
+    Handles tier aliases:
+        - "high"   -> Reliability.DIRECT_OBSERVATION
+        - "medium" -> Reliability.DERIVED_SIGNAL
+        - "low"    -> Reliability.USER_REPORT
+
+    Handles unmapped or unrecognized strings:
+        - Returns Reliability.UNKNOWN (or default if explicitly provided).
+    """
+    if value is None:
+        return default
+    if isinstance(value, Reliability):
+        return value
+
+    val_str = str(value).strip().lower()
+    if not val_str:
+        return default
+
+    # Canonical exact mappings
+    canonical_map = {
+        "direct_observation": Reliability.DIRECT_OBSERVATION,
+        "provider_assertion": Reliability.PROVIDER_ASSERTION,
+        "derived_signal": Reliability.DERIVED_SIGNAL,
+        "user_report": Reliability.USER_REPORT,
+        "unknown": Reliability.UNKNOWN,
+    }
+    if val_str in canonical_map:
+        return canonical_map[val_str]
+
+    # Tier aliases
+    tier_map = {
+        "high": Reliability.DIRECT_OBSERVATION,
+        "medium": Reliability.DERIVED_SIGNAL,
+        "low": Reliability.USER_REPORT,
+        "direct": Reliability.DIRECT_OBSERVATION,
+        "derived": Reliability.DERIVED_SIGNAL,
+        "assertion": Reliability.PROVIDER_ASSERTION,
+        "user": Reliability.USER_REPORT,
+    }
+    if val_str in tier_map:
+        return tier_map[val_str]
+
+    return Reliability.UNKNOWN
+
 
 
 class FindingSeverity(str, Enum):

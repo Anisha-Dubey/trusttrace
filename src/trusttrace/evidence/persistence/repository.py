@@ -111,6 +111,7 @@ class EvidenceRepository:
         completed_at: Optional[str] = None,
         coverage: Optional[CoverageModel] = None,
         limitations: Optional[List[str]] = None,
+        policy_version: Optional[str] = None,
     ) -> Optional[ScanEntity]:
         """Update scan lifecycle fields and coverage metrics."""
         scan = session.get(ScanEntity, scan_id)
@@ -122,6 +123,8 @@ class EvidenceRepository:
             scan.decision = decision
         if completed_at:
             scan.completed_at = completed_at
+        if policy_version:
+            scan.policy_version = policy_version
         if coverage:
             scan.coverage_total = coverage.checks_total
             scan.coverage_observed = coverage.checks_observed

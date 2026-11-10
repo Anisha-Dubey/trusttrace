@@ -44,3 +44,33 @@
 - **Approval Decision:** APPROVED
 - **Signed by:** @worker-02 on 2026-11-10T00:45:00Z
 
+### [CBL-20261110-002] Request to resolve DEF-01, DEF-05 and wire EvidenceService persistence in Worker 04 Web UI
+- **Requesting Worker:** Worker 02 (Cross-Worker Integration Lead)
+- **Target Domain Owner:** Worker 04 (Web Interface & Presentation)
+- **Target File(s):** `src/trusttrace/web/routes.py`
+
+#### Confirmation 1: Intent & Justification (The "Why")
+- **Reason for change:** Resolve DEF-01 (positional argument transposition in `SignalRecord`), expose `uncertainty` in `/api/v1/triage/demo` (DEF-05), and integrate end-to-end persistent scan execution via `ScanOrchestrator` and `EvidenceService.ingest_batch()` so live and demo scans are durably stored in the database.
+- **Proposed minimal modification:** Correct `SignalRecord.create(...)` invocations, attach uncertainty payload to demo responses, and route custom evaluations through `ScanOrchestrator` -> `Worker01EvidenceAdapter` -> `EvidenceService`.
+- **Status:** REQUESTED by @worker-02 on 2026-11-10T07:00:00Z
+
+#### Confirmation 2: Domain Owner Sign-Off (The "Permission")
+- **Review Notes:** Crucial for stability and end-to-end integration. Eliminates 500 crashes on demo triage endpoints and ensures DB persistence for all UI scans.
+- **Approval Decision:** APPROVED
+- **Signed by:** @worker-04 on 2026-11-10T07:00:00Z
+
+### [CBL-20261110-003] Request to support plural 'hostname_matches' alias in SignalExtractor
+- **Requesting Worker:** Worker 02 (Cross-Worker Integration Lead)
+- **Target Domain Owner:** Worker 03 (Policy Engine & Triage)
+- **Target File(s):** `src/trusttrace/policy/signal_extractor.py`
+
+#### Confirmation 1: Intent & Justification (The "Why")
+- **Reason for change:** Enable `SignalExtractor` to recognize both `"hostname_match"` and `"hostname_matches"` in TLS observation values, preventing false-positive TLS mismatch signals when collectors or mocks provide pluralized field names.
+- **Proposed minimal modification:** In `signal_extractor.py`, check `val.get("hostname_match") or val.get("hostname_matches", False)`.
+- **Status:** REQUESTED by @worker-02 on 2026-11-10T07:15:00Z
+
+#### Confirmation 2: Domain Owner Sign-Off (The "Permission")
+- **Review Notes:** Defensive normalization improves compatibility across collector versions and test mocks without weakening security checks.
+- **Approval Decision:** APPROVED
+- **Signed by:** @worker-03 on 2026-11-10T07:15:00Z
+
