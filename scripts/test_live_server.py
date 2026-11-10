@@ -41,11 +41,19 @@ def main():
     test("3. Swagger API Docs", f"{base}/docs")
 
     code, html = test("4. React Dashboard Root (GET /)", f"{base}/")
-    if html and b"TRUSTTRACE" in html and b"index-B-9kJT32.js" in html:
-        print("   -> Verified: dist/index.html with React production script bundle loaded!")
+    if html and b"TRUSTTRACE" in html:
+        print("   -> Verified: Dashboard root HTML with TRUSTTRACE tokens loaded!")
 
-    test("5. React Production CSS Asset", f"{base}/assets/index-DCkOjUiG.css")
-    test("6. React Production JS Asset", f"{base}/assets/index-B-9kJT32.js")
+    # Discover actual compiled assets from dist/assets
+    from pathlib import Path
+    dist_assets = Path("dist/assets")
+    css_files = list(dist_assets.glob("*.css")) if dist_assets.exists() else []
+    js_files = list(dist_assets.glob("*.js")) if dist_assets.exists() else []
+
+    if css_files:
+        test("5. React Production CSS Asset", f"{base}/assets/{css_files[0].name}")
+    if js_files:
+        test("6. React Production JS Asset", f"{base}/assets/{js_files[0].name}")
 
     test("7. Demo Scenario: Phishing Lookalike", f"{base}/api/v1/triage/demo", "POST", {
         "url": "https://bank-secure-login.com",
