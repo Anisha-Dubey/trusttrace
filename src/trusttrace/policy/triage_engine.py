@@ -1,37 +1,69 @@
-"""Conservative deterministic triage engine — Worker 03 Phase 01.
+"""Conservative deterministic triage engine — Worker 03 Phase 03.
 
-Implements the decision policy table from .brain/.work/shared/decision_policy_table.md
-with the following invariants:
-
+Implements the decision policy table with the following invariants:
 - TLS validity alone never yields identity=supported (TLS-001)
-- Absent threat-feed match never yields "safe" (EVID-002)
+- Absent threat-feed match never yields 'safe' (EVID-002)
 - Expired/mismatched TLS alone is not proof of phishing (TLS-002)
 - IDN lookalike alone is at most caution (conservative heuristic)
 - Collector failures produce partial/inconclusive, never clean (EVID-001)
 - Conflicting signals are retained, never silently averaged (EVID-004)
 - Community reports remain unverified unless independently corroborated (COMM-001/002)
 - Every decision cites evidence IDs and policy version
-
-Each rule is a named, versioned function that maps signals → dimension values
-and disposition ceiling. The engine composes rules deterministically with no
-learned weights, random thresholds, or opaque scoring.
+- Deterministic finding IDs via canonical JSON serialization and full SHA-256
+- Zero orphan findings: finding-to-evidence referential integrity enforced
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+import hashlib
+import json
+from typing import Any, Dict, List, Optional, Sequence, Set
 import uuid
 
+from .diagnostics import (
+    DiagnosticCode,
+    DiagnosticCollector,
+    DiagnosticRecord,
+    DiagnosticSeverity,
+)
+from .input_validation import EvidenceValidator, ValidationResult
+from .policy_input import PolicyInput
+from .signal_extractor import EvidenceSignalExtractor, SignalExtractionResult
 from .signal_taxonomy import (
+    DimensionAssessment,
+    SignalConfidence,
+    SignalDimension,
     SignalKind,
     SignalRecord,
-    SignalDimension,
-    DimensionAssessment,
 )
-
 
 # Policy version tracks rule changes; bump on any disposition logic change.
 POLICY_VERSION = "w03-v1.0"
+
+
+def generate_deterministic_finding_id(
+    scan_id: str,
+    rule_id: str,
+    evidence_ids: Sequence[str],
+) -> str:
+    """Generate a stable finding ID via canonical JSON serialization and full SHA-256.
+
+    Invariants:
+    1. Permutation invariant: evidence_ids are strictly sorted before hashing.
+    2. Cross-scan separated: scan_id is explicitly bound in the canonical payload.
+    3. Canonical JSON: keys sorted with compact delimiters (no whitespace variance).
+    4. Full digest: 64-hex character SHA-256 hash.
+    """
+    canonical_payload = {
+        "evidence_ids": sorted(str(eid) for eid in evidence_ids),
+        "rule_id": str(rule_id),
+        "scan_id": str(scan_id),
+    }
+    serialized = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return f"finding-{digest}"
 
 
 @dataclass
@@ -41,7 +73,7 @@ class RuleResult:
     rule_id: str
     rule_version: str
     disposition_ceiling: Optional[str]  # max severity this rule allows
-    dimension_updates: Dict[str, str]  # dimension → value
+    dimension_updates: Dict[str, str]  # dimension -> value
     findings: List[Dict[str, Any]] = field(default_factory=list)
     rationale: str = ""
     limitations: List[str] = field(default_factory=list)
@@ -58,6 +90,7 @@ class TriageResult:
     policy_version: str
     limitations: List[str]
     rationale_summary: str
+    diagnostics: Tuple[DiagnosticRecord, ...] = field(default_factory=tuple)
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -71,27 +104,168 @@ class TriageResult:
 
 
 class TriageEngine:
-    """Transparent, rule-based triage engine.
-
-    Design principles:
-    1. Deterministic: same signals → same output, always.
-    2. Conservative: disposition ceiling never exceeds evidence warrant.
-    3. Transparent: every output references rules, evidence IDs, and rationale.
-    4. No hidden scores: no opaque weighted sums or learned parameters.
-    """
+    """Transparent, rule-based triage engine."""
 
     def __init__(self, policy_version: str = POLICY_VERSION):
         self.policy_version = policy_version
+        self.validator = EvidenceValidator()
+        self.extractor = EvidenceSignalExtractor()
 
-    def evaluate(self, signals: List[SignalRecord]) -> TriageResult:
+    def evaluate_evidence(self, policy_input: PolicyInput) -> TriageResult:
+        """Evaluate raw PolicyInput through validation, signal extraction, and triage.
+
+        Pipeline:
+        1. Parse issue rejection gate.
+        2. Contract validation & diagnostics collection.
+        3. Deterministic signal extraction.
+        4. Triage rule execution.
+        5. Finding-to-evidence referential integrity enforcement (orphan suppression).
+        6. Deterministic finding ID generation.
+        7. Positive threat evidence preservation against unrelated collector failures.
+        8. Coverage deficit limitations merger.
+        """
+        diagnostics_collector = DiagnosticCollector()
+
+        # Step 1: Parse issue rejection gate
+        if not policy_input.is_valid:
+            diagnostics_collector.record(
+                code=DiagnosticCode.INPUT_PARSE_ERROR,
+                severity=DiagnosticSeverity.ERROR,
+                message=f"PolicyInput contains {len(policy_input.parse_issues)} unresolved parse issues",
+                action_taken="Quarantined input; emitted inconclusive triage result",
+            )
+            return TriageResult(
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unknown",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
+                findings=[],
+                rule_trace=[],
+                policy_version=self.policy_version,
+                limitations=[
+                    "Scan input contains syntax or type parse issues; evaluation withheld (EVID-001)."
+                ],
+                rationale_summary="Input failed canonical parsing validation.",
+                diagnostics=diagnostics_collector.records,
+            )
+
+        # Step 2: Input Contract Validation
+        val_result = self.validator.validate(policy_input)
+        diagnostics_collector.extend(val_result.diagnostics)
+
+        if not val_result.is_valid:
+            return TriageResult(
+                decision="inconclusive",
+                dimensions={
+                    "identity": "unknown",
+                    "certificate": "not_checked",
+                    "behavior": "unknown",
+                    "evidence_quality": "unavailable",
+                },
+                findings=[],
+                rule_trace=[],
+                policy_version=self.policy_version,
+                limitations=[
+                    "Scan input failed contract validation checks; evaluation withheld."
+                ],
+                rationale_summary="Input failed contract validation.",
+                diagnostics=diagnostics_collector.records,
+            )
+
+        # Step 3: Signal Extraction
+        sig_result = self.extractor.extract_signals(policy_input)
+        diagnostics_collector.extend(sig_result.diagnostics)
+
+        # Step 4: Run Deterministic Triage Rules
+        base_result = self.evaluate(
+            signals=list(sig_result.signals),
+            scan_id=policy_input.scan_id,
+        )
+
+        # Step 5: Enforce Finding-to-Evidence Referential Integrity (Orphan Suppression)
+        valid_ev_ids: Set[str] = {
+            item.evidence_id for item in policy_input.evidence
+        } | {
+            rep.report_id for rep in policy_input.community_reports
+        }
+
+        sanitized_findings: List[Dict[str, Any]] = []
+        orphan_limitations: List[str] = []
+
+        for f in base_result.findings:
+            f_ev_ids = f.get("evidence_ids", [])
+            orphans = [eid for eid in f_ev_ids if eid not in valid_ev_ids]
+
+            if orphans:
+                # Suppress orphan finding completely!
+                diagnostics_collector.record(
+                    code=DiagnosticCode.ORPHAN_FINDING_SUPPRESSED,
+                    severity=DiagnosticSeverity.WARNING,
+                    message=f"Suppressed orphan finding '{f.get('kind')}' referencing unknown evidence IDs: {orphans}",
+                    evidence_ids=tuple(orphans),
+                    action_taken="Suppressed orphan finding from output report",
+                    details={"finding_summary": f.get("summary"), "rule_id": f.get("rule_id")},
+                )
+                orphan_limitations.append(
+                    f"Orphan finding '{f.get('kind')}' suppressed due to missing supporting evidence reference."
+                )
+            else:
+                # Deterministic finding ID generation
+                f_copy = dict(f)
+                f_copy["finding_id"] = generate_deterministic_finding_id(
+                    scan_id=policy_input.scan_id,
+                    rule_id=f.get("rule_id", "RULE-UNKNOWN"),
+                    evidence_ids=f_ev_ids,
+                )
+                sanitized_findings.append(f_copy)
+
+        # Step 6: Coverage Deficit Limitations Merger
+        combined_limitations = list(base_result.limitations)
+        combined_limitations.extend(orphan_limitations)
+
+        if policy_input.coverage is not None:
+            cov = policy_input.coverage
+            if not cov.is_aggregate_complete():
+                cov_msg = (
+                    f"Coverage is partial: {cov.checks_not_run} checks not run, "
+                    f"{cov.checks_failed} checks failed out of {cov.checks_total} total."
+                )
+                if cov_msg not in combined_limitations:
+                    combined_limitations.append(cov_msg)
+
+        # Step 7: Compose Final Decision with Positive Threat Preservation
+        final_decision = base_result.decision
+
+        return TriageResult(
+            decision=final_decision,
+            dimensions=base_result.dimensions,
+            findings=sanitized_findings,
+            rule_trace=base_result.rule_trace,
+            policy_version=self.policy_version,
+            limitations=combined_limitations,
+            rationale_summary=base_result.rationale_summary,
+            diagnostics=diagnostics_collector.records,
+        )
+
+    def evaluate(
+        self,
+        signals: List[SignalRecord],
+        scan_id: Optional[str] = None,
+    ) -> TriageResult:
         """Run all rules against the signal set and compose a triage result.
 
         Args:
             signals: Typed, provenance-linked signals from collectors/evidence.
+            scan_id: Optional scan ID for deterministic finding ID generation.
 
         Returns:
             TriageResult with decision, dimensions, findings, and full rule trace.
         """
+        effective_scan_id = scan_id or f"scan-{uuid.uuid4().hex[:8]}"
+
         # Classify signals by dimension.
         by_dimension: Dict[SignalDimension, List[SignalRecord]] = {
             dim: [] for dim in SignalDimension
@@ -123,7 +297,7 @@ class TriageEngine:
         ]
 
         for rule_fn in rules:
-            result = rule_fn(signals, by_dimension, dimensions)
+            result = rule_fn(signals, by_dimension, dimensions, effective_scan_id)
             rule_results.append(result)
 
             # Apply dimension updates.
@@ -160,14 +334,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-CERT-001: Map TLS signals to certificate dimension.
-
-        - Valid TLS → valid_for_hostname (but NOT identity=supported; TLS-001)
-        - Expired/mismatch → invalid_or_expired (not proof of phishing; TLS-002)
-        - Unavailable → unavailable
-        - No TLS signals → not_checked
-        """
+        """RULE-CERT-001: Map TLS signals to certificate dimension."""
         cert_signals = by_dim.get(SignalDimension.CERTIFICATE, [])
         updates: Dict[str, str] = {}
         rationale_parts: List[str] = []
@@ -195,13 +364,13 @@ class TriageEngine:
                 limitations.append(
                     "Certificate invalidity alone is insufficient evidence of malicious intent."
                 )
-                # Generate a finding for the TLS issue.
-                ev_ids = []
+                ev_ids: List[str] = []
                 for s in cert_signals:
                     if s.kind in (SignalKind.TLS_EXPIRED, SignalKind.TLS_MISMATCH):
                         ev_ids.extend(s.evidence_ids)
+
                 findings.append({
-                    "finding_id": f"finding-cert-{uuid.uuid4().hex[:6]}",
+                    "finding_id": generate_deterministic_finding_id(scan_id, "RULE-CERT-001", ev_ids),
                     "kind": "certificate_issue",
                     "severity": "medium",
                     "summary": "TLS certificate is expired or mismatched for the hostname.",
@@ -234,8 +403,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-ID-001: Map identity signals. TLS alone → unverified (TLS-001)."""
+        """RULE-ID-001: Map identity signals. TLS alone -> unverified (TLS-001)."""
         id_signals = by_dim.get(SignalDimension.IDENTITY, [])
         updates: Dict[str, str] = {}
         rationale_parts: List[str] = []
@@ -262,7 +432,6 @@ class TriageEngine:
                 "IDN lookalike alone is not proof of impersonation."
             )
         elif has_tls_match:
-            # Invariant TLS-001: valid TLS alone → unverified, NOT supported.
             updates["identity"] = "unverified"
             rationale_parts.append(
                 "TLS hostname match confirms certificate covers domain, "
@@ -289,14 +458,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-BEH-001: Map behavior signals with conservative disposition ceilings.
-
-        - Threat feed match with valid provider → high_risk ceiling (if provider supports it)
-        - Suspicious redirect/headers → caution ceiling
-        - No threat match → no_threat_observed only with declared coverage
-        - Unverified community report → caution ceiling at most
-        """
+        """RULE-BEH-001: Map behavior signals with conservative disposition ceilings."""
         beh_signals = by_dim.get(SignalDimension.BEHAVIOR, [])
         updates: Dict[str, str] = {}
         findings: List[Dict[str, Any]] = []
@@ -324,19 +488,18 @@ class TriageEngine:
                 "Threat feed match found; ceiling set to high_risk subject to "
                 "provider terms and freshness."
             )
-            # Generate threat finding.
             for s in beh_signals:
                 if s.kind == SignalKind.THREAT_FEED_MATCH:
                     findings.append({
-                        "finding_id": f"finding-threat-{uuid.uuid4().hex[:6]}",
+                        "finding_id": generate_deterministic_finding_id(scan_id, "RULE-BEH-001", s.evidence_ids),
                         "kind": "threat_feed_match",
                         "severity": "high",
                         "summary": "URL/domain matches an active threat intelligence feed entry.",
-                        "evidence_ids": s.evidence_ids,
+                        "evidence_ids": list(s.evidence_ids),
                         "rule_id": "RULE-BEH-001",
                         "rule_version": self.policy_version,
                         "created_at": _now_iso(),
-                        "limitations": s.limitations,
+                        "limitations": list(s.limitations),
                     })
         elif has_suspicious:
             updates["behavior"] = "suspicious"
@@ -347,15 +510,15 @@ class TriageEngine:
             for s in beh_signals:
                 if s.kind in (SignalKind.SUSPICIOUS_REDIRECT, SignalKind.SUSPICIOUS_HEADERS):
                     findings.append({
-                        "finding_id": f"finding-susp-{uuid.uuid4().hex[:6]}",
+                        "finding_id": generate_deterministic_finding_id(scan_id, "RULE-BEH-001", s.evidence_ids),
                         "kind": s.kind.value,
                         "severity": "medium",
                         "summary": f"Suspicious signal: {s.kind.value}.",
-                        "evidence_ids": s.evidence_ids,
+                        "evidence_ids": list(s.evidence_ids),
                         "rule_id": "RULE-BEH-001",
                         "rule_version": self.policy_version,
                         "created_at": _now_iso(),
-                        "limitations": s.limitations,
+                        "limitations": list(s.limitations),
                     })
         elif has_community_corroborated:
             updates["behavior"] = "suspicious"
@@ -403,15 +566,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-EVQUAL-001: Assess evidence quality from collector outcomes.
-
-        - All collectors succeeded → strong
-        - Some failed → partial; decision capped at inconclusive unless strong
-          independent evidence exists
-        - All failed → unavailable; decision is inconclusive
-        - Stale evidence → weak; flag staleness
-        """
+        """RULE-EVQUAL-001: Assess evidence quality from collector outcomes."""
         eq_signals = by_dim.get(SignalDimension.EVIDENCE_QUALITY, [])
         updates: Dict[str, str] = {}
         rationale_parts: List[str] = []
@@ -489,13 +646,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-COMM-001: Community report constraints.
-
-        - Unverified reports stay unverified; no automatic labels (COMM-001)
-        - Corroborated: only from independent source families (COMM-002)
-        - Disputed: conflict retained, both trails shown (COMM-003)
-        """
+        """RULE-COMM-001: Community report constraints."""
         comm_signals = [
             s for s in signals if s.kind in (
                 SignalKind.COMMUNITY_REPORT_UNVERIFIED,
@@ -510,11 +663,11 @@ class TriageEngine:
         for s in comm_signals:
             if s.kind == SignalKind.COMMUNITY_REPORT_UNVERIFIED:
                 findings.append({
-                    "finding_id": f"finding-comm-{uuid.uuid4().hex[:6]}",
+                    "finding_id": generate_deterministic_finding_id(scan_id, "RULE-COMM-001", s.evidence_ids),
                     "kind": "community_report",
                     "severity": "info",
                     "summary": "Unverified community report exists for this domain.",
-                    "evidence_ids": s.evidence_ids,
+                    "evidence_ids": list(s.evidence_ids),
                     "rule_id": "RULE-COMM-001",
                     "rule_version": self.policy_version,
                     "created_at": _now_iso(),
@@ -525,30 +678,29 @@ class TriageEngine:
                 rationale_parts.append("Unverified community report noted; no label applied.")
             elif s.kind == SignalKind.COMMUNITY_REPORT_CORROBORATED:
                 findings.append({
-                    "finding_id": f"finding-comm-{uuid.uuid4().hex[:6]}",
+                    "finding_id": generate_deterministic_finding_id(scan_id, "RULE-COMM-001", s.evidence_ids),
                     "kind": "community_report_corroborated",
                     "severity": "medium",
                     "summary": "Community report corroborated by independent source families.",
-                    "evidence_ids": s.evidence_ids,
+                    "evidence_ids": list(s.evidence_ids),
                     "rule_id": "RULE-COMM-001",
                     "rule_version": self.policy_version,
                     "created_at": _now_iso(),
-                    "limitations": s.limitations,
+                    "limitations": list(s.limitations),
                 })
                 rationale_parts.append("Corroborated community report strengthens caution.")
             elif s.kind == SignalKind.COMMUNITY_REPORT_DISPUTED:
                 findings.append({
-                    "finding_id": f"finding-comm-{uuid.uuid4().hex[:6]}",
+                    "finding_id": generate_deterministic_finding_id(scan_id, "RULE-COMM-001", s.evidence_ids),
                     "kind": "community_report_disputed",
                     "severity": "info",
                     "summary": "Community report is disputed; both evidence trails retained.",
-                    "evidence_ids": s.evidence_ids,
+                    "evidence_ids": list(s.evidence_ids),
                     "rule_id": "RULE-COMM-001",
                     "rule_version": self.policy_version,
                     "created_at": _now_iso(),
                     "limitations": [
-                        "Disputed community reports retained without resolution; "
-                        "cautious policy applied."
+                        "Disputed community reports retained without resolution; cautious policy applied."
                     ],
                 })
                 rationale_parts.append("Disputed community report; conflict retained.")
@@ -569,12 +721,9 @@ class TriageEngine:
         signals: List[SignalRecord],
         by_dim: Dict[SignalDimension, List[SignalRecord]],
         current_dims: Dict[str, str],
+        scan_id: str,
     ) -> RuleResult:
-        """RULE-CONFLICT-001: Detect material conflicts and enforce cautious policy.
-
-        If both threat-match and no-threat-match are present, or both valid and
-        invalid TLS are present, mark as conflicting and cap at inconclusive.
-        """
+        """RULE-CONFLICT-001: Detect material conflicts and enforce cautious policy."""
         limitations: List[str] = []
         ceiling: Optional[str] = None
         rationale_parts: List[str] = []
@@ -633,14 +782,9 @@ class TriageEngine:
     ) -> str:
         """Compose final decision from disposition ceilings.
 
-        Priority order (most restrictive wins):
-        1. inconclusive (if any rule mandates it)
-        2. caution
-        3. high_risk (only if evidence strongly warrants and no conflict)
-        4. no_threat_observed (only if all checks ran and no suspicious signals)
-        5. failed (if no evidence at all)
-
-        Invariant EVID-002: absent threat-feed match alone never yields "safe".
+        Preservation of Positive Threat Evidence:
+        If valid positive threat evidence is observed (THREAT_FEED_MATCH) and no material
+        conflict exists, high_risk is preserved even if unrelated collectors encountered partial failures.
         """
         SEVERITY_ORDER = {
             "failed": 0,
@@ -650,24 +794,32 @@ class TriageEngine:
             "no_threat_observed": 4,
         }
 
+        # Positive threat evidence preservation check
+        has_threat = any(s.kind == SignalKind.THREAT_FEED_MATCH for s in signals)
+        has_threat_conflict = any(s.kind == SignalKind.NO_THREAT_MATCH for s in signals)
+
+        if has_threat and not has_threat_conflict:
+            # Positive threat is preserved; remove inconclusive ceilings from unrelated collector failures
+            ceilings = [c for c in ceilings if c != "inconclusive"]
+            if "high_risk" not in ceilings:
+                ceilings.append("high_risk")
+
         if not ceilings:
-            # No rule set a ceiling; infer from dimensions.
             ev_quality = dimensions.get("evidence_quality", "unavailable")
             behavior = dimensions.get("behavior", "unknown")
 
+            if behavior == "malicious_evidence":
+                return "high_risk"
             if ev_quality == "unavailable":
                 return "inconclusive"
             if behavior == "unknown":
                 return "inconclusive"
             if behavior == "no_threat_observed" and ev_quality == "strong":
                 return "no_threat_observed"
-            if behavior == "malicious_evidence":
-                return "high_risk"
             if behavior == "suspicious":
                 return "caution"
             return "inconclusive"
 
-        # Find the most restrictive ceiling (lowest severity order).
         min_ceiling = min(ceilings, key=lambda c: SEVERITY_ORDER.get(c, 999))
         return min_ceiling
 
@@ -675,4 +827,3 @@ class TriageEngine:
 def _now_iso() -> str:
     """Return current UTC time in ISO-8601 format."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
