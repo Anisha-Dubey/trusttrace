@@ -260,7 +260,7 @@ export default function TriageStudio({
               type="submit"
               disabled={isScanning}
               cursorBadge="TRIAGE"
-              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium"
+              className="px-4 sm:px-6 py-2.5 sm:py-3 handdrawn-pill text-xs sm:text-sm font-medium"
             >
               {isScanning ? (
                 <>
@@ -427,11 +427,12 @@ export default function TriageStudio({
             <LiquidCard
               key={dim.id}
               cursorBadge="EXPLORE"
-              soundType="liquid"
-              enableTilt={true}
+              soundType="none"
+              enableTilt={false}
+              enableHoverAnimation={false}
               enableLiquidWarp={false}
               variant="card"
-              className="p-6 border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404] hover:bg-[#FFFFFF]"
+              className="p-6 border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono font-extrabold text-[#040404] uppercase tracking-wider">
@@ -458,8 +459,10 @@ export default function TriageStudio({
       <section className="max-w-4xl mx-auto">
         <LiquidCard
           cursorBadge="INVARIANTS"
-          soundType="liquid"
+          soundType="none"
           enableTilt={false}
+          enableHoverAnimation={false}
+          enableLiquidWarp={false}
           variant="card"
           className="bg-[#101010] text-white p-8 sm:p-12 space-y-6 shadow-xl"
         >
@@ -485,8 +488,10 @@ export default function TriageStudio({
             <LiquidButton
               variant="secondary"
               cursorBadge="GALLERY"
+              soundType="none"
+              enableHoverAnimation={false}
               onClick={() => onOpenGallery?.()}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs"
+              className="px-5 py-2.5 handdrawn-pill font-bold text-xs"
             >
               <span>Explore Case Gallery</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -495,8 +500,10 @@ export default function TriageStudio({
             <LiquidButton
               variant="ghost"
               cursorBadge="EXPLORE"
+              soundType="none"
+              enableHoverAnimation={false}
               onClick={() => onOpenInvariants()}
-              className="px-5 py-2.5 rounded-xl text-white/90 border border-white/20 hover:bg-white/10 text-xs"
+              className="px-5 py-2.5 handdrawn-pill text-white/90 border border-white/20 hover:bg-white/10 text-xs"
             >
               View All 8 Invariants
             </LiquidButton>

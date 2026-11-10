@@ -112,7 +112,7 @@ export default function ThreatIntelFeed({
 
         <button
           onClick={handleResetFeed}
-          className="self-start sm:self-center px-3.5 py-2 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] hover:border-[rgb(0_0_0/25%)] text-[#040404] transition-all text-xs font-mono flex items-center gap-2"
+          className="self-start sm:self-center px-3.5 py-2 handdrawn-pill bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] hover:border-[rgb(0_0_0/25%)] text-[#040404] transition-all text-xs font-mono flex items-center gap-2"
         >
           <RotateCcw className="w-3.5 h-3.5 text-[#6b6b6b]" />
           <span>Reset Feed</span>
@@ -122,7 +122,7 @@ export default function ThreatIntelFeed({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* Left Column: Submission Form */}
-        <div className="rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 space-y-4 shadow-sm">
+        <div className="handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 space-y-4 shadow-sm">
           <div className="flex items-center gap-2 border-b border-[rgb(0_0_0/10%)] pb-3">
             <ShieldAlert className="w-4 h-4 text-[#040404]" />
             <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-[#040404]">
@@ -142,7 +142,7 @@ export default function ThreatIntelFeed({
                 value={domain}
                 onChange={(e) => setDomain(e.target.value)}
                 placeholder="suspicious-portal.org"
-                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] rounded-xl text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404] transition-colors"
+                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] handdrawn-input text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404] transition-colors"
               />
             </div>
 
@@ -154,7 +154,7 @@ export default function ThreatIntelFeed({
                 id="threatClaim"
                 value={claimType}
                 onChange={(e) => setClaimType(e.target.value as CommunityReport['claim_type'])}
-                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] rounded-xl text-[#040404] focus:outline-none focus:border-[#040404] transition-colors"
+                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] handdrawn-input text-[#040404] focus:outline-none focus:border-[#040404] transition-colors"
               >
                 <option value="phishing">Phishing Campaign</option>
                 <option value="credential_harvesting">Credential Harvesting</option>
@@ -175,13 +175,13 @@ export default function ThreatIntelFeed({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Observed fake bank authorization portal requesting credentials..."
-                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] rounded-xl text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404] transition-colors font-body text-xs"
+                className="w-full px-3 py-2.5 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] handdrawn-input text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404] transition-colors font-body text-xs"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-2.5 rounded-xl bg-[#101010] hover:bg-[#131313] text-white font-medium transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
+              className="w-full py-2.5 handdrawn-pill bg-[#101010] hover:bg-[#131313] text-white font-medium transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Submit Finding</span>
@@ -190,7 +190,7 @@ export default function ThreatIntelFeed({
 
           {feedback && (
             <div
-              className={`p-3 rounded-xl border text-[11px] font-mono leading-relaxed ${
+              className={`p-3 handdrawn-box border text-[11px] font-mono leading-relaxed ${
                 feedback.type === 'success'
                   ? 'bg-[#f6f6f6] border-[#040404] text-[#040404]'
                   : 'bg-rose-50 border-rose-300 text-rose-700'
@@ -215,11 +215,11 @@ export default function ThreatIntelFeed({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search domain or analyst telemetry..."
-                className="w-full pl-10 pr-4 py-2 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] rounded-xl text-xs font-mono text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404]"
+                className="w-full pl-10 pr-4 py-2 bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] handdrawn-input text-xs font-mono text-[#040404] placeholder:text-[#6b6b6b] focus:outline-none focus:border-[#040404]"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1 bg-[#f6f6f6] p-1 rounded-xl border border-[rgb(0_0_0/10%)] text-xs font-mono self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-1 bg-[#f6f6f6] p-1 handdrawn-pill border border-[rgb(0_0_0/10%)] text-xs font-mono self-start sm:self-auto">
               {(['all', 'verified', 'disputed', 'unverified'] as const).map((filter) => (
                 <button
                   key={filter}
@@ -227,7 +227,7 @@ export default function ThreatIntelFeed({
                     sound.playClick(600);
                     setStateFilter(filter);
                   }}
-                  className={`px-2.5 py-1 rounded-lg uppercase text-[10px] font-medium ${
+                  className={`px-2.5 py-1 handdrawn-pill uppercase text-[10px] font-medium ${
                     stateFilter === filter
                       ? 'bg-[#101010] text-white font-bold'
                       : 'text-[#6b6b6b] hover:text-[#040404]'
@@ -242,14 +242,14 @@ export default function ThreatIntelFeed({
           {/* Feed Records */}
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
             {filteredReports.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] rounded-2xl">
+              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] handdrawn-card">
                 No corroborated intelligence records matching current query.
               </div>
             ) : (
               filteredReports.map((report) => (
                 <div
                   key={report.report_id}
-                  className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] hover:border-[rgb(0_0_0/25%)] transition-all space-y-2 group text-xs shadow-xs"
+                  className="p-4 handdrawn-box border border-[rgb(0_0_0/10%)] bg-[#ffffff] hover:border-[rgb(0_0_0/25%)] transition-all space-y-2 group text-xs shadow-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">

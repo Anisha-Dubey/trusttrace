@@ -105,7 +105,7 @@ export default function Header({
                 }}
                 data-cursor-text={item.id === 'gallery' ? 'GALLERY' : 'SELECT'}
                 onMouseEnter={() => sound.playHover()}
-                className={`relative px-3.5 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                className={`relative px-3.5 py-1.5 handdrawn-pill transition-colors whitespace-nowrap cursor-pointer ${
                   isActive ? 'text-[#040404] font-semibold' : 'text-[#6B6B6B] hover:text-[#040404]'
                 }`}
               >
@@ -260,7 +260,7 @@ export default function Header({
               triggerLiquidWarp(8);
               setActiveTab(item.id);
             }}
-            className={`px-3 py-1.5 rounded-lg shrink-0 whitespace-nowrap font-mono text-[11px] transition-colors cursor-pointer ${
+            className={`px-3 py-1.5 handdrawn-pill shrink-0 whitespace-nowrap font-mono text-[11px] transition-colors cursor-pointer ${
               activeTab === item.id
                 ? 'bg-[#040404] text-white font-bold shadow-xs'
                 : 'text-[#6B6B6B] hover:text-[#040404] bg-[#FFFFFF] border border-[#D9D9D9]'
@@ -276,7 +276,7 @@ export default function Header({
             sound.playClick(600);
             onOpenBackendModal();
           }}
-          className="sm:hidden px-2.5 py-1.5 rounded-lg shrink-0 whitespace-nowrap font-mono text-[11px] text-[#040404] bg-[#FFFFFF] border border-[#D9D9D9] flex items-center gap-1"
+          className="sm:hidden px-2.5 py-1.5 handdrawn-pill shrink-0 whitespace-nowrap font-mono text-[11px] text-[#040404] bg-[#FFFFFF] border border-[#D9D9D9] flex items-center gap-1"
         >
           <Terminal className="w-3 h-3" />
           <span>FastAPI</span>
@@ -287,7 +287,7 @@ export default function Header({
             sound.playClick(700);
             onToggleJson();
           }}
-          className="sm:hidden px-2.5 py-1.5 rounded-lg shrink-0 whitespace-nowrap font-mono text-[11px] text-[#040404] bg-[#FFFFFF] border border-[#D9D9D9] flex items-center gap-1"
+          className="sm:hidden px-2.5 py-1.5 handdrawn-pill shrink-0 whitespace-nowrap font-mono text-[11px] text-[#040404] bg-[#FFFFFF] border border-[#D9D9D9] flex items-center gap-1"
         >
           <Code className="w-3 h-3" />
           <span>JSON</span>

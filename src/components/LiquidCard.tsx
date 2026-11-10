@@ -8,6 +8,7 @@ interface LiquidCardProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
   enableTilt?: boolean;
   enableLiquidWarp?: boolean;
+  enableHoverAnimation?: boolean;
   cursorBadge?: string;
   soundType?: 'liquid' | 'hover' | 'pill' | 'none';
   variant?: HanddrawnVariant;
@@ -17,10 +18,11 @@ interface LiquidCardProps extends React.HTMLAttributes<HTMLDivElement> {
 export default function LiquidCard({
   children,
   className = '',
-  enableTilt = true,
-  enableLiquidWarp = true,
+  enableTilt = false,
+  enableLiquidWarp = false,
+  enableHoverAnimation = true,
   cursorBadge,
-  soundType = 'liquid',
+  soundType = 'none',
   variant = 'card',
   onClick,
   style: propStyle,
@@ -31,9 +33,9 @@ export default function LiquidCard({
   const [sheenPos, setSheenPos] = useState({ x: -100, y: -100 });
 
   // Procedural handdrawn random round border generator (unique for every box instance)
-  const { style: handdrawnStyle, morphBorder } = useHanddrawnBorder(variant);
+  const { style: handdrawnStyle } = useHanddrawnBorder(variant);
 
-  // Smooth 2D micro-elevation (preserves 100% vector font sharpness on Windows)
+  // Smooth 2D micro-elevation
   const translateY = useSpring(0, { damping: 22, stiffness: 350 });
   const scale = useSpring(1, { damping: 22, stiffness: 350 });
 
@@ -41,23 +43,23 @@ export default function LiquidCard({
     (e: React.PointerEvent<HTMLDivElement>) => {
       setIsHovered(true);
 
-      // Re-morph hand-drawn round border on hover for subtle organic variation
-      morphBorder();
-
-      if (enableTilt) {
-        translateY.set(-3);
-        scale.set(1.012);
+      // Never morph handdrawn border on hover: keep the organic contour completely stable!
+      if (enableHoverAnimation && enableTilt) {
+        translateY.set(-2);
+        scale.set(1.008);
       }
 
-      if (soundType === 'liquid') {
-        sound.playLiquid();
-      } else if (soundType === 'hover') {
-        sound.playHover();
-      } else if (soundType === 'pill') {
-        sound.playPill();
+      if (enableHoverAnimation && soundType !== 'none') {
+        if (soundType === 'liquid') {
+          sound.playLiquid();
+        } else if (soundType === 'hover') {
+          sound.playHover();
+        } else if (soundType === 'pill') {
+          sound.playPill();
+        }
       }
 
-      if (cardRef.current) {
+      if (enableHoverAnimation && cardRef.current) {
         const rect = cardRef.current.getBoundingClientRect();
         setSheenPos({
           x: e.clientX - rect.left,
@@ -65,27 +67,27 @@ export default function LiquidCard({
         });
       }
     },
-    [soundType, enableTilt, morphBorder, translateY, scale]
+    [soundType, enableTilt, enableHoverAnimation, translateY, scale]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!cardRef.current) return;
+      if (!enableHoverAnimation || !cardRef.current) return;
       const rect = cardRef.current.getBoundingClientRect();
       const relX = e.clientX - rect.left;
       const relY = e.clientY - rect.top;
       setSheenPos({ x: relX, y: relY });
     },
-    []
+    [enableHoverAnimation]
   );
 
   const handlePointerLeave = useCallback(() => {
     setIsHovered(false);
-    if (enableTilt) {
+    if (enableHoverAnimation && enableTilt) {
       translateY.set(0);
       scale.set(1);
     }
-  }, [enableTilt, translateY, scale]);
+  }, [enableHoverAnimation, enableTilt, translateY, scale]);
 
   return (
     <motion.div
@@ -105,30 +107,34 @@ export default function LiquidCard({
       onPointerLeave={handlePointerLeave}
       onClick={onClick}
       data-cursor-text={cursorBadge}
-      className={`relative overflow-hidden transition-[box-shadow,border-radius] duration-200 select-none ${
-        isHovered ? 'shadow-lg shadow-black/8' : 'shadow-none'
+      className={`relative overflow-hidden transition-[box-shadow] duration-200 select-none ${
+        isHovered && enableHoverAnimation ? 'shadow-md shadow-black/6' : 'shadow-none'
       } ${className}`}
       {...(rest as any)}
     >
-      {/* Hand-drawn matching liquid light sheen following pointer */}
-      <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
-        style={{
-          borderRadius: handdrawnStyle.borderRadius,
-          opacity: isHovered ? 1 : 0,
-          background: `radial-gradient(420px circle at ${sheenPos.x}px ${sheenPos.y}px, rgba(0, 0, 0, 0.04), transparent 70%)`,
-        }}
-      />
+      {/* Hand-drawn matching liquid light sheen (only when hover animation is enabled) */}
+      {enableHoverAnimation && (
+        <div
+          className="pointer-events-none absolute -inset-px transition-opacity duration-300"
+          style={{
+            borderRadius: handdrawnStyle.borderRadius,
+            opacity: isHovered ? 1 : 0,
+            background: `radial-gradient(420px circle at ${sheenPos.x}px ${sheenPos.y}px, rgba(0, 0, 0, 0.04), transparent 70%)`,
+          }}
+        />
+      )}
 
       {/* Hand-drawn organic border highlight on hover */}
-      <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-        style={{
-          borderRadius: handdrawnStyle.borderRadius,
-          opacity: isHovered ? 1 : 0,
-          boxShadow: 'inset 0 0 0 1.5px rgba(4,4,4,0.35)',
-        }}
-      />
+      {enableHoverAnimation && (
+        <div
+          className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+          style={{
+            borderRadius: handdrawnStyle.borderRadius,
+            opacity: isHovered ? 1 : 0,
+            boxShadow: 'inset 0 0 0 1.5px rgba(4,4,4,0.35)',
+          }}
+        />
+      )}
 
       {/* Card Content - Rendered with 100% native text sharpness (zero filter blur) */}
       <div className="relative z-10 w-full h-full">

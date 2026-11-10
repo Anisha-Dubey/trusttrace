@@ -222,14 +222,14 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
           </div>
 
           {/* Grid vs List View Toggle (Baseline Signature) */}
-          <div className="flex items-center p-1 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)]">
+          <div className="flex items-center p-1 handdrawn-pill bg-[#f6f6f6] border border-[rgb(0_0_0/10%)]">
             <button
               onClick={() => {
                 sound.playClick(600);
                 setViewMode('grid');
               }}
               data-cursor-text="GRID"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all font-medium ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 handdrawn-pill text-xs font-mono transition-all font-medium ${
                 viewMode === 'grid'
                   ? 'bg-[#101010] text-white shadow-xs'
                   : 'text-[#6b6b6b] hover:text-[#040404]'
@@ -244,7 +244,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
                 setViewMode('list');
               }}
               data-cursor-text="LIST"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all font-medium ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 handdrawn-pill text-xs font-mono transition-all font-medium ${
                 viewMode === 'list'
                   ? 'bg-[#101010] text-white shadow-xs'
                   : 'text-[#6b6b6b] hover:text-[#040404]'
@@ -275,7 +275,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
                 setFilter(cat.id);
               }}
               data-cursor-text="FILTER"
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-colors font-medium flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-mono transition-colors font-medium flex items-center gap-1.5 ${
                 filter === cat.id
                   ? 'bg-[#101010] text-white border border-[#101010] font-bold shadow-xs'
                   : 'bg-[#ffffff] text-[#6b6b6b] hover:text-[#040404] hover:bg-[#f6f6f6] border border-[rgb(0_0_0/10%)]'
@@ -305,7 +305,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: idx * 0.06 }}
-              className="group relative rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[#040404] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
+              className="group relative handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[#040404] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
               data-cursor-text="AUDIT CASE"
               onMouseEnter={() => {
                 sound.playLiquid();
@@ -330,7 +330,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
               </div>
 
               {/* Simulated Interactive Visual Stage (Baseline Gallery Style) */}
-              <div className="relative rounded-xl border border-[rgb(0_0_0/8%)] bg-[#f6f6f6] p-5 space-y-3.5 overflow-hidden group-hover:bg-[#f0f0f0] transition-colors">
+              <div className="relative handdrawn-box border border-[rgb(0_0_0/8%)] bg-[#f6f6f6] p-5 space-y-3.5 overflow-hidden group-hover:bg-[#f0f0f0] transition-colors">
                 {/* Browser-style address preview */}
                 <div className="flex items-center justify-between text-xs font-mono pb-2 border-b border-[rgb(0_0_0/8%)]">
                   <div className="flex items-center gap-2">
@@ -400,7 +400,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
-          className="border border-[rgb(0_0_0/10%)] rounded-2xl bg-[#ffffff] divide-y divide-[rgb(0_0_0/10%)] overflow-hidden"
+          className="border border-[rgb(0_0_0/10%)] handdrawn-card bg-[#ffffff] divide-y divide-[rgb(0_0_0/10%)] overflow-hidden"
         >
           {filteredCases.map((item) => (
             <div
@@ -451,7 +451,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
       )}
 
       {/* Floating Insight Banner */}
-      <div className="p-6 rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono text-xs text-[#6b6b6b]">
+      <div className="p-6 handdrawn-box border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono text-xs text-[#6b6b6b]">
         <div className="flex items-center gap-2.5">
           <Terminal className="w-4 h-4 text-[#040404] shrink-0" />
           <span>Need to evaluate a bespoke unlisted domain? Run live client-side triage in real time.</span>
@@ -462,7 +462,7 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
             onSelectCase('phishing_lookalike', 'https://bank-secure-lоgin.com');
           }}
           data-cursor-text="TRIAGE"
-          className="px-4 py-2 rounded-xl bg-[#101010] hover:bg-[#131313] text-white font-medium text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+          className="px-4 py-2 handdrawn-pill bg-[#101010] hover:bg-[#131313] text-white font-medium text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 shrink-0"
         >
           <span>Launch Target Triage</span>
           <ArrowUpRight className="w-3.5 h-3.5" />

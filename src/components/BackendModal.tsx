@@ -40,12 +40,12 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-2xl rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-4 sm:p-8 space-y-5 sm:space-y-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto text-[#040404]"
+          className="relative w-full max-w-2xl handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-4 sm:p-8 space-y-5 sm:space-y-6 shadow-2xl z-10 max-h-[90vh] overflow-y-auto text-[#040404]"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[rgb(0_0_0/10%)] pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] text-[#040404]">
+              <div className="p-2 handdrawn-box bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] text-[#040404]">
                 <Terminal className="w-5 h-5" />
               </div>
               <div>
@@ -63,7 +63,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                 sound.playClick(500);
                 onClose();
               }}
-              className="p-1.5 rounded-lg text-[#6b6b6b] hover:text-[#040404] hover:bg-[#f6f6f6] transition-colors"
+              className="p-1.5 handdrawn-pill text-[#6b6b6b] hover:text-[#040404] hover:bg-[#f6f6f6] transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -87,7 +87,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                   <span>Copy</span>
                 </button>
               </div>
-              <pre className="p-3 rounded-xl bg-[#101010] border border-[rgb(0_0_0/10%)] text-white text-xs font-mono overflow-x-auto">
+              <pre className="p-3 handdrawn-box bg-[#101010] border border-[rgb(0_0_0/10%)] text-white text-xs font-mono overflow-x-auto">
                 launch.bat
               </pre>
             </div>
@@ -104,7 +104,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                   <span>Copy</span>
                 </button>
               </div>
-              <pre className="p-3 rounded-xl bg-[#101010] border border-[rgb(0_0_0/10%)] text-white text-xs font-mono overflow-x-auto">
+              <pre className="p-3 handdrawn-box bg-[#101010] border border-[rgb(0_0_0/10%)] text-white text-xs font-mono overflow-x-auto">
                 python run_app.py --port 8000
               </pre>
             </div>
@@ -115,7 +115,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                 Worker Architecture Allocation:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                <div className="p-3 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
+                <div className="p-3 handdrawn-box bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
                   <div className="text-[#040404] font-bold flex items-center gap-1.5 font-heading">
                     <Shield className="w-3.5 h-3.5 text-[#040404]" />
                     <span>Worker 01 Intake</span>
@@ -123,7 +123,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                   <div className="text-[#6b6b6b] font-body">SSRF filtering, canonical host parsing, homoglyph detection.</div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
+                <div className="p-3 handdrawn-box bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
                   <div className="text-[#040404] font-bold flex items-center gap-1.5 font-heading">
                     <Database className="w-3.5 h-3.5 text-[#040404]" />
                     <span>Worker 02 Community</span>
@@ -131,7 +131,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                   <div className="text-[#6b6b6b] font-body">Decentralized feed, anti-Sybil deduplication, SQLite storage.</div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
+                <div className="p-3 handdrawn-box bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
                   <div className="text-[#040404] font-bold flex items-center gap-1.5 font-heading">
                     <Server className="w-3.5 h-3.5 text-[#040404]" />
                     <span>Worker 03 Adjudication</span>
@@ -139,7 +139,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                   <div className="text-[#6b6b6b] font-body">Deterministic synthesis across 4 dimensions and invariants.</div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
+                <div className="p-3 handdrawn-box bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] space-y-1">
                   <div className="text-[#040404] font-bold flex items-center gap-1.5 font-heading">
                     <Terminal className="w-3.5 h-3.5 text-[#040404]" />
                     <span>Worker 04 Passport</span>
@@ -166,7 +166,7 @@ export default function BackendModal({ isOpen, onClose, onShowToast }: BackendMo
                 sound.playClick(500);
                 onClose();
               }}
-              className="px-4 py-2 rounded-xl bg-[#101010] hover:bg-[#131313] text-white font-medium text-xs font-mono transition-colors shadow-xs"
+              className="px-4 py-2 handdrawn-pill bg-[#101010] hover:bg-[#131313] text-white font-medium text-xs font-mono transition-colors shadow-xs"
             >
               Close Console
             </button>

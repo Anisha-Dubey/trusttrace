@@ -83,7 +83,7 @@ export default function HiYesCurtain({ onQuickTriage, onScrollToTriage }: HiYesC
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <button
                   onClick={() => onQuickTriage('https://bank-secure-lоgin.com')}
-                  className="px-4 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-[#5855e8] hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
+                  className="px-4 py-2 handdrawn-pill bg-zinc-100 dark:bg-zinc-800 hover:bg-[#5855e8] hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
                 >
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
                   <span>Cyrillic Homoglyph (Phishing)</span>
@@ -91,7 +91,7 @@ export default function HiYesCurtain({ onQuickTriage, onScrollToTriage }: HiYesC
 
                 <button
                   onClick={() => onQuickTriage('https://example.com')}
-                  className="px-4 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
+                  className="px-4 py-2 handdrawn-pill bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-600 hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
                 >
                   <Globe className="w-3.5 h-3.5 text-emerald-500" />
                   <span>IANA Benchmark (Legitimate)</span>
@@ -99,7 +99,7 @@ export default function HiYesCurtain({ onQuickTriage, onScrollToTriage }: HiYesC
 
                 <button
                   onClick={() => onQuickTriage('http://169.254.169.254/latest/meta-data')}
-                  className="px-4 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-600 hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
+                  className="px-4 py-2 handdrawn-pill bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-600 hover:text-white text-zinc-800 dark:text-zinc-200 text-xs font-mono font-medium transition-all flex items-center gap-2 shadow-sm"
                 >
                   <Globe className="w-3.5 h-3.5 text-rose-500" />
                   <span>Metadata SSRF (Boundary Halt)</span>

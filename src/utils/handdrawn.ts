@@ -8,12 +8,9 @@ export interface HanddrawnStyle {
 }
 
 /**
- * Authentic hand-drawn box generator with a smooth curve at each of the 4 corners.
- * Uses 8-point organic elliptical curvature (4 horizontal radii / 4 vertical radii)
- * so every corner is a continuous, beautiful curve without sharp kinks or drooping tails,
- * while preserving subtle organic asymmetry so every box looks hand-sketched.
- *
- * Each box instance and every page refresh generates completely unique random curves.
+ * Authentic hand-drawn box generator with a smooth curve at each of the 4 corners
+ * and organic sketched edges (using alternating 220-275px and 14-26px elliptical radii).
+ * Every box instance and every page refresh generates a completely unique random contour.
  */
 export function generateHanddrawnBorder(variant: HanddrawnVariant = 'card'): HanddrawnStyle {
   const r = (min: number, max: number) => Math.floor(min + Math.random() * (max - min + 1));
@@ -26,76 +23,64 @@ export function generateHanddrawnBorder(variant: HanddrawnVariant = 'card'): Han
     };
   }
 
-  if (variant === 'button' || variant === 'input') {
-    // Input / Button: 4 smoothly curved corners with noticeable organic variation.
-    // Perfectly proportioned (16px - 28px) so there is zero corner drooping or miter overshoot.
-    const h1 = r(16, 26);
-    const h2 = r(18, 28);
-    const h3 = r(16, 26);
-    const h4 = r(18, 28);
+  if (variant === 'input') {
+    // Input field: Fixed height ~54px. Bowed horizontal span with 20-26px vertical radii
+    // to prevent miter overshoot while maintaining authentic hand-sketched character.
+    const chirality = Math.random() > 0.5;
+    const l1 = r(230, 265);
+    const l2 = r(215, 250);
+    const s1 = r(18, 26);
+    const s2 = r(18, 26);
+    const v1 = r(20, 26);
+    const v2 = r(22, 28);
+    const v3 = r(20, 26);
+    const v4 = r(22, 28);
 
-    const v1 = r(18, 28);
-    const v2 = r(16, 26);
-    const v3 = r(18, 28);
-    const v4 = r(16, 26);
-
+    const h = chirality ? [l1, s1, l2, s2] : [s1, l1, s2, l2];
     return {
-      borderRadius: `${h1}px ${h2}px ${h3}px ${h4}px / ${v1}px ${v2}px ${v3}px ${v4}px`,
+      borderRadius: `${h[0]}px ${h[1]}px ${h[2]}px ${h[3]}px / ${v1}px ${v2}px ${v3}px ${v4}px`,
       borderWidth: uniformBw,
     };
   }
 
-  if (variant === 'box') {
-    // Benchmark scenario cards & medium containers:
-    // 4 smooth handdrawn curved corners (18px to 38px), each corner organically varied on every refresh.
-    const h1 = r(18, 36);
-    const h2 = r(22, 38);
-    const h3 = r(18, 34);
-    const h4 = r(22, 38);
+  // Authentic hand-drawn sketch box with 4 curved corners and subtle organic bowed lines.
+  // Alternating large (215-275px) & small (14-26px) radii across 4 chiral configurations
+  // guarantees every card, box, and container is completely unique and differently drawn!
+  const mode = Math.floor(Math.random() * 4);
+  const isCard = variant === 'card' || variant === 'round';
+  const lMin = isCard ? 235 : 215;
+  const lMax = isCard ? 275 : 255;
+  const sMin = isCard ? 16 : 14;
+  const sMax = isCard ? 26 : 22;
 
-    const v1 = r(22, 38);
-    const v2 = r(18, 34);
-    const v3 = r(24, 40);
-    const v4 = r(20, 36);
+  const L = () => r(lMin, lMax);
+  const S = () => r(sMin, sMax);
 
-    return {
-      borderRadius: `${h1}px ${h2}px ${h3}px ${h4}px / ${v1}px ${v2}px ${v3}px ${v4}px`,
-      borderWidth: uniformBw,
-    };
+  let h: number[];
+  let v: number[];
+
+  switch (mode) {
+    case 0:
+      h = [L(), S(), L(), S()];
+      v = [S(), L(), S(), L()];
+      break;
+    case 1:
+      h = [S(), L(), S(), L()];
+      v = [L(), S(), L(), S()];
+      break;
+    case 2:
+      h = [L(), S(), S(), L()];
+      v = [S(), L(), L(), S()];
+      break;
+    case 3:
+    default:
+      h = [S(), L(), L(), S()];
+      v = [L(), S(), S(), L()];
+      break;
   }
-
-  if (variant === 'round') {
-    // Ultra-curvy container:
-    const h1 = r(32, 48);
-    const h2 = r(34, 50);
-    const h3 = r(30, 46);
-    const h4 = r(34, 50);
-
-    const v1 = r(34, 50);
-    const v2 = r(30, 46);
-    const v3 = r(36, 52);
-    const v4 = r(32, 48);
-
-    return {
-      borderRadius: `${h1}px ${h2}px ${h3}px ${h4}px / ${v1}px ${v2}px ${v3}px ${v4}px`,
-      borderWidth: uniformBw,
-    };
-  }
-
-  // Default 'card': Large bento panels & evidence cards
-  // 4 generous handdrawn curved corners (20px to 44px) dynamically randomized on every refresh
-  const h1 = r(22, 42);
-  const h2 = r(26, 44);
-  const h3 = r(20, 38);
-  const h4 = r(24, 42);
-
-  const v1 = r(24, 42);
-  const v2 = r(20, 38);
-  const v3 = r(26, 44);
-  const v4 = r(22, 40);
 
   return {
-    borderRadius: `${h1}px ${h2}px ${h3}px ${h4}px / ${v1}px ${v2}px ${v3}px ${v4}px`,
+    borderRadius: `${h[0]}px ${h[1]}px ${h[2]}px ${h[3]}px / ${v[0]}px ${v[1]}px ${v[2]}px ${v[3]}px`,
     borderWidth: uniformBw,
   };
 }

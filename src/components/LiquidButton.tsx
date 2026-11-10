@@ -9,8 +9,9 @@ interface LiquidButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement
   className?: string;
   variant?: 'primary' | 'secondary' | 'ghost';
   cursorBadge?: string;
-  soundType?: 'click' | 'pill' | 'hover';
+  soundType?: 'click' | 'pill' | 'hover' | 'none';
   handdrawnVariant?: HanddrawnVariant;
+  enableHoverAnimation?: boolean;
 }
 
 export default function LiquidButton({
@@ -20,6 +21,7 @@ export default function LiquidButton({
   cursorBadge,
   soundType = 'click',
   handdrawnVariant = 'button',
+  enableHoverAnimation = true,
   onClick,
   onMouseEnter,
   style: propStyle,
@@ -33,23 +35,22 @@ export default function LiquidButton({
 
   const handlePointerEnter = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {
-      sound.playHover();
-      triggerLiquidWarp(12);
+      if (enableHoverAnimation) {
+        if (soundType !== 'none') sound.playHover();
+        triggerLiquidWarp(10);
 
-      // Randomize border on hover for organic sketch feel
-      morphBorder();
-
-      if (btnRef.current) {
-        const rect = btnRef.current.getBoundingClientRect();
-        setRipplePos({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-          active: true,
-        });
+        if (btnRef.current) {
+          const rect = btnRef.current.getBoundingClientRect();
+          setRipplePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+            active: true,
+          });
+        }
       }
       onMouseEnter?.(e as never);
     },
-    [onMouseEnter, morphBorder]
+    [onMouseEnter, enableHoverAnimation, soundType]
   );
 
   const handlePointerLeave = useCallback(() => {

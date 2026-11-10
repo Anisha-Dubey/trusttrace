@@ -54,7 +54,7 @@ export default function InvariantsExplorer({ onSelectScenario }: InvariantsExplo
                 setActiveCategory(cat.id);
               }}
               data-cursor-text="FILTER"
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-colors font-medium ${
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-mono transition-colors font-medium ${
                 activeCategory === cat.id
                   ? 'bg-[#101010] text-white border border-[#101010] font-bold shadow-xs'
                   : 'bg-[#ffffff] text-[#6b6b6b] hover:text-[#040404] hover:bg-[#f6f6f6] border border-[rgb(0_0_0/10%)]'
@@ -72,11 +72,11 @@ export default function InvariantsExplorer({ onSelectScenario }: InvariantsExplo
           <div
             key={inv.id}
             data-cursor-text="INVARIANT"
-            className="p-5 rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-3 relative group hover:border-[rgb(0_0_0/20%)] hover:bg-[#ffffff] transition-all flex flex-col justify-between"
+            className="p-5 handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-3 relative group hover:border-[rgb(0_0_0/20%)] hover:bg-[#ffffff] transition-all flex flex-col justify-between"
           >
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="px-2.5 py-1 rounded bg-[#ffffff] border border-[rgb(0_0_0/10%)] text-xs font-mono font-bold text-[#040404]">
+                <span className="px-2.5 py-1 handdrawn-pill bg-[#ffffff] border border-[rgb(0_0_0/10%)] text-xs font-mono font-bold text-[#040404]">
                   {inv.id}
                 </span>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#6b6b6b] font-bold">
@@ -93,7 +93,7 @@ export default function InvariantsExplorer({ onSelectScenario }: InvariantsExplo
               </p>
 
               {inv.mathematical_rule && (
-                <div className="p-2.5 rounded-xl bg-[#ffffff] border border-[rgb(0_0_0/10%)] text-[11px] font-mono text-[#040404] overflow-x-auto">
+                <div className="p-2.5 handdrawn-box bg-[#ffffff] border border-[rgb(0_0_0/10%)] text-[11px] font-mono text-[#040404] overflow-x-auto">
                   <code>{inv.mathematical_rule}</code>
                 </div>
               )}
@@ -115,7 +115,7 @@ export default function InvariantsExplorer({ onSelectScenario }: InvariantsExplo
                     onSelectScenario(inv.scenario_target!);
                   }}
                   data-cursor-text="BENCHMARK"
-                  className="px-3 py-1.5 rounded-lg bg-[#ffffff] border border-[rgb(0_0_0/10%)] hover:bg-[#101010] hover:text-white text-[#040404] transition-colors text-xs font-mono flex items-center gap-1.5 font-medium"
+                  className="px-3 py-1.5 handdrawn-pill bg-[#ffffff] border border-[rgb(0_0_0/10%)] hover:bg-[#101010] hover:text-white text-[#040404] transition-colors text-xs font-mono flex items-center gap-1.5 font-medium"
                 >
                   <Play className="w-3 h-3 text-[#040404] group-hover:text-white" />
                   <span>Execute Benchmark</span>

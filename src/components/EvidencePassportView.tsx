@@ -97,7 +97,7 @@ export default function EvidencePassportView({
   return (
     <div className="space-y-12">
       {/* Top Passport Header Card */}
-      <div className="rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-10 space-y-8 shadow-sm">
+      <div className="handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-10 space-y-8 shadow-sm">
 
         {/* Upper Metadata & Decision Banner */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[#D9D9D9]">
@@ -127,7 +127,7 @@ export default function EvidencePassportView({
 
           {/* Decision Badge & Action Tools */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2.5 ${decisionBadge.bg}`}>
+            <div className={`px-4 py-2.5 handdrawn-pill border flex items-center gap-2.5 ${decisionBadge.bg}`}>
               <DecisionIcon className="w-5 h-5 shrink-0 text-[#040404]" />
               <div>
                 <div className="font-heading font-bold text-xs uppercase tracking-tight text-[#040404]">{decisionBadge.label}</div>
@@ -141,7 +141,7 @@ export default function EvidencePassportView({
                 setShowJson(!showJson);
               }}
               data-cursor-text="RAW JSON"
-              className="p-2.5 rounded-xl bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
+              className="p-2.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
             >
               <FileCode className="w-4 h-4 text-[#6B6B6B]" />
               <span>JSON</span>
@@ -150,7 +150,7 @@ export default function EvidencePassportView({
             <button
               onClick={handleCopyJson}
               data-cursor-text="COPY"
-              className="p-2.5 rounded-xl bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
+              className="p-2.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-[#6B6B6B]" />}
               <span>Copy</span>
@@ -179,7 +179,7 @@ export default function EvidencePassportView({
             {/* Dimension 1: Identity */}
             <div
               data-cursor-text="IDENTITY"
-              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
+              className="p-5 handdrawn-box border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
               <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
                 <span className="font-bold uppercase">01 // IDENTITY</span>
@@ -196,7 +196,7 @@ export default function EvidencePassportView({
             {/* Dimension 2: Certificate */}
             <div
               data-cursor-text="CERTIFICATE"
-              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
+              className="p-5 handdrawn-box border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
               <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
                 <span className="font-bold uppercase">02 // CERTIFICATE</span>
@@ -213,7 +213,7 @@ export default function EvidencePassportView({
             {/* Dimension 3: Behavior */}
             <div
               data-cursor-text="BEHAVIOR"
-              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
+              className="p-5 handdrawn-box border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
               <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
                 <span className="font-bold uppercase">03 // BEHAVIOUR</span>
@@ -230,7 +230,7 @@ export default function EvidencePassportView({
             {/* Dimension 4: Evidence Quality */}
             <div
               data-cursor-text="QUALITY"
-              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
+              className="p-5 handdrawn-box border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
               <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
                 <span className="font-bold uppercase">04 // EVIDENCE QUALITY</span>
@@ -273,7 +273,7 @@ export default function EvidencePassportView({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#101010] p-5 space-y-3"
+            className="overflow-hidden handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#101010] p-5 space-y-3"
           >
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-white font-bold flex items-center gap-2">
@@ -282,12 +282,12 @@ export default function EvidencePassportView({
               </span>
               <button
                 onClick={handleCopyJson}
-                className="px-3 py-1 bg-[#ffffff]/10 text-white border border-[rgb(255_255_255/20%)] rounded-lg hover:bg-[#ffffff]/20 transition-colors"
+                className="px-3 py-1 bg-[#ffffff]/10 text-white border border-[rgb(255_255_255/20%)] handdrawn-pill hover:bg-[#ffffff]/20 transition-colors"
               >
                 Copy JSON
               </button>
             </div>
-            <pre className="p-4 rounded-xl bg-[#131313] border border-[rgb(255_255_255/10%)] text-xs font-mono text-[#f6f6f6] overflow-x-auto max-h-96 leading-relaxed">
+            <pre className="p-4 handdrawn-box bg-[#131313] border border-[rgb(255_255_255/10%)] text-xs font-mono text-[#f6f6f6] overflow-x-auto max-h-96 leading-relaxed">
               {JSON.stringify(report, null, 2)}
             </pre>
           </motion.div>
@@ -295,7 +295,7 @@ export default function EvidencePassportView({
       </AnimatePresence>
 
       {/* Streamlined Tabbed Records */}
-      <div className="rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-4 sm:p-8 space-y-6 shadow-sm">
+      <div className="handdrawn-card border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-4 sm:p-8 space-y-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[rgb(0_0_0/10%)] pb-4 gap-3">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
@@ -303,7 +303,7 @@ export default function EvidencePassportView({
                 sound.playClick(600);
                 setActiveTab('findings');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-heading transition-colors font-bold ${
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-heading transition-colors font-bold ${
                 activeTab === 'findings'
                   ? 'bg-[#101010] text-white'
                   : 'bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]'
@@ -317,7 +317,7 @@ export default function EvidencePassportView({
                 sound.playClick(600);
                 setActiveTab('evidence');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-heading transition-colors font-bold ${
+              className={`px-3 py-1.5 handdrawn-pill text-xs font-heading transition-colors font-bold ${
                 activeTab === 'evidence'
                   ? 'bg-[#101010] text-white'
                   : 'bg-[#f6f6f6] text-[#6b6b6b] hover:text-[#040404]'
@@ -328,7 +328,7 @@ export default function EvidencePassportView({
           </div>
 
           {activeTab === 'findings' && (
-            <div className="flex items-center gap-1 bg-[#f6f6f6] p-1 rounded-lg border border-[rgb(0_0_0/10%)] text-[10px] font-mono self-start sm:self-auto">
+            <div className="flex items-center gap-1 bg-[#f6f6f6] p-1 handdrawn-pill border border-[rgb(0_0_0/10%)] text-[10px] font-mono self-start sm:self-auto">
               {(['all', 'high', 'caution', 'info'] as const).map((sev) => (
                 <button
                   key={sev}
@@ -351,14 +351,14 @@ export default function EvidencePassportView({
         <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
           {activeTab === 'findings' ? (
             filteredFindings.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] rounded-xl">
+              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] handdrawn-box">
                 No discrete findings for filter '{severityFilter}'. Target passed baseline policies.
               </div>
             ) : (
               filteredFindings.map((finding) => (
                 <div
                   key={finding.finding_id}
-                  className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-2 text-xs"
+                  className="p-4 handdrawn-box border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-2 text-xs"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-heading font-bold text-[#040404] tracking-tight">
@@ -386,14 +386,14 @@ export default function EvidencePassportView({
             )
           ) : (
             report.evidence.length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] rounded-xl">
+              <div className="p-8 text-center text-xs text-[#6b6b6b] font-mono border border-dashed border-[rgb(0_0_0/10%)] handdrawn-box">
                 No external evidence records collected.
               </div>
             ) : (
               report.evidence.map((ev) => (
                 <div
                   key={ev.evidence_id}
-                  className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-2 text-xs font-mono"
+                  className="p-4 handdrawn-box border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-2 text-xs font-mono"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-[#040404]">{ev.evidence_id}</span>
@@ -406,7 +406,7 @@ export default function EvidencePassportView({
                     <span className="text-[#6b6b6b]">Reliability:</span> {ev.reliability}
                   </div>
                   {ev.limitations && ev.limitations.length > 0 && (
-                    <div className="text-[11px] text-[#6b6b6b] bg-[#ffffff] p-2 rounded-lg border border-[rgb(0_0_0/10%)]">
+                    <div className="text-[11px] text-[#6b6b6b] bg-[#ffffff] p-2 handdrawn-box border border-[rgb(0_0_0/10%)]">
                       Limitations: {ev.limitations.join('; ')}
                     </div>
                   )}
