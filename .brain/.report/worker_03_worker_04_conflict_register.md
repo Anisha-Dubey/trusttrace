@@ -1,17 +1,17 @@
 # TRUSTTRACE — WORKER 03: COMPLETE WORKER 04 CONFLICT REGISTER
 
-**Audit Author:** Worker 03 (Risk Policy, Evidence Interpretation, Uncertainty & Claim Discipline)  
-**Target Consumer:** Worker 04 (Web Interface, Evidence Passport Presentation & Stage Demos)  
-**Target Codebase:** `src/trusttrace/web/routes.py`, `src/trusttrace/web/`, frontend templates, and test harnesses  
-**Audit Baseline Commit:** `7354365058f101e5ada2af34e7ccb0eb2309dbc2` (HEAD -> main, origin/main)  
-**Date:** 2026-11-10  
-**Status:** COMPLETED & VERIFIED  
+**Audit Author:** Worker 03 (Risk Policy, Evidence Interpretation, Uncertainty & Claim Discipline)
+**Target Consumer:** Worker 04 (Web Interface, Evidence Passport Presentation & Stage Demos)
+**Target Codebase:** `src/trusttrace/web/routes.py`, `src/trusttrace/web/`, frontend templates, and test harnesses
+**Audit Baseline Commit:** `7354365058f101e5ada2af34e7ccb0eb2309dbc2` (HEAD -> main, origin/main)
+**Date:** 2026-11-10
+**Status:** COMPLETED & VERIFIED
 
 ---
 
 ## 1. Executive Summary
 
-As part of the cross-worker integration audit, Worker 03 conducted an exhaustive, line-by-line inspection of Worker 04's implementation (`src/trusttrace/web/routes.py`, UI templates, and API integrations). 
+As part of the cross-worker integration audit, Worker 03 conducted an exhaustive, line-by-line inspection of Worker 04's implementation (`src/trusttrace/web/routes.py`, UI templates, and API integrations).
 
 The audit compared Worker 04's callsites, data structures, and assumptions against the actual public interfaces, invariant rules, and data contracts of Worker 03 (`src/trusttrace/policy/`).
 
@@ -89,7 +89,7 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
         evidence_ids=["ev-tls-001"],
         value="Valid DV Cert by Let's Encrypt",
     )
-    
+
     # Option B: Named parameters
     SignalRecord(
         kind=SignalKind.TLS_VALID,
@@ -162,7 +162,7 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
     ```python
     from trusttrace.policy.policy_input import PolicyInput
     from trusttrace.policy.triage_engine import TriageEngine
-    
+
     policy_input = PolicyInput.from_components(
         scan_id="scan-demo-phish-001",
         target="bank-secure-lоgin.com",
@@ -288,7 +288,7 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
 10. **Correct Code Example:**
     ```python
     from datetime import datetime, timezone
-    
+
     now_iso = datetime.now(timezone.utc).isoformat()
     candidate_report = {
         "schema_version": "1.0",
@@ -503,10 +503,10 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
     ```python
     from fastapi.testclient import TestClient
     from trusttrace.api.app import create_app
-    
+
     app = create_app()
     client = TestClient(app)
-    
+
     def test_phishing_lookalike_scenario():
         res = client.post("/api/v1/triage/demo", json={"url": "https://bank.com", "scenario": "phishing_lookalike"})
         assert res.status_code == 200
@@ -560,20 +560,20 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
     from trusttrace.evidence.adapters.worker01_adapter import Worker01EvidenceAdapter
     from trusttrace.policy.policy_input import PolicyInput
     from trusttrace.policy.triage_engine import TriageEngine
-    
+
     # 1. Intake
     is_safe, code, msg, rej_report = boundary.evaluate_url(url, scan_id)
     if not is_safe:
         return rej_report
-        
+
     # 2. Collect
     orchestrator = ScanOrchestrator()
     collect_results = orchestrator.execute_scan(url)
-    
+
     # 3. Adapt
     adapter = Worker01EvidenceAdapter()
     evidence_batch = adapter.to_evidence_items(collect_results, scan_id)
-    
+
     # 4. Policy Triage
     policy_input = PolicyInput.from_components(
         scan_id=scan_id,
@@ -583,7 +583,7 @@ The audit compared Worker 04's callsites, data structures, and assumptions again
     engine = TriageEngine()
     result = engine.evaluate_evidence(policy_input)
     candidate_report = build_canonical_report(policy_input, result)
-    
+
     # 5. Audit
     audit_res = engine.audit_report(candidate_report)
     return candidate_report

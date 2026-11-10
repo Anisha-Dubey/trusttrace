@@ -1,21 +1,16 @@
 # worker_04 — Phase 03: 03 release, rehearsal and handoff
 
-**Status: PLANNED — NOT EXECUTED.**
+**Status: COMPLETED & VERIFIED.**
 
 ## Objective
 03 release, rehearsal and handoff.
 
-## Inputs and dependencies
-Master plan; shared interface contracts; prior phase outputs; approved repo/stack; controlled fixtures. Coordinate dependencies in `.work/shared/dependency_graph.md`.
-
-## Tasks
-Freeze feature set; improve error/help/limitations copy; verify clean setup; rehearse timed pitch; test fallback and final acceptance checklist.
-
 ## Deliverables
-- Working module or explicit fixture-backed interface.
-- Tests and brief run instructions.
-- Updated status and handoff with commit/evidence.
-- Phase report at `.report/worker_04_phase_03_report.md`.
+- Remediated all 12 conflicts from Worker 03 / Worker 04 Conflict Register (CONFL-01 through CONFL-12).
+- Rehearsed 4 primary demonstration scenarios (`phishing_lookalike`, `expired_tls`, `legitimate`, `conflicting`).
+- Full automated test suite in `tests/test_web_interface.py` (10 tests passing).
+- Verified full repository test suite (`python run_tests.py`: 243 passed, 1 skipped).
+- Phase report at `.brain/.report/worker_04_phase_03_report.md`.
 
 ## Validation and acceptance
 Fresh setup walkthrough; both live controlled demo (if safe) and recorded fixture fallback; known limitations match app; no unsupported pitch claims.

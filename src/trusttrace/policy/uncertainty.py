@@ -76,7 +76,7 @@ DEFAULT_FRESHNESS_WINDOWS: Mapping[str, int] = MappingProxyType({
 class FreshnessPolicy:
     """Configurable freshness windows per source family or collector kind."""
 
-    windows: Mapping[str, int] = DEFAULT_FRESHNESS_WINDOWS
+    windows: Mapping[str, int] = field(default_factory=lambda: DEFAULT_FRESHNESS_WINDOWS)
 
     def get_window(self, kind: str) -> int:
         """Return the maximum freshness window in seconds for the given kind."""

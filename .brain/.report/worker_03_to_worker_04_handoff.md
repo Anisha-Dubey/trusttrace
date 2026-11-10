@@ -1,17 +1,17 @@
 # TRUSTTRACE — WORKER 03 TO WORKER 04 IMPLEMENTATION HANDOFF
 
-**Author:** Worker 03 (Risk Policy, Evidence Interpretation, Uncertainty & Claim Discipline)  
-**Target Recipient:** Worker 04 (Web Interface, Evidence Passport Presentation & Stage Demos)  
-**Date:** 2026-11-10  
-**Baseline Git Commit:** `7354365058f101e5ada2af34e7ccb0eb2309dbc2`  
-**Companion Document:** [`.brain/.report/worker_03_worker_04_conflict_register.md`](file:///c:/Users/adity/OneDrive/Desktop/HackMatrix26/.brain/.report/worker_03_worker_04_conflict_register.md)  
-**Status:** READY FOR WORKER 04 EXECUTION  
+**Author:** Worker 03 (Risk Policy, Evidence Interpretation, Uncertainty & Claim Discipline)
+**Target Recipient:** Worker 04 (Web Interface, Evidence Passport Presentation & Stage Demos)
+**Date:** 2026-11-10
+**Baseline Git Commit:** `7354365058f101e5ada2af34e7ccb0eb2309dbc2`
+**Companion Document:** [`.brain/.report/worker_03_worker_04_conflict_register.md`](file:///c:/Users/adity/OneDrive/Desktop/HackMatrix26/.brain/.report/worker_03_worker_04_conflict_register.md)
+**Status:** READY FOR WORKER 04 EXECUTION
 
 ---
 
 ## 1. Executive Summary & Purpose
 
-This handoff provides Worker 04 with a step-by-step, actionable implementation roadmap to remediate all 12 identified conflicts in the Conflict Register. 
+This handoff provides Worker 04 with a step-by-step, actionable implementation roadmap to remediate all 12 identified conflicts in the Conflict Register.
 
 Every code snippet in this guide references the **actual public interfaces** implemented by Worker 03 in `src/trusttrace/policy/`. Worker 04 can implement these fixes directly without guessing parameter ordering, field names, return types, or invariant behaviors.
 
@@ -232,7 +232,7 @@ Update the client-side JavaScript in `routes.py` (and standalone `index.html`):
 ```javascript
 function renderPassport(data) {
   // 1. Existing badges...
-  
+
   // 2. Confidence Band Badge
   const unc = data.uncertainty || {};
   const confBand = unc.confidence_band || 'limited_observation';
@@ -287,7 +287,7 @@ from trusttrace.evidence.services.evidence_service import EvidenceService
 async def triage_demo_endpoint(payload: TriageDemoRequest):
     url = payload.url.strip()
     scenario = payload.scenario or "custom"
-    
+
     # Pre-canned fixtures for scenarios...
     if scenario == "legitimate": ...
     if scenario == "phishing_lookalike": ...
@@ -322,7 +322,7 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
     engine = TriageEngine()
     triage_result = engine.evaluate_evidence(policy_input)
     candidate_report = build_canonical_report(policy_input, triage_result)
-    
+
     # Audit & Return
     engine.audit_report(candidate_report)
     return candidate_report
