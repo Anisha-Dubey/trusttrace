@@ -14,6 +14,7 @@ Implements:
 """
 
 import time
+import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 import uuid
@@ -27,21 +28,27 @@ from trusttrace.intake.boundary import IntakeBoundary
 
 
 class CancellationToken:
-    """Thread-safe cancellation flag for in-flight scans (LIMIT-004)."""
+    """Thread-safe cancellation event for in-flight scans (LIMIT-004)."""
 
     def __init__(self):
-        self._is_cancelled = False
+        self._event = threading.Event()
 
     def cancel(self):
-        self._is_cancelled = True
+        """Signal cancellation atomically across threads."""
+        self._event.set()
 
     @property
     def is_cancelled(self) -> bool:
-        return self._is_cancelled
+        """Query cancellation status."""
+        return self._event.is_set()
+
+    def wait(self, timeout: Optional[float] = None) -> bool:
+        """Wait for cancellation signal or timeout."""
+        return self._event.wait(timeout=timeout)
 
 
 class ScanOrchestrator:
-    """Orchestrates passive metadata collectors under strict resource bounds and safety gates."""
+    """Orchestrates passive metadata collectors under strict resource bounds, deadlines, and safety gates."""
 
     def __init__(
         self,
@@ -50,7 +57,8 @@ class ScanOrchestrator:
         tls_collector: Optional[TLSCollector] = None,
         http_collector: Optional[BoundedHTTPCollector] = None,
         rate_limiter: Optional[RateLimiter] = None,
-        policy_version: str = "demo-v1"
+        policy_version: str = "demo-v1",
+        scan_timeout: float = 6.0
     ):
         self.boundary = intake_boundary or IntakeBoundary()
         self.dns_collector = dns_collector or DNSCollector()
@@ -58,17 +66,21 @@ class ScanOrchestrator:
         self.http_collector = http_collector or BoundedHTTPCollector()
         self.rate_limiter = rate_limiter or RateLimiter()
         self.policy_version = policy_version
+        self.scan_timeout = scan_timeout
 
     def run_scan(
         self,
         raw_url: str,
         scan_id: Optional[str] = None,
         client_id: str = "default",
-        cancel_token: Optional[CancellationToken] = None
+        cancel_token: Optional[CancellationToken] = None,
+        scan_timeout: Optional[float] = None
     ) -> Dict[str, Any]:
-        """Execute bounded scan on a URL target."""
+        """Execute bounded scan on a URL target enforcing a shared overall scan deadline."""
         scan_id = scan_id or f"scan-{uuid.uuid4().hex[:8]}"
         now_start = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        total_budget = scan_timeout if scan_timeout is not None else self.scan_timeout
+        scan_deadline = time.time() + total_budget
 
         # 1. Rate & Concurrency Check (LIMIT-003)
         acquired, limit_reason = self.rate_limiter.acquire(client_id)
@@ -127,10 +139,25 @@ class ScanOrchestrator:
 
             # Check 1: DNS
             if cancel_token and cancel_token.is_cancelled:
-                # LIMIT-004: In-flight cancellation
                 return self._build_cancelled_report(scan_id, eval_res, now_start, "Cancelled before DNS collection.")
 
-            dns_ev = self.dns_collector.collect(hostname, port)
+            rem_dns = scan_deadline - time.time()
+            if rem_dns <= 0:
+                dns_ev = CollectorResult(
+                    kind="dns_resolution",
+                    value={"error": "timeout", "elapsed_sec": round(total_budget, 4)},
+                    source="passive_dns_collector",
+                    status="failed",
+                    reliability="direct_observation",
+                    limitations=[f"Total scan deadline of {total_budget}s exceeded before DNS collection."]
+                )
+            else:
+                dns_ev = self.dns_collector.collect(
+                    hostname,
+                    port=port or 443,
+                    timeout=min(self.dns_collector.timeout, rem_dns)
+                )
+
             evidence_items.append(dns_ev.to_dict())
             if dns_ev.status == "observed":
                 checks_observed += 1
@@ -144,8 +171,25 @@ class ScanOrchestrator:
 
             cert_status = "not_checked"
             if scheme == "https":
-                pinned_ip = dns_ev.value.get("pinned_ip") if dns_ev.status == "observed" else None
-                tls_ev = self.tls_collector.collect(hostname, port=port or 443, pinned_ip=pinned_ip)
+                rem_tls = scan_deadline - time.time()
+                if rem_tls <= 0:
+                    tls_ev = CollectorResult(
+                        kind="tls_certificate",
+                        value={"error": "timeout", "elapsed_sec": round(total_budget, 4)},
+                        source="bounded_tls_collector",
+                        status="failed",
+                        reliability="direct_observation",
+                        limitations=[f"Total scan deadline of {total_budget}s exceeded before TLS collection."]
+                    )
+                else:
+                    pinned_ip = dns_ev.value.get("pinned_ip") if dns_ev.status == "observed" else None
+                    tls_ev = self.tls_collector.collect(
+                        hostname,
+                        port=port or 443,
+                        pinned_ip=pinned_ip,
+                        timeout=min(self.tls_collector.timeout, rem_tls)
+                    )
+
                 evidence_items.append(tls_ev.to_dict())
                 if tls_ev.status == "observed":
                     checks_observed += 1
@@ -162,8 +206,26 @@ class ScanOrchestrator:
             if cancel_token and cancel_token.is_cancelled:
                 return self._build_cancelled_report(scan_id, eval_res, now_start, "Cancelled before HTTP collection.")
 
-            pinned_ip = dns_ev.value.get("pinned_ip") if dns_ev.status == "observed" else None
-            http_ev_list = self.http_collector.collect(raw_url, pinned_ip=pinned_ip)
+            rem_http = scan_deadline - time.time()
+            if rem_http <= 0:
+                http_ev_list = [
+                    CollectorResult(
+                        kind="http_headers",
+                        value={"error": "timeout", "elapsed_sec": round(total_budget, 4)},
+                        source="bounded_http_collector",
+                        status="failed",
+                        reliability="direct_observation",
+                        limitations=[f"Total scan deadline of {total_budget}s exceeded before HTTP collection."]
+                    )
+                ]
+            else:
+                pinned_ip = dns_ev.value.get("pinned_ip") if dns_ev.status == "observed" else None
+                http_ev_list = self.http_collector.collect(
+                    raw_url,
+                    pinned_ip=pinned_ip,
+                    timeout=min(self.http_collector.timeout, rem_http)
+                )
+
             for h_ev in http_ev_list:
                 evidence_items.append(h_ev.to_dict())
                 if h_ev.status == "observed":

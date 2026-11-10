@@ -437,6 +437,82 @@ class TestBoundedCollectors(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    def test_total_scan_deadline_enforcement(self):
+        """P1-4: Total scan strictly respects shared scan deadline across collectors."""
+        import time
+
+        def slow_dns(h):
+            time.sleep(0.15)
+            return {"value": {"resolved_ips": ["93.184.216.34"], "pinned_ip": "93.184.216.34"}}
+
+        mock_dns = DNSCollector(mock_lookup_fn=slow_dns)
+        mock_tls = TLSCollector(mock_cert_fn=lambda h, p: {"value": {"is_valid": True, "sans": [h]}})
+        mock_http = BoundedHTTPCollector(mock_http_fn=lambda u: {"headers_value": {"status_code": 200, "headers": {}}})
+        mock_resolver = SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"])
+        boundary = IntakeBoundary(resolver=mock_resolver)
+
+        orchestrator = ScanOrchestrator(
+            intake_boundary=boundary,
+            dns_collector=mock_dns,
+            tls_collector=mock_tls,
+            http_collector=mock_http,
+            scan_timeout=0.10  # Tight 100ms overall budget
+        )
+
+        start_t = time.time()
+        report = orchestrator.run_scan("https://example.com/")
+        elapsed = time.time() - start_t
+
+        # Must not run unbounded
+        self.assertLess(elapsed, 0.5)
+        self.assertEqual(report["status"], "partial")
+        self.assertTrue(any("deadline" in lim.lower() for lim in report["limitations"]))
+        errors = list(self.report_validator.iter_errors(report))
+        self.assertEqual(len(errors), 0, f"Schema error: {errors}")
+
+    def test_thread_safe_in_flight_cancellation_during_execution(self):
+        """P1-5: Thread-safe cancellation event halts scan in-flight across threads."""
+        import time
+
+        token = CancellationToken()
+        self.assertIsInstance(token._event, threading.Event)
+
+        # Slow collector that yields or checks cancellation
+        def slow_dns(h):
+            time.sleep(0.2)
+            return {"value": {"resolved_ips": ["93.184.216.34"], "pinned_ip": "93.184.216.34"}}
+
+        mock_dns = DNSCollector(mock_lookup_fn=slow_dns)
+        mock_resolver = SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"])
+        boundary = IntakeBoundary(resolver=mock_resolver)
+
+        orchestrator = ScanOrchestrator(
+            intake_boundary=boundary,
+            dns_collector=mock_dns
+        )
+
+        scan_result = {}
+
+        def scan_worker():
+            scan_result["report"] = orchestrator.run_scan("https://example.com/", cancel_token=token)
+
+        worker_thread = threading.Thread(target=scan_worker)
+        worker_thread.start()
+
+        # Cancel in-flight after 30ms
+        time.sleep(0.03)
+        token.cancel()
+        worker_thread.join(timeout=1.0)
+
+        self.assertFalse(worker_thread.is_alive())
+        report = scan_result.get("report")
+        self.assertIsNotNone(report)
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["decision"], "inconclusive")
+        self.assertTrue(any("cancelled" in lim.lower() for lim in report["limitations"]))
+        errors = list(self.report_validator.iter_errors(report))
+        self.assertEqual(len(errors), 0, f"Schema error: {errors}")
+
 
 if __name__ == "__main__":
     unittest.main()
