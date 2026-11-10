@@ -84,6 +84,19 @@ class TestWebInterfaceRegression(unittest.TestCase):
         self.assertIn("INVARIANT", body)
         self.assertIn("01 // IDENTITY", body)
 
+    def test_01b_static_assets_serving_and_traversal_protection(self):
+        """Verify built React static assets are served and traversal attacks are blocked."""
+        dist_assets = ROOT / "dist" / "assets"
+        if dist_assets.exists():
+            files = [f.name for f in dist_assets.iterdir() if f.is_file()]
+            if files:
+                sample_asset = files[0]
+                res = self.client.get(f"/assets/{sample_asset}")
+                self.assertEqual(res.status_code, 200)
+
+        bad_res = self.client.get("/assets/../../pyproject.toml")
+        self.assertEqual(bad_res.status_code, 404)
+
     # =========================================================================
     # 2. Controlled Demonstration Scenarios
     # =========================================================================

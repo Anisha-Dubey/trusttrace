@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 
 from ..intake.boundary import IntakeBoundary
@@ -38,6 +38,8 @@ router = APIRouter(tags=["Web Interface & Triage"])
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FIXTURES_DIR = REPO_ROOT / ".brain" / ".testdata" / "v1"
 INDEX_HTML_PATH = REPO_ROOT / "index.html"
+DIST_DIR = REPO_ROOT / "dist"
+DIST_INDEX_HTML_PATH = DIST_DIR / "index.html"
 
 
 class TriageDemoRequest(BaseModel):
@@ -513,10 +515,13 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
 async def serve_dashboard():
     """Serve the interactive Evidence Passport dashboard.
 
-    Reads from index.html if present in repository root, providing high-fidelity
-    Ethiack-inspired visual design, real-time triage controls, uncertainty badges,
-    and community intelligence reporting.
+    Prefers the compiled Vite production React application in dist/index.html,
+    falling back to root index.html. Both preserve core semantic SSR tokens
+    and testing invariants.
     """
+    if DIST_INDEX_HTML_PATH.exists():
+        content = DIST_INDEX_HTML_PATH.read_text(encoding="utf-8")
+        return HTMLResponse(content=content)
     if INDEX_HTML_PATH.exists():
         content = INDEX_HTML_PATH.read_text(encoding="utf-8")
         return HTMLResponse(content=content)
@@ -528,3 +533,13 @@ async def serve_dashboard():
 <body><h1>TRUSTTRACE Web Interface</h1><p>index.html not found at repository root.</p></body>
 </html>"""
     )
+
+
+@router.get("/assets/{asset_path:path}")
+async def serve_static_asset(asset_path: str):
+    """Serve built static assets for production React frontend with path traversal protection."""
+    assets_root = (DIST_DIR / "assets").resolve()
+    target_file = (assets_root / asset_path).resolve()
+    if assets_root in target_file.parents and target_file.is_file():
+        return FileResponse(str(target_file))
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
