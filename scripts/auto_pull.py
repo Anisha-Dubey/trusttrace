@@ -65,29 +65,29 @@ def check_and_pull(remote: str = "origin", branch: str = "main", cwd: Path = Non
     if incoming_count == 0:
         # Local might be ahead of remote (unpushed local commits); no pull needed
         if verbose:
-            print(f"[{now_str}] [AUTO-PULL] Local is ahead of {remote}/{branch}. Nothing to pull.")
+            print(f"[{now_str}] [AUTO-PULL] Local is ahead of {remote}/{branch}. Nothing to pull.", flush=True)
         return False
 
-    print(f"\n[{now_str}] [AUTO-PULL] 🔔 Team member pushed {incoming_count} new commit(s) to {remote}/{branch}!")
+    print(f"\n[{now_str}] [AUTO-PULL] 🔔 Team member pushed {incoming_count} new commit(s) to {remote}/{branch}!", flush=True)
 
     # Show summary of incoming commits
     _, log_summary, _ = run_git(["log", "--oneline", f"-{min(incoming_count, 5)}", f"{remote}/{branch}"], cwd=cwd)
     if log_summary:
         for line in log_summary.splitlines():
-            print(f"    • {line}")
+            print(f"    • {line}", flush=True)
 
     # 4. Safely pull with autostash and rebase
-    print(f"[{now_str}] [AUTO-PULL] 🔄 Pulling changes (git pull --rebase --autostash {remote} {branch})...")
+    print(f"[{now_str}] [AUTO-PULL] 🔄 Pulling changes (git pull --rebase --autostash {remote} {branch})...", flush=True)
     pull_code, pull_out, pull_err = run_git(["pull", "--rebase", "--autostash", remote, branch], cwd=cwd)
 
     if pull_code == 0:
         code_new, new_sha, _ = run_git(["rev-parse", "HEAD"], cwd=cwd)
-        print(f"[{now_str}] [AUTO-PULL] ✅ Successfully synchronized! Local HEAD is now {new_sha[:7]}.\n")
+        print(f"[{now_str}] [AUTO-PULL] ✅ Successfully synchronized! Local HEAD is now {new_sha[:7]}.\n", flush=True)
         return True
     else:
-        print(f"[{now_str}] [AUTO-PULL] ❌ Rebase conflict or error detected:")
-        print(pull_err or pull_out)
-        print(f"[{now_str}] [AUTO-PULL] 🛡️ Aborting rebase to preserve local modifications...")
+        print(f"[{now_str}] [AUTO-PULL] ❌ Rebase conflict or error detected:", flush=True)
+        print(pull_err or pull_out, flush=True)
+        print(f"[{now_str}] [AUTO-PULL] 🛡️ Aborting rebase to preserve local modifications...", flush=True)
         run_git(["rebase", "--abort"], cwd=cwd)
         return False
 
@@ -102,11 +102,11 @@ def main():
     args = parser.parse_args()
 
     git_root = get_git_root()
-    print(f"=== TRUSTTRACE Auto-Pull Watcher ===")
-    print(f"Root: {git_root}")
-    print(f"Target: {args.remote}/{args.branch}")
-    print(f"Polling Interval: {args.interval}s")
-    print(f"Press Ctrl+C to stop.\n")
+    print(f"=== TRUSTTRACE Auto-Pull Watcher ===", flush=True)
+    print(f"Root: {git_root}", flush=True)
+    print(f"Target: {args.remote}/{args.branch}", flush=True)
+    print(f"Polling Interval: {args.interval}s", flush=True)
+    print(f"Press Ctrl+C to stop.\n", flush=True)
 
     if args.once:
         check_and_pull(remote=args.remote, branch=args.branch, cwd=git_root, verbose=True)
