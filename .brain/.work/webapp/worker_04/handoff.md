@@ -1,6 +1,6 @@
 # worker_04 handoff
 
-**Status: PHASES 01, 02, 03, 04, 05, 06, 07 COMPLETED & READY FOR RELEASE / STAGE DEMO.**
+**Status: PHASES 01, 02, 03, 04, 05, 06, 07, 08 COMPLETED & READY FOR RELEASE / STAGE DEMO.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
@@ -10,8 +10,8 @@
   - `src/App.tsx`, `src/main.tsx`, `src/index.css`, `src/components/`, `src/data/`, `src/types/`, `src/utils/`
   - `package.json`, `vite.config.ts`, `tsconfig.json`
   - `tests/test_web_interface.py` (Full regression suite for web interface)
-  - `.brain/.work/webapp/worker_04/` (Phases 01-07, status, handoff)
-  - `.brain/.report/worker_04_phase_01_report.md` through `worker_04_phase_07_report.md`
+  - `.brain/.work/webapp/worker_04/` (Phases 01-08, status, handoff)
+  - `.brain/.report/worker_04_phase_01_report.md` through `worker_04_phase_08_report.md`
 
 ## Contract & Invariant Version
 - Policy Version: `w03-v1.0`
@@ -19,10 +19,10 @@
 - All 12 conflicts from Worker 03 / Worker 04 Conflict Register remediated and verified.
 
 ## Test Results
-- `tests/test_web_interface.py`: 10/10 tests passing.
-- `run_tests.py`: 301/301 tests passing (1 skipped).
+- `tests/test_web_interface.py`: 11/11 tests passing.
+- `run_tests.py`: 316/316 tests passing (1 skipped).
 - Contract & Fixture Invariants: 8/8 checks passed.
-- `npm run build`: Vite build passes cleanly in 1.23s.
+- `npm run build`: Vite build passes cleanly in 973ms.
 
 ## Stage Demo Scenarios
 1. `phishing_lookalike`: `https://bank-secure-lоgin.com` (Valid DV TLS does NOT equal identity verification).

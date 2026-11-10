@@ -52,12 +52,12 @@ export default function Header({
             <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-[#101010] text-white flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
               <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-heading font-extrabold text-base sm:text-lg tracking-[var(--tracking-heading)] text-[#040404]">
-                TRUSTTRACE
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif font-bold text-lg sm:text-xl tracking-tight text-[#040404]">
+                TRUSTRACE
               </span>
-              <span className="text-[10px] sm:text-[11px] text-[#6b6b6b] font-mono tracking-wider hidden md:inline">
-                / v1.0
+              <span className="text-[10px] sm:text-[11px] text-[#6B6B6B] font-mono tracking-widest uppercase hidden md:inline">
+                &bull; HACKATHON 2026
               </span>
             </div>
           </button>

@@ -100,27 +100,27 @@ export default function EvidencePassportView({
       <div className="rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-10 space-y-8 shadow-sm">
 
         {/* Upper Metadata & Decision Banner */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[rgb(0_0_0/10%)]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-[#D9D9D9]">
           <div className="space-y-2">
-            <div className="flex items-center gap-3 text-xs font-mono text-[#6b6b6b]">
-              <span className="text-[#040404] font-bold uppercase tracking-wider">
-                Audited Passport
+            <div className="flex items-center gap-3 text-xs font-mono text-[#6B6B6B]">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#040404] text-white text-[10px] font-mono font-bold tracking-wider">
+                EVIDENCE PASSPORT
               </span>
-              <span aria-hidden="true" className="text-[#cdcdcd]">/</span>
+              <span aria-hidden="true" className="text-[#CDCDCD]">/</span>
               <span>policy: {report.policy_version}</span>
-              <span aria-hidden="true" className="text-[#cdcdcd]">/</span>
+              <span aria-hidden="true" className="text-[#CDCDCD]">/</span>
               <span className="text-[#040404] font-bold">schema v{report.schema_version}</span>
             </div>
 
-            <div className="text-xl sm:text-3xl font-heading font-extrabold text-[#040404] break-all tracking-[var(--tracking-heading)]">
+            <div className="text-2xl sm:text-4xl font-serif text-[#040404] break-all tracking-tight">
               {report.submitted_url_redacted}
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6b6b6b] font-mono">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6B6B6B] font-mono">
               <span>Scan ID: <strong className="text-[#040404]">{report.scan_id}</strong></span>
-              <span aria-hidden="true" className="text-[#cdcdcd]">&bull;</span>
+              <span aria-hidden="true" className="text-[#CDCDCD]">&bull;</span>
               <span>Host: <strong className="text-[#040404]">{report.normalized_host}</strong></span>
-              <span aria-hidden="true" className="text-[#cdcdcd]">&bull;</span>
+              <span aria-hidden="true" className="text-[#CDCDCD]">&bull;</span>
               <span>Status: <strong className={report.status === 'rejected' ? 'text-rose-600 uppercase font-bold' : 'text-[#040404] uppercase font-bold'}>{report.status}</strong></span>
             </div>
           </div>
@@ -131,7 +131,7 @@ export default function EvidencePassportView({
               <DecisionIcon className="w-5 h-5 shrink-0 text-[#040404]" />
               <div>
                 <div className="font-heading font-bold text-xs uppercase tracking-tight text-[#040404]">{decisionBadge.label}</div>
-                <div className="text-[10px] font-mono text-[#6b6b6b]">{decisionBadge.sub}</div>
+                <div className="text-[10px] font-mono text-[#6B6B6B]">{decisionBadge.sub}</div>
               </div>
             </div>
 
@@ -141,18 +141,18 @@ export default function EvidencePassportView({
                 setShowJson(!showJson);
               }}
               data-cursor-text="RAW JSON"
-              className="p-2.5 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] hover:border-[rgb(0_0_0/25%)] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
+              className="p-2.5 rounded-xl bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
             >
-              <FileCode className="w-4 h-4 text-[#6b6b6b]" />
+              <FileCode className="w-4 h-4 text-[#6B6B6B]" />
               <span>JSON</span>
             </button>
 
             <button
               onClick={handleCopyJson}
               data-cursor-text="COPY"
-              className="p-2.5 rounded-xl bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] hover:border-[rgb(0_0_0/25%)] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
+              className="p-2.5 rounded-xl bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] transition-all text-xs font-mono flex items-center gap-1.5"
             >
-              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-[#6b6b6b]" />}
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-[#6B6B6B]" />}
               <span>Copy</span>
             </button>
           </div>
@@ -160,8 +160,8 @@ export default function EvidencePassportView({
 
         {/* 4 Verifiable Dimensions */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs font-mono text-[#6b6b6b]">
-            <span className="uppercase tracking-wider font-bold text-[#040404]">4 Verifiable Dimensions:</span>
+          <div className="flex items-center justify-between text-xs font-mono text-[#6B6B6B]">
+            <span className="uppercase tracking-wider font-bold text-[#040404]">04 &bull; 4 UNBUNDLED DIMENSIONS (PPT SLIDE 04):</span>
             <button
               onClick={() => {
                 sound.playClick(600);
@@ -179,68 +179,68 @@ export default function EvidencePassportView({
             {/* Dimension 1: Identity */}
             <div
               data-cursor-text="IDENTITY"
-              className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-1.5 hover:border-[rgb(0_0_0/25%)] transition-colors"
+              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
-              <div className="flex items-center justify-between text-xs text-[#6b6b6b] font-mono">
-                <span>01. Identity</span>
-                <IdCard className="w-3.5 h-3.5 text-[#6b6b6b]" />
+              <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
+                <span className="font-bold uppercase">01 // IDENTITY</span>
+                <IdCard className="w-3.5 h-3.5 text-[#6B6B6B]" />
               </div>
-              <div className={`text-base font-heading font-bold text-[#040404]`}>
+              <div className="text-sm font-serif font-bold text-[#040404] leading-snug">
                 {report.dimensions.identity}
               </div>
-              <div className="text-[10px] font-mono text-[#6b6b6b] pt-1">
-                Invariant: Transport only
+              <div className="text-[11px] font-serif text-[#6B6B6B] pt-1 border-t border-[#D9D9D9]">
+                What evidence connects this domain to claimed organization?
               </div>
             </div>
 
             {/* Dimension 2: Certificate */}
             <div
               data-cursor-text="CERTIFICATE"
-              className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-1.5 hover:border-[rgb(0_0_0/25%)] transition-colors"
+              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
-              <div className="flex items-center justify-between text-xs text-[#6b6b6b] font-mono">
-                <span>02. Certificate</span>
-                <Lock className="w-3.5 h-3.5 text-[#6b6b6b]" />
+              <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
+                <span className="font-bold uppercase">02 // CERTIFICATE</span>
+                <Lock className="w-3.5 h-3.5 text-[#6B6B6B]" />
               </div>
-              <div className={`text-base font-heading font-bold text-[#040404]`}>
+              <div className="text-sm font-serif font-bold text-[#040404] leading-snug">
                 {report.dimensions.certificate}
               </div>
-              <div className="text-[10px] font-mono text-[#6b6b6b] pt-1">
-                Invariant: Hostname bound
+              <div className="text-[11px] font-serif text-[#6B6B6B] pt-1 border-t border-[#D9D9D9]">
+                What the TLS certificate shows, and what it does not.
               </div>
             </div>
 
             {/* Dimension 3: Behavior */}
             <div
               data-cursor-text="BEHAVIOR"
-              className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-1.5 hover:border-[rgb(0_0_0/25%)] transition-colors"
+              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
-              <div className="flex items-center justify-between text-xs text-[#6b6b6b] font-mono">
-                <span>03. Behavior</span>
-                <Activity className="w-3.5 h-3.5 text-[#6b6b6b]" />
+              <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
+                <span className="font-bold uppercase">03 // BEHAVIOUR</span>
+                <Activity className="w-3.5 h-3.5 text-[#6B6B6B]" />
               </div>
-              <div className={`text-base font-heading font-bold text-[#040404]`}>
+              <div className="text-sm font-serif font-bold text-[#040404] leading-snug">
                 {report.dimensions.behavior}
               </div>
-              <div className="text-[10px] font-mono text-[#6b6b6b] pt-1">
-                Invariant: Negative match safe
+              <div className="text-[11px] font-serif text-[#6B6B6B] pt-1 border-t border-[#D9D9D9]">
+                What bounded checks observed about page and redirects.
               </div>
             </div>
 
             {/* Dimension 4: Evidence Quality */}
             <div
               data-cursor-text="QUALITY"
-              className="p-4 rounded-xl border border-[rgb(0_0_0/10%)] bg-[#f6f6f6] space-y-1.5 hover:border-[rgb(0_0_0/25%)] transition-colors"
+              className="p-5 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2 hover:border-[#040404] transition-colors"
             >
-              <div className="flex items-center justify-between text-xs text-[#6b6b6b] font-mono">
-                <span>04. Quality</span>
-                <BarChart3 className="w-3.5 h-3.5 text-[#6b6b6b]" />
+              <div className="flex items-center justify-between text-xs text-[#6B6B6B] font-mono">
+                <span className="font-bold uppercase">04 // EVIDENCE QUALITY</span>
+                <BarChart3 className="w-3.5 h-3.5 text-[#6B6B6B]" />
               </div>
-              <div className={`text-base font-heading font-bold text-[#040404]`}>
+              <div className="text-sm font-serif font-bold text-[#040404] leading-snug">
                 {report.dimensions.evidence_quality}
               </div>
-              <div className="text-[10px] font-mono text-[#6b6b6b] pt-1">
-                Invariant: Audited coverage
+              <div className="text-[11px] font-serif text-[#6B6B6B] pt-1 border-t border-[#D9D9D9]">
+                How complete, fresh and consistent the evidence is.
               </div>
             </div>
           </div>

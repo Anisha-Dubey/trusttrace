@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+@theme {
+  --font-serif: "Averia Serif Libre", Georgia, serif;
+  --font-heading: "Inter Tight", "Inter", sans-serif;
+  --font-sans: "Inter", Helvetica, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-ink: #040404;
+  --color-charcoal: #101010;
+  --color-muted: #6b6b6b;
+  --color-card: #f6f6f6;
+  --color-border-subtle: #d9d9d9;
+  --color-border-mid: #cdcdcd;
+}
+
 :root {
   --color-background: #ffffff;
   --color-text: #040404;

@@ -12,15 +12,15 @@ export default function Footer({ onSelectTab, onOpenBackendModal }: FooterProps)
       <div className="max-w-5xl mx-auto px-4 sm:px-6 space-y-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-8 border-b border-[rgb(0_0_0/10%)]">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[#040404] font-heading font-extrabold text-base sm:text-lg tracking-[-0.03em]">
-              <div className="h-6 w-6 rounded bg-[#f6f6f6] border border-[rgb(0_0_0/10%)] flex items-center justify-center text-[#040404]">
+            <div className="flex items-center gap-2 text-[#040404]">
+              <div className="h-6 w-6 rounded bg-[#F6F6F6] border border-[#D9D9D9] flex items-center justify-center text-[#040404]">
                 <Shield className="w-3.5 h-3.5" />
               </div>
-              <span>TRUSTTRACE</span>
-              <span className="text-[10px] font-mono text-[#6b6b6b] font-normal">// CONTINUOUS TRIAGE</span>
+              <span className="font-serif font-bold text-base sm:text-lg tracking-tight">TRUSTRACE</span>
+              <span className="text-[10px] font-mono text-[#6B6B6B] font-semibold">// PITCH SLIDE 10</span>
             </div>
-            <p className="text-[#6b6b6b] text-xs max-w-md leading-relaxed font-body">
-              Continuous offensive web trust triage and adversarial exposure validation. Decomposing binary lock icons into 4 verifiable dimensions with audited lineage.
+            <p className="text-[#040404] font-serif text-sm max-w-md leading-relaxed">
+              Trust, explained. See the signals. Inspect the evidence. Know what remains unknown.
             </p>
           </div>
 
