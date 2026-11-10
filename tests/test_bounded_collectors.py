@@ -13,6 +13,7 @@ Covers cases:
 import sys
 import unittest
 import socket
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import json
 
@@ -23,7 +24,7 @@ if str(ROOT / "src") not in sys.path:
 from jsonschema import Draft202012Validator, FormatChecker
 
 from trusttrace.collectors.dns_collector import DNSCollector
-from trusttrace.collectors.tls_collector import TLSCollector
+from trusttrace.collectors.tls_collector import TLSCollector, parse_der_certificate
 from trusttrace.collectors.http_collector import BoundedHTTPCollector
 from trusttrace.collectors.rate_limiter import RateLimiter
 from trusttrace.collectors.orchestrator import ScanOrchestrator, CancellationToken
@@ -247,6 +248,77 @@ class TestBoundedCollectors(unittest.TestCase):
             initial_timeout,
             f"Process-wide socket timeout was mutated from {initial_timeout} to {current_timeout}"
         )
+
+
+    @staticmethod
+    def _make_test_der_cert(cn: str, sans: list, not_before: datetime, not_after: datetime) -> bytes:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([
+            x509.NameAttribute(NameOID.COMMON_NAME, cn),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Test Org Security")
+        ])
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(not_before)
+            .not_valid_after(not_after)
+        )
+        if sans:
+            builder = builder.add_extension(
+                x509.SubjectAlternativeName([x509.DNSName(s) for s in sans]),
+                critical=False
+            )
+        cert = builder.sign(key, hashes.SHA256())
+        return cert.public_bytes(serialization.Encoding.DER)
+
+    def test_tls_der_certificate_extraction_valid(self):
+        """P0-2: Verify raw DER certificate parsing extracts SANs, issuer, subject, validity."""
+        now = datetime.now(timezone.utc)
+        der = self._make_test_der_cert(
+            cn="secure.example.com",
+            sans=["secure.example.com", "api.example.com"],
+            not_before=now - timedelta(days=5),
+            not_after=now + timedelta(days=90)
+        )
+        meta = parse_der_certificate(der)
+        self.assertIn("secure.example.com", meta["sans"])
+        self.assertIn("api.example.com", meta["sans"])
+        self.assertEqual(meta["subject"].get("commonName"), "secure.example.com")
+        self.assertEqual(meta["subject"].get("organizationName"), "Test Org Security")
+        self.assertEqual(meta["issuer"].get("commonName"), "secure.example.com")
+        self.assertFalse(meta["is_expired"])
+
+    def test_tls_der_certificate_extraction_expired(self):
+        """P0-2: Expired DER certificate is reliably detected even with empty ssl dict."""
+        now = datetime.now(timezone.utc)
+        der = self._make_test_der_cert(
+            cn="expired.example.com",
+            sans=["expired.example.com"],
+            not_before=now - timedelta(days=365),
+            not_after=now - timedelta(days=1)
+        )
+        meta = parse_der_certificate(der)
+        self.assertTrue(meta["is_expired"])
+
+    def test_tls_der_certificate_hostname_mismatch(self):
+        """P0-2: Certificate with mismatched SANs fails hostname verification."""
+        now = datetime.now(timezone.utc)
+        der = self._make_test_der_cert(
+            cn="other.example.com",
+            sans=["other.example.com"],
+            not_before=now - timedelta(days=10),
+            not_after=now + timedelta(days=30)
+        )
+        meta = parse_der_certificate(der)
+        self.assertNotIn("target.example.com", meta["sans"])
 
 
 if __name__ == "__main__":
