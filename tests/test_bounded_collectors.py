@@ -139,6 +139,57 @@ class TestBoundedCollectors(unittest.TestCase):
         errors = list(self.report_validator.iter_errors(report))
         self.assertEqual(len(errors), 0, f"Schema error: {errors}")
 
+    def test_rate_limiter_bounded_storage_and_eviction(self):
+        """P2-7: Rate limiter memory is strictly capped by max_tracked_clients."""
+        limiter = RateLimiter(max_requests=10, window_seconds=60.0, max_concurrency=5, max_tracked_clients=5)
+        for i in range(15):
+            cid = f"client-{i}"
+            ok, _ = limiter.acquire(cid)
+            self.assertTrue(ok)
+            limiter.release(cid)
+
+        # Storage must be bounded to max_tracked_clients
+        self.assertLessEqual(len(limiter._requests), 5)
+
+    def test_rate_limiter_stale_cleanup_on_expiry(self):
+        """P2-7: Expired client windows are cleanly purged without memory accumulation."""
+        import time
+        limiter = RateLimiter(max_requests=5, window_seconds=0.05, max_concurrency=2)
+        limiter.acquire("ephemeral-client")
+        limiter.release("ephemeral-client")
+        self.assertIn("ephemeral-client", limiter._requests)
+
+        # Wait for sliding window to expire
+        time.sleep(0.06)
+        limiter.acquire("new-client")
+        limiter.release("new-client")
+
+        # Stale client must have been evicted during acquire sweep
+        self.assertNotIn("ephemeral-client", limiter._requests)
+
+    def test_rate_limiter_concurrent_access_thread_safety(self):
+        """P2-7: Concurrent acquire/release across multiple threads maintains consistency."""
+        limiter = RateLimiter(max_requests=50, window_seconds=10.0, max_concurrency=10, max_tracked_clients=20)
+        errors = []
+
+        def worker(idx):
+            cid = f"thread-client-{idx % 4}"
+            for _ in range(10):
+                try:
+                    acquired, _ = limiter.acquire(cid)
+                    if acquired:
+                        limiter.release(cid)
+                except Exception as exc:
+                    errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(len(errors), 0, f"Concurrent rate limiter errors: {errors}")
+
     def test_limit_004_cancel_in_flight_scan(self):
         """LIMIT-004: Cancel in-flight scan -> worker stops and state is truthful."""
         cancel_token = CancellationToken()
