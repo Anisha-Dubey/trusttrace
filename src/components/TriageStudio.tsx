@@ -10,14 +10,18 @@ import {
   Ban,
   Sparkles,
   Shield,
+  Layers,
   FileCheck,
   Check,
-  AlertCircle,
-  ExternalLink
+  AlertTriangle,
+  ArrowUpRight
 } from 'lucide-react';
 import { PassportRecord } from '../types/triage';
 import { CANONICAL_SCENARIOS, evaluateCustomTargetLocally } from '../data/scenarios';
 import { sound } from '../utils/audio';
+import LiquidCard from './LiquidCard';
+import LiquidButton from './LiquidButton';
+import { triggerLiquidWarp } from './LiquidFilter';
 
 interface TriageStudioProps {
   currentUrl: string;
@@ -51,6 +55,7 @@ export default function TriageStudio({
     if (!targetUrl) return;
 
     sound.playClick(550);
+    triggerLiquidWarp(14);
     setIsScanning(true);
     setScanStep(0);
 
@@ -84,7 +89,8 @@ export default function TriageStudio({
   };
 
   const handleSelectScenario = (key: string, url: string) => {
-    sound.playClick(600);
+    sound.playPill(540);
+    triggerLiquidWarp(10);
     setSelectedScenarioKey(key);
     setCurrentUrl(url);
     handleRunTriage(key, url);
@@ -110,6 +116,7 @@ export default function TriageStudio({
       url: 'https://bank-secure-lоgin.com',
       label: 'Phishing Lookalike',
       sub: 'Cyrillic Homoglyph',
+      badge: 'HIGH RISK',
       icon: ShieldAlert,
     },
     {
@@ -117,6 +124,7 @@ export default function TriageStudio({
       url: 'https://example.com',
       label: 'Legitimate Domain',
       sub: 'Verified Entity',
+      badge: 'VERIFIED',
       icon: CheckCircle2,
     },
     {
@@ -124,6 +132,7 @@ export default function TriageStudio({
       url: 'https://legacy-portal.internal-corp.net',
       label: 'Expired TLS',
       sub: 'Hygiene Warning',
+      badge: 'CAUTION',
       icon: Clock,
     },
     {
@@ -131,6 +140,7 @@ export default function TriageStudio({
       url: 'https://disputed-exchange.io',
       label: 'Conflicting Intel',
       sub: 'Safe Abstention',
+      badge: 'INCONCLUSIVE',
       icon: GitCompare,
     },
     {
@@ -138,41 +148,71 @@ export default function TriageStudio({
       url: 'http://169.254.169.254/latest/meta-data',
       label: 'SSRF Target',
       sub: 'Zero Egress Halt',
+      badge: 'HALTED',
       icon: Ban,
     },
   ];
 
+  const dimensions = [
+    {
+      id: '01',
+      title: 'Identity & Delegation',
+      desc: 'Authoritative WHOIS/RDAP ownership, registrars, and entity corroboration beyond transport domain validation.',
+      tag: 'RDAP-AUTH',
+    },
+    {
+      id: '02',
+      title: 'Transport Encryption',
+      desc: 'Cryptographic X.509 chain validity, SAN attributes, key length, and revocation transparency checks.',
+      tag: 'TLS-PROBE',
+    },
+    {
+      id: '03',
+      title: 'Passive Behaviour',
+      desc: 'Zero-script network observation, redirect hop boundary checks, and HTTP response header classification.',
+      tag: 'ZERO-SCRIPT',
+    },
+    {
+      id: '04',
+      title: 'Evidence Provenance',
+      desc: 'Cryptographic finding IDs, UTC timestamps, observation confidence, and explicit disclosure of unknown signals.',
+      tag: 'DETERMINISTIC',
+    },
+  ];
+
   return (
-    <div className="space-y-20 sm:space-y-28">
+    <div className="space-y-16 sm:space-y-24">
 
       {/* ========================================================================= */}
-      {/* SLIDE 01: EDITORIAL TITLE & HERO                                         */}
+      {/* WEB APPLICATION HERO                                                      */}
       {/* ========================================================================= */}
       <section className="text-center space-y-5 pt-4 sm:pt-8">
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 text-[11px] sm:text-xs font-mono font-medium tracking-widest uppercase text-[#6B6B6B]"
+          transition={{ duration: 0.4 }}
+          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F6F6F6] border border-[#D9D9D9] text-[11px] font-mono text-[#6B6B6B]"
         >
-          <span>HACKATHON 2026 &bull; CYBERSECURITY</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>PASSIVE WEB-RISK TRIAGE ENGINE</span>
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-serif text-[#040404] tracking-tight leading-[1.05]"
+          transition={{ duration: 0.5, delay: 0.05 }}
+          className="text-4xl sm:text-6xl md:text-7xl font-serif text-[#040404] tracking-tight leading-[1.08]"
         >
-          TRUSTRACE
+          Evidence-First Web Trust Triage
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="font-serif text-[#6B6B6B] text-base sm:text-xl md:text-2xl max-w-2xl mx-auto leading-relaxed text-balance"
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="font-serif text-[#6B6B6B] text-base sm:text-xl max-w-2xl mx-auto leading-relaxed text-balance"
         >
-          An evidence-first platform for web-risk triage. See the signals, inspect the evidence, know what remains unknown.
+          Inspect TLS transport cryptography, authoritative DNS delegation, identity provenance, and adversarial homoglyphs with deterministic boundaries.
         </motion.p>
       </section>
 
@@ -197,31 +237,37 @@ export default function TriageStudio({
             onChange={(e) => setCurrentUrl(e.target.value)}
             placeholder="https://example.com/login"
             disabled={isScanning}
-            className="w-full pl-10 sm:pl-14 pr-24 sm:pr-36 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] rounded-xl sm:rounded-2xl text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50"
+            onFocus={() => {
+              sound.playHover();
+              triggerLiquidWarp(6);
+            }}
+            className="w-full pl-10 sm:pl-14 pr-26 sm:pr-38 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] rounded-xl sm:rounded-2xl text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50"
           />
 
-          <button
-            type="submit"
-            disabled={isScanning}
-            onMouseEnter={() => sound.playHover()}
-            className="absolute right-1.5 sm:right-3 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-[#040404] hover:bg-[#101010] text-white font-mono font-medium text-xs sm:text-sm transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer shadow-sm"
-          >
-            {isScanning ? (
-              <>
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                  className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"
-                />
-                <span className="hidden xs:inline">Triaging...</span>
-              </>
-            ) : (
-              <>
-                <span>Triage</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
-            )}
-          </button>
+          <div className="absolute right-1.5 sm:right-3">
+            <LiquidButton
+              type="submit"
+              disabled={isScanning}
+              cursorBadge="TRIAGE"
+              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium"
+            >
+              {isScanning ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                    className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full"
+                  />
+                  <span className="hidden xs:inline">Triaging...</span>
+                </>
+              ) : (
+                <>
+                  <span>Triage</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </LiquidButton>
+          </div>
         </form>
 
         {/* Preflight Heuristic Status Pill */}
@@ -246,7 +292,7 @@ export default function TriageStudio({
                 sound.playClick(600);
                 onOpenInvariants();
               }}
-              className="text-[#6B6B6B] hover:text-[#040404] transition-colors flex items-center gap-1"
+              className="text-[#6B6B6B] hover:text-[#040404] transition-colors flex items-center gap-1 cursor-pointer"
             >
               <Sparkles className="w-3 h-3 text-[#040404]" />
               <span>8 Invariants</span>
@@ -295,535 +341,152 @@ export default function TriageStudio({
       </section>
 
       {/* ========================================================================= */}
-      {/* SLIDE 06: DEMO BENCHMARK FIXTURES & WALKTHROUGH GUIDE                    */}
+      {/* CANONICAL SCENARIOS BENCHMARK MATRIX (LIQUID CARDS)                      */}
       {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-[#D9D9D9] pb-3">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-              DEMO &bull; 06
-            </span>
-            <span className="inline-block px-2 py-0.5 rounded-full bg-[#D9D9D9] text-[#040404] text-[10px] font-mono font-bold tracking-wider">
-              DEMO FIXTURE
+      <section className="max-w-4xl mx-auto space-y-5">
+        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-[#040404]" />
+            <span className="font-mono text-xs uppercase tracking-widest text-[#040404] font-bold">
+              Benchmark Scenarios
             </span>
           </div>
-          <span className="text-xs font-mono text-[#6B6B6B]">Controlled scenario fixtures</span>
+          <span className="text-xs font-mono text-[#6B6B6B]">Controlled Security Cases</span>
         </div>
 
-        <div>
-          <h2 className="text-2xl sm:text-4xl font-serif text-[#040404] tracking-tight">
-            Lookalike first, then conflict
-          </h2>
-        </div>
-
-        {/* 5 Scenario Buttons */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        {/* 5 Scenario Liquid Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {scenarioPills.map((pill, idx) => {
             const Icon = pill.icon;
             const isSelected = selectedScenarioKey === pill.key;
             return (
-              <button
+              <LiquidCard
                 key={pill.key}
-                type="button"
                 onClick={() => handleSelectScenario(pill.key, pill.url)}
-                onMouseEnter={() => sound.playHover()}
-                data-cursor-text="AUDIT"
-                className={`p-3.5 rounded-xl border text-left transition-all flex flex-col justify-between h-24 ${
+                cursorBadge="AUDIT"
+                soundType="pill"
+                enableTilt={true}
+                enableLiquidWarp={true}
+                className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-28 cursor-pointer select-none transition-all ${
                   idx === 4 ? 'col-span-2 sm:col-span-1' : ''
                 } ${
                   isSelected
-                    ? 'border-[#040404] bg-[#FFFFFF] shadow-sm ring-1 ring-[#040404]'
+                    ? 'border-[#040404] bg-[#FFFFFF] ring-1 ring-[#040404]'
                     : 'border-[#D9D9D9] bg-[#F6F6F6] hover:bg-[#FFFFFF] hover:border-[#040404]'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-heading font-bold text-[#040404] tracking-tight">{pill.label}</span>
-                  <Icon className="w-3.5 h-3.5 text-[#6B6B6B]" />
+                  <span className="text-xs font-heading font-bold text-[#040404] tracking-tight leading-tight">
+                    {pill.label}
+                  </span>
+                  <Icon className="w-3.5 h-3.5 text-[#6B6B6B] shrink-0" />
                 </div>
-                <div className="text-[10px] font-mono text-[#6B6B6B]">
-                  {pill.sub}
+                <div className="space-y-1">
+                  <div className="text-[10px] font-mono text-[#6B6B6B] leading-tight">
+                    {pill.sub}
+                  </div>
+                  <span className="inline-block px-1.5 py-0.5 rounded bg-[#D9D9D9] text-[#040404] text-[9px] font-mono font-bold">
+                    {pill.badge}
+                  </span>
                 </div>
-              </button>
+              </LiquidCard>
             );
           })}
         </div>
-
-        {/* Slide 06 Walkthrough Checklist */}
-        <div className="rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] p-6 space-y-4">
-          <div className="text-xs font-mono font-bold text-[#040404] uppercase tracking-wider">
-            Rehearsed Evaluation Sequence:
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono text-[#040404]">
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">1.</span>
-              <span>Select the IDN lookalike case</span>
-            </div>
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">2.</span>
-              <span>Show that valid TLS does not prove identity</span>
-            </div>
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">3.</span>
-              <span>Open a finding: evidence ID, timestamp &amp; coverage</span>
-            </div>
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">4.</span>
-              <span>Run conflicting-signals case &rarr; show INCONCLUSIVE</span>
-            </div>
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">5.</span>
-              <span>Run expired-certificate case &rarr; show CAUTION</span>
-            </div>
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-[#FFFFFF] border border-[#D9D9D9]">
-              <span className="font-bold text-[#6B6B6B]">6.</span>
-              <span>Submit a report and show it remains unverified</span>
-            </div>
-          </div>
-          <div className="text-xs font-mono text-[#6B6B6B] italic pt-2 border-t border-[#D9D9D9]">
-            Say it plainly: This run uses controlled fixture evidence, not a live scan. We claim no accuracy figures beyond the fixture set.
-          </div>
-        </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* SLIDE 02: THE TRUST GAP                                                   */}
+      {/* 4 UNBUNDLED TRUST DIMENSIONS (LIQUID BENTO GRID)                         */}
       {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
+      <section className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-            THE TRUST GAP &bull; 02
-          </span>
-          <span className="text-xs font-mono text-[#6B6B6B]">Transport vs Identity Breakdown</span>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-            HTTPS is not proof of identity
-          </h2>
-          <p className="text-sm sm:text-base font-serif text-[#6B6B6B] leading-relaxed max-w-2xl">
-            A padlock means the connection is encrypted. It does not mean the site represents the organisation it claims to be.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono uppercase tracking-wider text-[#6B6B6B] font-bold">Vector 01</div>
-            <h3 className="text-base font-serif font-bold text-[#040404]">Lookalike login</h3>
-            <p className="text-xs font-body text-[#6B6B6B] leading-relaxed">
-              A bank or college page on a lookalike domain, with a valid certificate.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono uppercase tracking-wider text-[#6B6B6B] font-bold">Vector 02</div>
-            <h3 className="text-base font-serif font-bold text-[#040404]">Fake payment link</h3>
-            <p className="text-xs font-body text-[#6B6B6B] leading-relaxed">
-              A payment request that sends money to the wrong party.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono uppercase tracking-wider text-[#6B6B6B] font-bold">Vector 03</div>
-            <h3 className="text-base font-serif font-bold text-[#040404]">Fake recruitment</h3>
-            <p className="text-xs font-body text-[#6B6B6B] leading-relaxed">
-              A job portal that collects documents, fees and passwords.
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#FFFFFF] text-xs font-mono text-[#040404] text-center font-medium">
-          One harm: people hand over credentials, money or documents to the wrong party.
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 03: CASE STUDY (eMudhra CA Failure)                                 */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-            CASE STUDY &bull; 03
-          </span>
-          <span className="text-xs font-mono text-[#6B6B6B]">Empirical Evidence</span>
-        </div>
-
-        <div className="space-y-2">
-          <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-            eMudhra: a valid chain is not enough
-          </h2>
-          <p className="text-xs font-mono text-[#6B6B6B]">
-            Real-world demonstration of certificate authority trust degradation
-          </p>
-        </div>
-
-        {/* 3 Metric Callouts */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-1">
-            <div className="text-3xl sm:text-4xl font-serif font-bold text-[#040404]">8</div>
-            <div className="text-xs font-mono text-[#6B6B6B]">intermediates: 6 TLS, 2 code-signing</div>
-          </div>
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-1">
-            <div className="text-2xl sm:text-3xl font-serif font-bold text-[#040404]">17 Oct 2026</div>
-            <div className="text-xs font-mono text-[#6B6B6B]">Mozilla independently recovered the keys</div>
-          </div>
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-1">
-            <div className="text-3xl sm:text-4xl font-serif font-bold text-[#040404]">~18 mo</div>
-            <div className="text-xs font-mono text-[#6B6B6B]">after the 30 April 2025 key ceremony</div>
-          </div>
-        </div>
-
-        {/* Narrative Box */}
-        <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 text-xs font-mono text-[#040404] leading-relaxed">
-          <p>&bull; eMudhra says a flaw in that ceremony created a second, weak key set, and that the hierarchy had passed independent audits in two consecutive years.</p>
-          <p>&bull; Google says no TLS certificates chaining to the six affected TLS intermediates were in Certificate Transparency logs before its block.</p>
-          <p>&bull; Mozilla confirmed the key generation was flawed and shipped a Firefox block-list update within hours of the report.</p>
-          <div className="pt-2 font-bold text-sm font-serif border-t border-[#D9D9D9]">
-            Lesson: a valid certificate says little about who runs a site.
-          </div>
-          <div className="text-[10px] text-[#6B6B6B] font-mono">
-            Sources: Mozilla Bug 2083449 &bull; eMudhra statement &bull; Google Security &bull; Mozilla Security Blog
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 04: THE PRODUCT (EVIDENCE PASSPORT)                                  */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-              THE PRODUCT &bull; 04
-            </span>
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#040404] text-white text-[10px] font-mono font-bold tracking-wider">
-              IMPLEMENTED
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-[#040404]" />
+            <span className="font-mono text-xs uppercase tracking-widest text-[#040404] font-bold">
+              Unbundled Trust Dimensions
             </span>
           </div>
-          <span className="text-xs font-mono text-[#6B6B6B]">Core Architecture</span>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-            TRUSTRACE: an evidence passport
-          </h2>
-          <p className="text-sm sm:text-base font-serif text-[#6B6B6B] leading-relaxed max-w-2xl">
-            One report per URL that keeps four trust dimensions separate and says what it could not check.
-          </p>
-        </div>
-
-        {/* 4 Separate Dimensions Bento */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono font-bold text-[#6B6B6B] uppercase">01 // Identity</div>
-            <h3 className="text-lg font-serif font-bold text-[#040404]">Organization Lineage</h3>
-            <p className="text-xs font-body text-[#6B6B6B]">What evidence connects this domain to the claimed organisation?</p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono font-bold text-[#6B6B6B] uppercase">02 // Certificate</div>
-            <h3 className="text-lg font-serif font-bold text-[#040404]">Transport Encryption</h3>
-            <p className="text-xs font-body text-[#6B6B6B]">What the TLS certificate shows, and what it does not.</p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono font-bold text-[#6B6B6B] uppercase">03 // Behaviour</div>
-            <h3 className="text-lg font-serif font-bold text-[#040404]">Page &amp; Redirect Dynamics</h3>
-            <p className="text-xs font-body text-[#6B6B6B]">What the bounded checks observed about the page and redirects.</p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="text-xs font-mono font-bold text-[#6B6B6B] uppercase">04 // Evidence Quality</div>
-            <h3 className="text-lg font-serif font-bold text-[#040404]">Coverage &amp; Provenance</h3>
-            <p className="text-xs font-body text-[#6B6B6B]">How complete, fresh and consistent the evidence is.</p>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-xl border border-[#D9D9D9] bg-[#FFFFFF] text-xs font-mono text-[#6B6B6B] text-center">
-          Community reports sit alongside, and stay unverified until corroborated.
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 05: HOW IT DECIDES                                                  */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-              HOW IT DECIDES &bull; 05
-            </span>
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#040404] text-white text-[10px] font-mono font-bold tracking-wider">
-              IMPLEMENTED
-            </span>
-          </div>
-          <span className="text-xs font-mono text-[#6B6B6B]">Deterministic Triage Logic</span>
-        </div>
-
-        <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-          How a result is produced
-        </h2>
-
-        {/* 5 Sequential Steps */}
-        <div className="space-y-3">
-          <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#F6F6F6] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xs text-[#6B6B6B]">1.</span>
-              <div>
-                <span className="font-serif font-bold text-sm text-[#040404]">URL safety boundary</span>
-                <span className="text-xs font-mono text-[#6B6B6B] ml-2">&mdash; Rejects unsafe targets and guards redirects.</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">IMPLEMENTED</span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#F6F6F6] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xs text-[#6B6B6B]">2.</span>
-              <div>
-                <span className="font-serif font-bold text-sm text-[#040404]">Bounded collectors</span>
-                <span className="text-xs font-mono text-[#6B6B6B] ml-2">&mdash; Limited checks, or labelled fixtures in the demo.</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">IMPLEMENTED</span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#F6F6F6] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xs text-[#6B6B6B]">3.</span>
-              <div>
-                <span className="font-serif font-bold text-sm text-[#040404]">Timestamped evidence</span>
-                <span className="text-xs font-mono text-[#6B6B6B] ml-2">&mdash; Every finding has an ID and its provenance.</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">IMPLEMENTED</span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#F6F6F6] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xs text-[#6B6B6B]">4.</span>
-              <div>
-                <span className="font-serif font-bold text-sm text-[#040404]">Deterministic rules</span>
-                <span className="text-xs font-mono text-[#6B6B6B] ml-2">&mdash; A triage policy, not a trained model.</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">IMPLEMENTED</span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#F6F6F6] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-xs text-[#6B6B6B]">5.</span>
-              <div>
-                <span className="font-serif font-bold text-sm text-[#040404]">Passport and report</span>
-                <span className="text-xs font-mono text-[#6B6B6B] ml-2">&mdash; Reasons, coverage and stated limitations.</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">IMPLEMENTED</span>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl border border-[#D9D9D9] bg-[#FFFFFF] text-xs font-serif text-[#040404] leading-relaxed">
-          When evidence conflicts or is missing, the result says so. It stays inconclusive instead of guessing. &ldquo;No threat observed&rdquo; never means &ldquo;safe&rdquo;.
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 07: STATUS (IMPLEMENTED VS PLANNED)                                 */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-            STATUS &bull; 07
-          </span>
-          <span className="text-xs font-mono text-[#6B6B6B]">Capability Matrix</span>
-        </div>
-
-        <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-          What exists today, and what does not
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#040404] text-white text-[10px] font-mono font-bold">
-                IMPLEMENTED
-              </span>
-              <span className="text-xs font-mono text-[#6B6B6B]">Live in Hackathon Build</span>
-            </div>
-            <ul className="space-y-2 text-xs font-mono text-[#040404]">
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Python and FastAPI application</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Web UI for the URL-to-report journey</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> URL safety boundary</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Bounded collector modules</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Evidence and provenance models</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Deterministic triage policy</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Community-report workflow</li>
-              <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Controlled demo fixtures</li>
-            </ul>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#D9D9D9] text-[#040404] text-[10px] font-mono font-bold">
-                PLANNED
-              </span>
-              <span className="text-xs font-mono text-[#6B6B6B]">Future Roadmap Milestones</span>
-            </div>
-            <ul className="space-y-2 text-xs font-mono text-[#6B6B6B]">
-              <li className="flex items-center gap-2">&bull; Browser extension</li>
-              <li className="flex items-center gap-2">&bull; Email-link scanning</li>
-              <li className="flex items-center gap-2">&bull; CT, OCSP and CRL monitoring</li>
-              <li className="flex items-center gap-2">&bull; Additional collectors</li>
-              <li className="flex items-center gap-2">&bull; Shared threat feed</li>
-              <li className="flex items-center gap-2">&bull; Research into ML signals</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 08: EVALUATION & RESPONSIBLE USE                                    */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-            EVALUATION &amp; RESPONSIBLE USE &bull; 08
-          </span>
-          <span className="text-xs font-mono text-[#6B6B6B]">Ethical Grounding</span>
-        </div>
-
-        <div className="space-y-2">
-          <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-            Honest about what it can claim
-          </h2>
-          <p className="text-sm sm:text-base font-serif text-[#6B6B6B]">
-            TRUSTRACE explains what the evidence supports&mdash;and what it cannot establish.
-          </p>
+          <span className="text-xs font-mono text-[#6B6B6B]">Deterministic Multi-Signal Triage</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-[#6B6B6B] font-bold">01</span>
-              <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">NO ACCURACY CLAIM</span>
-            </div>
-            <h3 className="font-serif font-bold text-base text-[#040404]">Fixture-based evaluation</h3>
-            <p className="text-xs font-mono text-[#6B6B6B] leading-relaxed">
-              Controlled fixture scenarios support repeatable checks. No accuracy or real-world detection metrics are claimed.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-[#6B6B6B] font-bold">02</span>
-              <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">SAFETY BOUNDARY</span>
-            </div>
-            <h3 className="font-serif font-bold text-base text-[#040404]">Safe URL processing</h3>
-            <p className="text-xs font-mono text-[#6B6B6B] leading-relaxed">
-              The URL safety boundary checks targets before collection. Redirect safeguards restrict where the app can fetch.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-[#6B6B6B] font-bold">03</span>
-              <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">DISCLOSE LIMITS</span>
-            </div>
-            <h3 className="font-serif font-bold text-base text-[#040404]">Data transparency</h3>
-            <p className="text-xs font-mono text-[#6B6B6B] leading-relaxed">
-              A submission may include the URL and analyst notes (if provided). Storage, access, sharing and retention controls are not yet fully defined.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-mono text-[#6B6B6B] font-bold">04</span>
-              <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">CORE PRINCIPLE</span>
-            </div>
-            <h3 className="font-serif font-bold text-base text-[#040404]">Honest outcomes</h3>
-            <p className="text-xs font-mono text-[#6B6B6B] leading-relaxed">
-              &ldquo;No threat observed&rdquo; does not mean &ldquo;safe&rdquo;. Missing/conflicting evidence can be inconclusive; reports stay unverified until corroborated.
-            </p>
-          </div>
+          {dimensions.map((dim) => (
+            <LiquidCard
+              key={dim.id}
+              cursorBadge="EXPLORE"
+              soundType="liquid"
+              enableTilt={true}
+              enableLiquidWarp={true}
+              className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-mono font-bold text-[#6B6B6B] uppercase tracking-wider">
+                  {dim.id} // {dim.title}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono font-bold">
+                  {dim.tag}
+                </span>
+              </div>
+              <h3 className="text-lg font-serif font-bold text-[#040404]">
+                {dim.title}
+              </h3>
+              <p className="text-xs font-body text-[#6B6B6B] leading-relaxed">
+                {dim.desc}
+              </p>
+            </LiquidCard>
+          ))}
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* SLIDE 09: NEXT STEP                                                       */}
-      {/* ========================================================================= */}
-      <section className="max-w-4xl mx-auto space-y-6 pt-6 border-t border-[#D9D9D9]">
-        <div className="flex items-center justify-between border-b border-[#D9D9D9] pb-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#6B6B6B] font-semibold">
-            NEXT STEP &bull; 09
-          </span>
-          <span className="text-xs font-mono text-[#6B6B6B]">Empirical Validation</span>
-        </div>
-
-        <h2 className="text-3xl sm:text-5xl font-serif text-[#040404] tracking-tight">
-          Validate with real users first
-        </h2>
-
-        <div className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-3">
-          <div className="text-xs font-mono font-bold text-[#6B6B6B] uppercase">Pilot Goal</div>
-          <p className="text-sm font-serif text-[#040404] leading-relaxed">
-            Test passports with a small group of students and job seekers, and learn whether the reasons and limitations are clear to them.
-          </p>
-          <p className="text-xs font-mono text-[#6B6B6B] leading-relaxed">
-            Designed for everyday users facing lookalike logins, fake payment links and fake recruitment portals. This is intended impact, not measured impact.
-          </p>
-          <div className="pt-3 border-t border-[#D9D9D9] flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-[#040404] text-white text-[9px] font-mono">PLANNED</span>
-            <span className="text-xs font-mono text-[#6B6B6B]">Only if the pilot supports it: browser extension, email-link scanning &amp; richer certificate monitoring.</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ========================================================================= */}
-      {/* SLIDE 10: IN ONE LINE (INK SLIDE CONCLUSION)                              */}
+      {/* CORE CAPABILITIES & INVARIANTS CALLOUT                                    */}
       {/* ========================================================================= */}
       <section className="max-w-4xl mx-auto">
-        <div className="rounded-3xl bg-[#101010] text-white p-8 sm:p-14 space-y-6 shadow-xl">
+        <LiquidCard
+          cursorBadge="INVARIANTS"
+          soundType="liquid"
+          enableTilt={false}
+          className="rounded-3xl bg-[#101010] text-white p-8 sm:p-12 space-y-6 shadow-xl"
+        >
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <span className="font-mono text-xs uppercase tracking-widest text-white/50 font-semibold">
-              IN ONE LINE
+              SYSTEM GUARANTEES
             </span>
             <span className="font-mono text-xs text-white/50">
-              TRUSTRACE &bull; 10
+              8 CONTRACT INVARIANTS
             </span>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-4xl sm:text-6xl md:text-7xl font-serif text-white tracking-tight">
-              Trust, explained.
+          <div className="space-y-3">
+            <h2 className="text-3xl sm:text-5xl font-serif text-white tracking-tight">
+              Deterministic Safety &amp; Evidence Rigor
             </h2>
-            <p className="text-base sm:text-xl font-serif text-white/70 max-w-xl leading-relaxed">
-              See the signals. Inspect the evidence. Know what remains unknown.
+            <p className="text-sm sm:text-base font-serif text-white/70 max-w-2xl leading-relaxed">
+              Every decision is bound by invariant rules: zero browser DOM rendering, mandatory IP pinning against DNS rebinding, unverified community reports, and unambiguous abstention on conflicting evidence.
             </p>
           </div>
 
-          <div className="pt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick(600);
-                onOpenGallery?.();
-              }}
-              className="px-5 py-2.5 rounded-xl bg-white text-[#040404] font-mono text-xs font-bold hover:bg-[#F6F6F6] transition-colors inline-flex items-center gap-2"
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <LiquidButton
+              variant="secondary"
+              cursorBadge="GALLERY"
+              onClick={() => onOpenGallery?.()}
+              className="px-5 py-2.5 rounded-xl font-bold text-xs"
             >
-              <span>Explore Benchmark Gallery</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick(600);
-                onOpenInvariants();
-              }}
-              className="px-5 py-2.5 rounded-xl border border-white/20 text-white font-mono text-xs font-medium hover:bg-white/10 transition-colors"
+              <span>Explore Case Gallery</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </LiquidButton>
+
+            <LiquidButton
+              variant="ghost"
+              cursorBadge="EXPLORE"
+              onClick={() => onOpenInvariants()}
+              className="px-5 py-2.5 rounded-xl text-white/90 border border-white/20 hover:bg-white/10 text-xs"
             >
-              View 8 System Invariants
-            </button>
+              View All 8 Invariants
+            </LiquidButton>
           </div>
-        </div>
+        </LiquidCard>
       </section>
 
     </div>

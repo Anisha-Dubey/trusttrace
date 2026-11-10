@@ -161,7 +161,7 @@ export default function EvidencePassportView({
         {/* 4 Verifiable Dimensions */}
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs font-mono text-[#6B6B6B]">
-            <span className="uppercase tracking-wider font-bold text-[#040404]">04 &bull; 4 UNBUNDLED DIMENSIONS (PPT SLIDE 04):</span>
+            <span className="uppercase tracking-wider font-bold text-[#040404]">4 UNBUNDLED EVIDENCE DIMENSIONS:</span>
             <button
               onClick={() => {
                 sound.playClick(600);

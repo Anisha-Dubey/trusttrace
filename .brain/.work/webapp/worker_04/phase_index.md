@@ -10,3 +10,4 @@ Status: COMPLETED; see the linked phase files.
 - [Phase 06: 06 baseline agency authentic editorial visual architecture & curated multi-view trust suite](phases/phase_06.md)
 - [Phase 07: 07 production react 19 application integration & vite component architecture](phases/phase_07.md)
 - [Phase 08: 08 pitch deck design synthesis & editorial presentation aesthetics](phases/phase_08.md)
+- [Phase 09: 09 osply creative studio sensory polish & ppt content decoupling](phases/phase_09.md)

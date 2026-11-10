@@ -17,7 +17,7 @@ export default function Footer({ onSelectTab, onOpenBackendModal }: FooterProps)
                 <Shield className="w-3.5 h-3.5" />
               </div>
               <span className="font-serif font-bold text-base sm:text-lg tracking-tight">TRUSTRACE</span>
-              <span className="text-[10px] font-mono text-[#6B6B6B] font-semibold">// PITCH SLIDE 10</span>
+              <span className="text-[10px] font-mono text-[#6B6B6B] font-semibold">// RISK TRIAGE ENGINE</span>
             </div>
             <p className="text-[#040404] font-serif text-sm max-w-md leading-relaxed">
               Trust, explained. See the signals. Inspect the evidence. Know what remains unknown.
@@ -43,7 +43,7 @@ export default function Footer({ onSelectTab, onOpenBackendModal }: FooterProps)
               data-cursor-text="GALLERY"
               className="text-[#6b6b6b] hover:text-[#040404] transition-colors"
             >
-              Gallery (06)
+              Case Gallery
             </button>
             <button
               onClick={() => {

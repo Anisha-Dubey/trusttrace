@@ -17,6 +17,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { sound } from '../utils/audio';
+import { triggerLiquidWarp } from './LiquidFilter';
 import { CANONICAL_SCENARIOS } from '../data/scenarios';
 import { PassportRecord } from '../types/triage';
 
@@ -304,8 +305,12 @@ export default function GalleryView({ onSelectCase, onShowToast }: GalleryViewPr
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: idx * 0.06 }}
-              className="group relative rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[rgb(0_0_0/25%)] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
+              className="group relative rounded-2xl border border-[rgb(0_0_0/10%)] bg-[#ffffff] p-6 sm:p-7 space-y-6 hover:border-[#040404] hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer"
               data-cursor-text="AUDIT CASE"
+              onMouseEnter={() => {
+                sound.playLiquid();
+                triggerLiquidWarp(8);
+              }}
               onClick={() => {
                 sound.playClick(700);
                 onSelectCase(item.scenarioKey, `https://${item.domain}`);

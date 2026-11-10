@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Zap, Terminal, Scale, Shield, Activity } from 'lucide-react';
 import { PassportRecord, CommunityReport } from './types/triage';
 import { CANONICAL_SCENARIOS, INITIAL_COMMUNITY_REPORTS } from './data/scenarios';
 import { sound } from './utils/audio';
+import { useLenis } from './hooks/useLenis';
 
 import CustomCursor from './components/CustomCursor';
+import LiquidFilter from './components/LiquidFilter';
+import ScrollProgress from './components/ScrollProgress';
 import Header from './components/Header';
 import TriageStudio from './components/TriageStudio';
 import GalleryView from './components/GalleryView';
@@ -17,6 +19,9 @@ import Toast from './components/Toast';
 import Footer from './components/Footer';
 
 export default function App() {
+  // Initialize Lenis smooth inertial scrolling
+  useLenis();
+
   const [activeTab, setActiveTab] = useState<'studio' | 'gallery' | 'passport' | 'community' | 'invariants' | 'backend'>('studio');
   const [currentUrl, setCurrentUrl] = useState<string>('https://bank-secure-lоgin.com');
   const [currentReport, setCurrentReport] = useState<PassportRecord>(CANONICAL_SCENARIOS.phishing_lookalike);
@@ -36,7 +41,7 @@ export default function App() {
   const handleTriageComplete = (report: PassportRecord) => {
     setCurrentReport(report);
     setActiveTab('passport');
-    showToast(`Continuous Triage complete for ${report.normalized_host}`);
+    showToast(`Triage complete for ${report.normalized_host}`);
   };
 
   const handleSelectCaseFromGallery = (scenarioKey: string, domainUrl: string) => {
@@ -70,11 +75,17 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#ffffff] text-[#040404] font-body flex flex-col justify-between selection:bg-[#101010] selection:text-white transition-colors overflow-x-hidden">
-      {/* Custom Fluid Magnetic Cursor for Desktop */}
+    <div className="relative min-h-screen bg-[#FFFFFF] text-[#040404] font-body flex flex-col justify-between selection:bg-[#040404] selection:text-white transition-colors overflow-x-hidden">
+      {/* Osply-Style Global SVG Liquid Distortion Filter */}
+      <LiquidFilter />
+
+      {/* Top Inertial Scroll Reading Progress Bar */}
+      <ScrollProgress />
+
+      {/* Osply Fluid Magnetic & Jelly Squish Cursor */}
       <CustomCursor />
 
-      {/* Ethiack Navigation Header */}
+      {/* Navigation Header with Sound Waveform Equalizer */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -85,16 +96,16 @@ export default function App() {
         onShowToast={showToast}
       />
 
-      {/* Main Screen Content with Generous Whitespace */}
-      <main className="max-w-5xl mx-auto px-3.5 sm:px-6 py-6 sm:py-16 flex-grow w-full">
+      {/* Main Screen Content */}
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-16 flex-grow w-full">
         <AnimatePresence mode="wait">
           {activeTab === 'studio' && (
             <motion.div
               key="studio"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             >
               <TriageStudio
                 currentUrl={currentUrl}
@@ -109,10 +120,10 @@ export default function App() {
           {activeTab === 'gallery' && (
             <motion.div
               key="gallery"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             >
               <GalleryView
                 onSelectCase={handleSelectCaseFromGallery}
@@ -124,10 +135,10 @@ export default function App() {
           {activeTab === 'passport' && (
             <motion.div
               key="passport"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             >
               <EvidencePassportView
                 report={currentReport}
@@ -142,10 +153,10 @@ export default function App() {
           {activeTab === 'community' && (
             <motion.div
               key="community"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             >
               <ThreatIntelFeed
                 reports={communityReports}
@@ -159,10 +170,10 @@ export default function App() {
           {activeTab === 'invariants' && (
             <motion.div
               key="invariants"
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              exit={{ opacity: 0, y: -14 }}
+              transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
             >
               <InvariantsExplorer
                 onSelectScenario={handleSelectScenarioFromInvariants}
