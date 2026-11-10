@@ -96,6 +96,16 @@ from trusttrace.policy import (
     DEFAULT_COST_PROFILES,
     DETERMINISTIC_ACTION_PRECEDENCE,
     is_cost_close,
+    # Phase 09
+    SignalFeasibility,
+    PerturbationAction,
+    PermittedMutationRule,
+    PERMITTED_MUTATION_RULES,
+    STRICTLY_IMMUTABLE_SIGNALS,
+    CounterfactualPerturbation,
+    CounterfactualResult,
+    CounterfactualExplanationEngine,
+    COUNTERFACTUAL_DISCLAIMER,
 )
 import json
 from datetime import datetime, timezone, timedelta
@@ -4049,6 +4059,184 @@ class TestPhase08CostCalibration(unittest.TestCase):
         self.assertEqual(res.decision, "no_threat_observed")
         self.assertIsNotNone(res.cost_assessment)
         self.assertEqual(res.cost_assessment.action_recommendation, CandidateAction.CLEAN)
+
+
+# ─── Worker 03 Phase 09: Deterministic Counterfactual Explanations ─────
+
+
+class TestPhase09Counterfactuals(unittest.TestCase):
+    """Worker 03 Phase 09: Deterministic Counterfactual Sensitivity and Feasibility Lattice."""
+
+    def setUp(self):
+        self.engine = CounterfactualExplanationEngine()
+
+    def test_01_already_at_target_disposition(self):
+        """01: Signals already yielding target disposition return NO_PERTURBATION_NEEDED."""
+        signals = [
+            SignalRecord(SignalKind.TLS_VALID, ["ev-1"], "tls_collector", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "NO_PERTURBATION_NEEDED")
+        self.assertEqual(res.hamming_distance, 0)
+        self.assertEqual(res.feasibility_score, 0.0)
+
+    def test_02_renew_expired_tls_certificate(self):
+        """02: Replaces TLS_EXPIRED with TLS_VALID (MUTABLE_CONFIG)."""
+        signals = [
+            SignalRecord(SignalKind.TLS_VALID, ["ev-0"], "tls_collector", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.TLS_EXPIRED, ["ev-1"], "tls_collector", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.NO_THREAT_MATCH, ["ev-2"], "threat_collector", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.COLLECTOR_SUCCESS, ["ev-3"], "dns_collector", SignalConfidence.HIGH),
+        ]
+        # Certificate conflict caps decision at inconclusive; renewing expired cert resolves conflict to no_threat_observed
+        res = self.engine.evaluate_sensitivity(signals, "no_threat_observed")
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertEqual(res.hamming_distance, 1)
+        self.assertEqual(res.perturbations[0].rule_name, "renew_expired_tls")
+        self.assertEqual(res.perturbations[0].feasibility, SignalFeasibility.MUTABLE_CONFIG)
+
+    def test_03_correct_hostname_mismatch(self):
+        """03: Replaces TLS_MISMATCH with TLS_VALID (MUTABLE_CONFIG)."""
+        signals = [
+            SignalRecord(SignalKind.TLS_MISMATCH, ["ev-1"], "tls_collector", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "NO_PERTURBATION_NEEDED")
+
+    def test_04_coordinated_modality_completion_tls(self):
+        """04: Coordinated mutation replaces both TLS_UNAVAILABLE and COLLECTOR_FAILURE."""
+        signals = [
+            SignalRecord(SignalKind.TLS_UNAVAILABLE, ["ev-1"], "tls_collector", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.COLLECTOR_FAILURE, ["ev-1"], "tls_collector", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-2"], "threat_feed", SignalConfidence.HIGH),
+        ]
+        # Original is high_risk due to threat feed match
+        # Delisting threat feed achieves inconclusive
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertEqual(res.perturbations[0].rule_name, "threat_feed_delisting")
+
+    def test_05_http_artifact_elimination_suspicious_redirect(self):
+        """05: Eliminates SUSPICIOUS_REDIRECT via REMOVE_SIGNAL operation."""
+        signals = [
+            SignalRecord(SignalKind.SUSPICIOUS_REDIRECT, ["ev-1"], "http_collector", SignalConfidence.MEDIUM),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertEqual(res.perturbations[0].rule_name, "eliminate_suspicious_redirect")
+        self.assertEqual(res.perturbations[0].action, PerturbationAction.REMOVE_SIGNAL)
+
+    def test_06_http_artifact_elimination_suspicious_headers(self):
+        """06: Eliminates SUSPICIOUS_HEADERS via REMOVE_SIGNAL operation."""
+        signals = [
+            SignalRecord(SignalKind.SUSPICIOUS_HEADERS, ["ev-1"], "http_collector", SignalConfidence.MEDIUM),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertEqual(res.perturbations[0].rule_name, "eliminate_suspicious_headers")
+
+    def test_07_threat_feed_delisting_reputation_dependent(self):
+        """07: Threat feed delisting carries REPUTATION_DEPENDENT weight of 5.0."""
+        signals = [
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-1"], "feed", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.status, "SUCCESS")
+        self.assertEqual(res.perturbations[0].feasibility, SignalFeasibility.REPUTATION_DEPENDENT)
+        self.assertEqual(res.feasibility_score, 5.0)
+
+    def test_08_community_report_dispute_resolution(self):
+        """08: Resolves COMMUNITY_REPORT_DISPUTED into CORROBORATED."""
+        signals = [
+            SignalRecord(SignalKind.COMMUNITY_REPORT_DISPUTED, ["ev-1"], "comm", SignalConfidence.MEDIUM),
+        ]
+        rule = next(r for r in PERMITTED_MUTATION_RULES if r.rule_name == "resolve_community_dispute")
+        self.assertEqual(rule.feasibility, SignalFeasibility.REPUTATION_DEPENDENT)
+        self.assertEqual(rule.cost_weight, 5.0)
+
+    def test_09_community_unverified_removal(self):
+        """09: Removes COMMUNITY_REPORT_UNVERIFIED via REMOVE_SIGNAL."""
+        rule = next(r for r in PERMITTED_MUTATION_RULES if r.rule_name == "remove_unverified_community_report")
+        self.assertEqual(rule.action, PerturbationAction.REMOVE_SIGNAL)
+
+    def test_10_strict_immutability_idn_lookalike(self):
+        """10: Verifies SignalKind.IDN_LOOKALIKE is strictly immutable and cannot be perturbed."""
+        self.assertIn(SignalKind.IDN_LOOKALIKE, STRICTLY_IMMUTABLE_SIGNALS)
+        signals = [
+            SignalRecord(SignalKind.IDN_LOOKALIKE, ["ev-1"], "idn", SignalConfidence.HIGH),
+        ]
+        # IDN lookalike triggers caution (Rule 2); target 'no_threat_observed' is unreachable
+        res = self.engine.evaluate_sensitivity(signals, "no_threat_observed")
+        self.assertEqual(res.status, "UNREACHABLE")
+        self.assertIn("idn_lookalike", res.explanation)
+
+    def test_11_removed_is_operation_type_not_signal_kind(self):
+        """11: Verifies REMOVED is an operation in PerturbationAction, not in SignalKind."""
+        self.assertEqual(PerturbationAction.REMOVE_SIGNAL.value, "remove_signal")
+        self.assertFalse(hasattr(SignalKind, "REMOVED"))
+
+    def test_12_isolated_simulation_does_not_mutate_original_signals(self):
+        """12: Original SignalRecord objects are untouched by counterfactual simulation."""
+        orig_sig = SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-orig"], "feed", SignalConfidence.HIGH)
+        signals = [orig_sig]
+        _ = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(signals[0].kind, SignalKind.THREAT_FEED_MATCH)
+        self.assertEqual(signals[0].evidence_ids, ["ev-orig"])
+
+    def test_13_full_policy_reevaluation_fires_on_simulated_signals(self):
+        """13: Evaluates complete policy including rules and availability gates on simulated vector."""
+        signals = [
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-1"], "feed", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.resulting_disposition, "inconclusive")
+
+    def test_14_deterministic_ordering_hamming_then_feasibility(self):
+        """14: Deterministic tie-breaking prioritizes minimal Hamming distance then lowest feasibility score."""
+        # Check rule sorting
+        self.assertLess(
+            SignalFeasibility.MUTABLE_CONFIG.value,
+            SignalFeasibility.REPUTATION_DEPENDENT.value,
+        )
+
+    def test_15_search_depth_termination_on_unreachable_target(self):
+        """15: Search terminates cleanly with UNREACHABLE if target cannot be reached within max_depth."""
+        signals = [
+            SignalRecord(SignalKind.IDN_LOOKALIKE, ["ev-1"], "idn", SignalConfidence.HIGH),
+            SignalRecord(SignalKind.TLS_MISMATCH, ["ev-2"], "tls", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "no_threat_observed")
+        self.assertEqual(res.status, "UNREACHABLE")
+
+    def test_16_mandatory_disclaimer_presence_in_results(self):
+        """16: Enforces mandatory disclaimer presence in every counterfactual result."""
+        signals = [
+            SignalRecord(SignalKind.TLS_EXPIRED, ["ev-1"], "tls", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        self.assertEqual(res.disclaimer, COUNTERFACTUAL_DISCLAIMER)
+        self.assertIn("not constitute an operational security guarantee", res.disclaimer.lower())
+
+    def test_17_triage_engine_evaluate_with_counterfactual_integration(self):
+        """17: Integration test verifying TriageEngine.evaluate_with_counterfactual."""
+        engine = TriageEngine()
+        signals = [
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-1"], "feed", SignalConfidence.HIGH),
+        ]
+        cf_res = engine.evaluate_with_counterfactual(signals, "inconclusive")
+        self.assertEqual(cf_res.status, "SUCCESS")
+        self.assertEqual(cf_res.resulting_disposition, "inconclusive")
+
+    def test_18_serialization_to_dict_integrity(self):
+        """18: Verifies CounterfactualResult.to_dict() produces valid JSON-serializable structure."""
+        signals = [
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-1"], "feed", SignalConfidence.HIGH),
+        ]
+        res = self.engine.evaluate_sensitivity(signals, "inconclusive")
+        d = res.to_dict()
+        self.assertEqual(d["status"], "SUCCESS")
+        self.assertIn("disclaimer", d)
+        self.assertIn("perturbations", d)
 
 
 

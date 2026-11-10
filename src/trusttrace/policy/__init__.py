@@ -25,6 +25,17 @@ from .calibration import (
     MinimaxEvaluationResult,
     is_cost_close,
 )
+from .counterfactual import (
+    COUNTERFACTUAL_DISCLAIMER,
+    CounterfactualExplanationEngine,
+    CounterfactualPerturbation,
+    CounterfactualResult,
+    PERMITTED_MUTATION_RULES,
+    PermittedMutationRule,
+    PerturbationAction,
+    STRICTLY_IMMUTABLE_SIGNALS,
+    SignalFeasibility,
+)
 from .decision_log import DecisionAuditRecord, DecisionLog, DecisionLogEntry
 from .diagnostics import (
     DiagnosticCode,
@@ -191,4 +202,14 @@ __all__ = [
     "DEFAULT_COST_PROFILES",
     "DETERMINISTIC_ACTION_PRECEDENCE",
     "is_cost_close",
+    # Counterfactual Explanations (Phase 09)
+    "SignalFeasibility",
+    "PerturbationAction",
+    "PermittedMutationRule",
+    "PERMITTED_MUTATION_RULES",
+    "STRICTLY_IMMUTABLE_SIGNALS",
+    "CounterfactualPerturbation",
+    "CounterfactualResult",
+    "CounterfactualExplanationEngine",
+    "COUNTERFACTUAL_DISCLAIMER",
 ]

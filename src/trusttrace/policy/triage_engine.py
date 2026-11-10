@@ -120,6 +120,7 @@ class TriageResult:
     uncertainty: Optional[UncertaintyAssessment] = None
     availability_mask: Optional[ModalityAvailabilityMask] = None
     cost_assessment: Optional[Any] = None
+    counterfactual: Optional[Any] = None
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -1090,6 +1091,22 @@ class TriageEngine:
         )
         result.cost_assessment = cost_assessment
         return result
+
+    def evaluate_with_counterfactual(
+        self,
+        signals: List[SignalRecord],
+        target_disposition: str,
+        scan_id: Optional[str] = None,
+    ) -> Any:
+        """Phase 09: Compute deterministic counterfactual sensitivity to target disposition."""
+        from .counterfactual import CounterfactualExplanationEngine
+
+        engine = CounterfactualExplanationEngine(triage_engine=self)
+        return engine.evaluate_sensitivity(
+            signals=signals,
+            target_disposition=target_disposition,
+            scan_id=scan_id or "cf-scan-001",
+        )
 
 
 def _now_iso() -> str:
