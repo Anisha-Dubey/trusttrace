@@ -2,7 +2,7 @@
 **Workstream:** Risk Policy, Evidence Interpretation, Uncertainty Quantification, Evaluation Benchmarks & Claim Discipline  
 **Baseline Verified:** Gemini's repository-side audit reported `main` at commit `9291e4e` with a clean working tree. The supplied ZIP snapshot does not contain `.git` metadata, so branch and working-tree state cannot be independently rechecked from that archive.  
 **Active Policy Baseline:** `w03-v1.0`  
-**Phase Status:** Phases 01 & 02 verified complete; Phases 03, 04, 05, and 06 are the proposed execution sequence.  
+**Phase Status:** Phases 01, 02, 03, 04 & Cross-Worker Policy Integration COMPLETED, TESTED & PUSHED to `main` (commit `7817d74`).
 **Boundaries Enforced:** `scripts/check_worker_boundaries.py` (Worker 03 domain: `src/trusttrace/policy/`, `tests/test_triage_policy.py`, `.brain/.work/webapp/worker_03/`, `.brain/.report/worker_03_*`)
 
 ---
@@ -472,7 +472,5 @@ This corrected execution plan provides:
 7. **Cross-Worker Integration:** Adds a dedicated Phase 06 for Worker 02/04 agreement, end-to-end validation, boundary checks, release readiness and formal handoff.
 8. **Honest ML Scope:** Keeps predictive ML, model-serving APIs and MLOps deferred until separately approved; the current Worker 03 engine remains deterministic.
 
-**Execution order:** Freeze and approve the Worker 03 blueprint → confirm the Phase 03 `PolicyInput` fields with Worker 02 → implement Phase 03 in small tested increments → complete Phases 04 and 05 → obtain Worker 02/04 integration sign-off for Phase 06.
-
-**The plan is ready for execution planning and Phase 03 kickoff, subject to confirming the current branch/commit and the Worker 02 canonical payload shape in the actual repository. It does not authorize cross-worker edits or mark any future phase as completed.**
+**Execution Status:** Phases 01, 02, 03, 04, and Cross-Worker Policy Integration have been fully executed, tested (107/107 Worker 03 unit tests, 233 full repository tests passing), and committed directly to `main` at commit `7817d74`. Complete specifications and handoffs are recorded in `phases/cross_worker_integration.md` and `.brain/.report/worker_03_integration_completion_report.md`.
 
