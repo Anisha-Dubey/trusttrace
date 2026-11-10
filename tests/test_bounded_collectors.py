@@ -12,6 +12,7 @@ Covers cases:
 
 import sys
 import unittest
+import socket
 from pathlib import Path
 import json
 
@@ -230,6 +231,22 @@ class TestBoundedCollectors(unittest.TestCase):
 
         errors = list(self.report_validator.iter_errors(report))
         self.assertEqual(len(errors), 0, f"Schema error: {errors}")
+
+    def test_dns_collector_no_process_wide_timeout_side_effects(self):
+        """P1-3: DNS collector must use per-operation timeout and not mutate process-wide default timeout."""
+        initial_timeout = socket.getdefaulttimeout()
+        collector = DNSCollector(
+            resolver=SafeDNSResolver(custom_lookup_fn=lambda h, p: ["93.184.216.34"]),
+            timeout=1.23
+        )
+        res = collector.collect("example.com")
+        self.assertEqual(res.status, "observed")
+        current_timeout = socket.getdefaulttimeout()
+        self.assertEqual(
+            current_timeout,
+            initial_timeout,
+            f"Process-wide socket timeout was mutated from {initial_timeout} to {current_timeout}"
+        )
 
 
 if __name__ == "__main__":

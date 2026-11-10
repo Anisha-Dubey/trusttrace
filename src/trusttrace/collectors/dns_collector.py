@@ -6,6 +6,7 @@ under bounded timeout and error shielding.
 
 import socket
 import time
+import concurrent.futures
 from typing import Optional, List, Dict, Any, Callable
 from .base import CollectorResult
 from trusttrace.intake.dns_resolver import SafeDNSResolver, DNSResolutionResult
@@ -24,9 +25,14 @@ class DNSCollector:
         self.timeout = timeout
         self.mock_lookup_fn = mock_lookup_fn
 
-    def collect(self, hostname: str, port: int = 443) -> CollectorResult:
-        """Collect DNS observation for a hostname under timeout and error shielding."""
+    def collect(self, hostname: str, port: int = 443, timeout: Optional[float] = None) -> CollectorResult:
+        """Collect DNS observation for a hostname under timeout and error shielding.
+
+        Per-operation timeout enforcement is used; process-wide socket.setdefaulttimeout()
+        is never modified.
+        """
         start_time = time.time()
+        effective_timeout = timeout if timeout is not None else self.timeout
 
         if self.mock_lookup_fn:
             try:
@@ -58,10 +64,12 @@ class DNSCollector:
                     limitations=[f"DNS collector exception: {exc}"]
                 )
 
-        # Real lookup using SafeDNSResolver
+        # Real lookup using SafeDNSResolver within per-call bounded thread pool
+        # Avoids mutating process-wide socket default timeout
         try:
-            socket.setdefaulttimeout(self.timeout)
-            dns_res = self.resolver.resolve(hostname, port)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self.resolver.resolve, hostname, port)
+                dns_res = future.result(timeout=effective_timeout)
             elapsed = time.time() - start_time
 
             if not dns_res.is_safe:
@@ -90,14 +98,14 @@ class DNSCollector:
                 reliability="direct_observation",
                 limitations=[]
             )
-        except (socket.timeout, TimeoutError) as exc:
+        except (concurrent.futures.TimeoutError, socket.timeout, TimeoutError) as exc:
             return CollectorResult(
                 kind="dns_resolution",
                 value={"error": "timeout", "elapsed_sec": round(time.time() - start_time, 4)},
                 source="passive_dns_collector",
                 status="failed",
                 reliability="direct_observation",
-                limitations=[f"DNS resolution exceeded timeout budget of {self.timeout}s: {exc}"]
+                limitations=[f"DNS resolution exceeded timeout budget of {effective_timeout}s: {exc}"]
             )
         except Exception as exc:
             return CollectorResult(
