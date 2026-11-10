@@ -1,6 +1,6 @@
 # worker_03 status
 
-**PHASES 01, 02, 03, 04, 05 & CROSS-WORKER POLICY INTEGRATION COMPLETED & TESTED.**
+**PHASES 01, 02, 03, 04, 05 & 06 COMPLETED & VERIFIED.**
 
 - **Phase 01 (Explainable triage policy)**: Deterministic rule engine with 6 named rules, signal taxonomy with 18 signal kinds across 4 dimensions, decision audit log, and conservative disposition ceilings. All policy table invariants enforced.
 - **Phase 02 (Controlled evaluation and claim audit)**: 7 golden evaluation fixtures all passing, honest metrics with sample-size caveats, and pitch claim auditor flagging unsupported accuracy/safety/novelty claims.
@@ -24,13 +24,11 @@
   - Expanded golden evaluation suite from 7 to 15 fixtures (`evaluation.py`) across immutable baseline `w03-eval-v1` and expanded `w03-eval-v2` (`FIX-001` through `FIX-015`, 100% simulated, 15/15 passing).
   - Serializable decision audit logging (`DecisionAuditRecord` and `DecisionLog`) without external database coupling.
   - Fixed-seed property-based fuzzing (150 iterations, seed 1337) and signal permutation invariance verification in `tests/test_triage_policy.py`.
-- **Cross-Worker Policy Integration & Worker 04 Conflict Register**:
-  - `PolicyInput` natively ingests Worker 02 Pydantic models (`EvidenceModel`, `CoverageModel`) via `to_v1_contract_dict()`, `model_dump()`, or `dict()`.
-  - Added `PolicyInput.from_components()` for heterogeneous evidence construction.
-  - Hardened `SignalRecord` with helpful error diagnostics for bare string callsites and added `SignalRecord.create()` factory helper.
-  - Broadened `TriageEngine.evaluate_evidence()` to accept `PolicyInput`, dicts, or Pydantic models.
-  - Completed comprehensive integration audit (`worker_03_integration_audit.md`) and remediation plan (`worker_03_integration_remediation_plan.md`).
-  - Completed comprehensive Worker 04 Conflict Register (`.brain/.report/worker_03_worker_04_conflict_register.md`) cataloging 12 verified conflicts across all 8 inspection areas (A–H) with 13 required audit attributes each.
-  - Authored actionable Worker 04 Implementation Handoff (`.brain/.report/worker_03_to_worker_04_handoff.md`) with concrete code examples for immediate unblocking.
-- **Test Metrics**: 122 tests passing in `tests/test_triage_policy.py` in 0.131s. Full repo runner passes 248/248 tests (1 skipped). All worker boundaries strictly preserved.
-- **External Dependencies**: Worker 04 web callsites (DEF-01/CONFL-01) and test suite (DEF-02/CONFL-11); Worker 02 pre-publication integrity auditor hook (DEF-04/CONFL-08). Worker 03 responsibilities are 100% complete independently.
+- **Phase 06 (Cross-Worker Integration, Release Validation & Formal Handoff)**:
+  - Frozen and documented public policy interface (`PolicyInput`, `SignalRecord`, `TriageEngine`, `TriageResult`, `UncertaintyEngine`, `ReportIntegrityAuditor`).
+  - Verified Worker 04 web route consumer integration on `main` (commit `4cfc0b4`); all 12 conflicts resolved; 10/10 web interface regression tests passing.
+  - Verified Worker 02 cross-worker integration on `main` (PR #5, commit `c328cc2`); `EvidenceService` successfully invokes `TriageEngine.evaluate_evidence()` and `ReportIntegrityAuditor.audit_report()`; 11/11 tests pass in `tests/test_worker02_cross_worker_integration.py`.
+  - Implemented 7 end-to-end integration tests in `tests/test_triage_policy.py` covering all 5 canonical blueprint scenarios, finding-to-evidence referential integrity, and v1 JSON schema validation with strict `additionalProperties: false`.
+  - Authored formal Phase 06 specification (`phases/phase_06.md`) and completion report (`.brain/.report/worker_03_phase_06_report.md`).
+- **Test Metrics**: 129 tests passing in `tests/test_triage_policy.py` in 0.165s. Full repo runner: 291 tests discovered (290 passed, 1 skipped, 0 failures). PostgreSQL 15 integration: 11/11 passed. All 8 fixture checks pass. All worker boundaries strictly preserved.
+- **External Dependencies**: COMPLETE. Worker 01, Worker 02, Worker 03, and Worker 04 integration is fully validated and verified on `main`.

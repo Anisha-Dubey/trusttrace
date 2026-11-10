@@ -82,6 +82,7 @@ from trusttrace.policy import (
 import json
 from datetime import datetime, timezone, timedelta
 from dataclasses import FrozenInstanceError
+from jsonschema import Draft202012Validator, FormatChecker
 
 
 
@@ -2819,6 +2820,441 @@ class TestPolicyInvariantsAndFuzzing(unittest.TestCase):
         # Engine remains fully functional after error
         res = self.engine.evaluate([])
         self.assertEqual(res.decision, "inconclusive")
+
+
+class TestPhase06EndToEndIntegration(unittest.TestCase):
+    """End-to-end integration and release verification tests for Worker 03 Phase 06."""
+
+    def setUp(self):
+        self.engine = TriageEngine()
+        self.schema_path = os.path.join(
+            os.path.dirname(__file__), "..", ".brain", ".work", "contracts", "v1", "scan_report.schema.json"
+        )
+        with open(self.schema_path, "r", encoding="utf-8") as f:
+            self.scan_report_schema = json.load(f)
+
+    def test_e2e_canonical_clean_observation(self):
+        """Scenario 1: Canonical clean observation.
+        Valid TLS, matching hostname, no threat feed match, all collectors succeed.
+        Must yield no_threat_observed, unverified identity (TLS-001), valid_for_hostname cert,
+        no_threat_observed behavior, strong quality, SUFFICIENT_FOR_SCOPED_OBSERVATION, 0 findings,
+        and schema-valid report envelope.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-clean-001",
+            target="clean.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=3, checks_observed=3, checks_failed=0, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-clean",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-dns-clean",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-threat-clean",
+                    kind="threat_intelligence",
+                    source="verified_threat_feed",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "threat_level": "none", "target": "clean.example.com"},
+                ),
+            ),
+        )
+
+        result = self.engine.evaluate_evidence(policy_input)
+
+        self.assertEqual(result.decision, "no_threat_observed")
+        self.assertEqual(result.dimensions["identity"], "unverified")
+        self.assertEqual(result.dimensions["certificate"], "valid_for_hostname")
+        self.assertEqual(result.dimensions["behavior"], "no_threat_observed")
+        self.assertEqual(result.dimensions["evidence_quality"], "strong")
+        self.assertIsNotNone(result.uncertainty)
+        self.assertEqual(
+            result.uncertainty.confidence_band,
+            ConfidenceBand.SUFFICIENT_FOR_SCOPED_OBSERVATION,
+        )
+        self.assertEqual(len(result.findings), 0)
+
+        # Invariant: Claim discipline — never claims safe or benign
+        self.assertNotIn(result.decision, {"safe", "clean", "benign", "secure"})
+
+        # Envelope validation
+        envelope = {
+            "schema_version": "1.0",
+            "scan_id": policy_input.scan_id,
+            "submitted_url_redacted": "https://clean.example.com",
+            "normalized_host": "clean.example.com",
+            "status": "completed",
+            "created_at": now_iso,
+            "policy_version": result.policy_version,
+            "coverage": {
+                "checks_total": 3,
+                "checks_observed": 3,
+                "checks_failed": 0,
+                "checks_not_run": 0,
+            },
+            "evidence": [
+                {
+                    "evidence_id": item.evidence_id,
+                    "kind": item.kind,
+                    "source": item.source,
+                    "observed_at": item.observed_at,
+                    "status": item.status,
+                    "limitations": list(item.limitations),
+                }
+                for item in policy_input.evidence
+            ],
+            **result.to_report_fragment(),
+        }
+        validator = Draft202012Validator(self.scan_report_schema, format_checker=FormatChecker())
+        validator.validate(envelope)
+
+    def test_e2e_partial_coverage_with_failure(self):
+        """Scenario 2: Partial coverage with collector failure.
+        DNS succeeds, TLS collector fails.
+        Must yield inconclusive, partial quality, LIMITED_OBSERVATION, honest abstention notice
+        with is_rescan_recommended=True, and limitations note.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-partial-002",
+            target="partial.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=1, checks_failed=1, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns-ok",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"resolved_ips": ["93.184.216.34"]},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls-fail",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "handshake_timeout"},
+                ),
+            ),
+        )
+
+        result = self.engine.evaluate_evidence(policy_input)
+
+        self.assertEqual(result.decision, "inconclusive")
+        self.assertEqual(result.dimensions["evidence_quality"], "partial")
+        self.assertIsNotNone(result.uncertainty)
+        self.assertEqual(
+            result.uncertainty.confidence_band,
+            ConfidenceBand.LIMITED_OBSERVATION,
+        )
+        self.assertIsNotNone(result.uncertainty.abstention_notice)
+        self.assertEqual(
+            result.uncertainty.abstention_notice.reason_code,
+            "ABSTAIN_COLLECTION_FAILURE",
+        )
+        self.assertTrue(result.uncertainty.abstention_notice.is_rescan_recommended)
+        self.assertTrue(
+            any("Coverage is partial" in lim or "abstained" in lim for lim in result.limitations)
+        )
+
+    def test_e2e_all_collector_failure(self):
+        """Scenario 3: All collectors fail.
+        DNS and TLS fail.
+        Must yield inconclusive, unavailable quality, INSUFFICIENT_EVIDENCE,
+        honest abstention notice, and schema-valid report fragment.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-allfail-003",
+            target="unreachable.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=0, checks_failed=2, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns-fail-all",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=now_iso,
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "server_timeout"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-tls-fail-all",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="failed",
+                    reliability="direct_observation",
+                    value={"error": "connection_refused"},
+                ),
+            ),
+        )
+
+        result = self.engine.evaluate_evidence(policy_input)
+
+        self.assertEqual(result.decision, "inconclusive")
+        self.assertEqual(result.dimensions["evidence_quality"], "unavailable")
+        self.assertIsNotNone(result.uncertainty)
+        self.assertEqual(
+            result.uncertainty.confidence_band,
+            ConfidenceBand.INSUFFICIENT_EVIDENCE,
+        )
+        self.assertIsNotNone(result.uncertainty.abstention_notice)
+        self.assertTrue(result.uncertainty.abstention_notice.is_rescan_recommended)
+
+        envelope = {
+            "schema_version": "1.0",
+            "scan_id": policy_input.scan_id,
+            "submitted_url_redacted": "https://unreachable.example.com",
+            "normalized_host": "unreachable.example.com",
+            "status": "failed",
+            "created_at": now_iso,
+            "policy_version": result.policy_version,
+            "coverage": {
+                "checks_total": 2,
+                "checks_observed": 0,
+                "checks_failed": 2,
+                "checks_not_run": 0,
+            },
+            "evidence": [
+                {
+                    "evidence_id": item.evidence_id,
+                    "kind": item.kind,
+                    "source": item.source,
+                    "observed_at": item.observed_at,
+                    "status": item.status,
+                    "limitations": list(item.limitations),
+                }
+                for item in policy_input.evidence
+            ],
+            **result.to_report_fragment(),
+        }
+        validator = Draft202012Validator(self.scan_report_schema, format_checker=FormatChecker())
+        validator.validate(envelope)
+
+    def test_e2e_blocked_private_destination(self):
+        """Scenario 4: Target is blocked by safety policy (e.g. private IP / SSRF protection).
+        Must yield inconclusive, unavailable evidence quality, abstention notice with
+        ABSTAIN_UNCHECKED_COVERAGE, is_rescan_recommended=False, and no false benign claims.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-blocked-004",
+            target="127.0.0.1",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=1, checks_observed=0, checks_failed=0, checks_not_run=1),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-block-ssrf",
+                    kind="target_policy",
+                    source="ssrf_guard",
+                    observed_at=now_iso,
+                    status="blocked",
+                    reliability="direct_observation",
+                    value={"reason": "Blocked loopback / private IP destination"},
+                    limitations=["Target blocked by safety policy; collection aborted."],
+                ),
+            ),
+        )
+
+        result = self.engine.evaluate_evidence(policy_input)
+
+        self.assertEqual(result.decision, "inconclusive")
+        self.assertEqual(result.dimensions["evidence_quality"], "unavailable")
+        self.assertIsNotNone(result.uncertainty)
+        self.assertIsNotNone(result.uncertainty.abstention_notice)
+        self.assertEqual(
+            result.uncertainty.abstention_notice.reason_code,
+            "ABSTAIN_UNCHECKED_COVERAGE",
+        )
+        self.assertFalse(result.uncertainty.abstention_notice.is_rescan_recommended)
+        self.assertNotIn(result.decision, {"safe", "clean", "benign", "secure", "no_threat_observed"})
+
+    def test_e2e_contemporaneous_conflicting_feeds(self):
+        """Scenario 5: Contemporaneous conflicting threat feeds.
+        One feed reports match, another reports clean within the same window.
+        Must yield inconclusive, partial evidence quality, malicious_evidence behavior,
+        CONTRADICTORY_EVIDENCE confidence band, ABSTAIN_EVIDENCE_CONFLICT reason code,
+        both evidence IDs retained in output/findings/diagnostics, and 0 orphan findings.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-conflict-005",
+            target="disputed.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=2, checks_failed=0, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-feed-pos",
+                    kind="threat_intelligence",
+                    source="feed_alpha",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": True, "threat_level": "malicious", "target": "disputed.example.com"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-feed-neg",
+                    kind="threat_intelligence",
+                    source="feed_beta",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": False, "threat_level": "none", "target": "disputed.example.com"},
+                ),
+            ),
+        )
+
+        result = self.engine.evaluate_evidence(policy_input)
+
+        self.assertEqual(result.decision, "inconclusive")
+        self.assertEqual(result.dimensions["evidence_quality"], "partial")
+        self.assertEqual(result.dimensions["behavior"], "malicious_evidence")
+        self.assertIsNotNone(result.uncertainty)
+        self.assertEqual(
+            result.uncertainty.confidence_band,
+            ConfidenceBand.CONTRADICTORY_EVIDENCE,
+        )
+        self.assertIsNotNone(result.uncertainty.abstention_notice)
+        self.assertEqual(
+            result.uncertainty.abstention_notice.reason_code,
+            "ABSTAIN_EVIDENCE_CONFLICT",
+        )
+        self.assertTrue(result.uncertainty.abstention_notice.is_rescan_recommended)
+
+        # Both evidence IDs must be retained and referenced
+        all_referenced_eids = set()
+        for f in result.findings:
+            all_referenced_eids.update(f.get("evidence_ids", []))
+        for u in result.uncertainty.uncertainties:
+            all_referenced_eids.update(u.evidence_ids)
+
+        self.assertIn("ev-feed-pos", all_referenced_eids)
+        self.assertIn("ev-feed-neg", all_referenced_eids)
+
+        # Zero orphan findings: every finding's evidence IDs must be in policy_input.evidence
+        input_eids = {e.evidence_id for e in policy_input.evidence}
+        for f in result.findings:
+            self.assertTrue(set(f.get("evidence_ids", [])).issubset(input_eids))
+
+    def test_e2e_report_envelope_v1_schema_validation(self):
+        """Scenario 6: Full scan report envelope matches v1 JSON schema strictly."""
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-schema-envelope-006",
+            target="schema.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=1, checks_observed=1, checks_failed=0, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-envelope",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": True, "hostname_match": True, "is_expired": False},
+                ),
+            ),
+        )
+        result = self.engine.evaluate_evidence(policy_input)
+        envelope = {
+            "schema_version": "1.0",
+            "scan_id": policy_input.scan_id,
+            "submitted_url_redacted": "https://schema.example.com",
+            "normalized_host": "schema.example.com",
+            "status": "completed",
+            "created_at": now_iso,
+            "completed_at": now_iso,
+            "policy_version": result.policy_version,
+            "coverage": {
+                "checks_total": 1,
+                "checks_observed": 1,
+                "checks_failed": 0,
+                "checks_not_run": 0,
+            },
+            "evidence": [
+                {
+                    "evidence_id": item.evidence_id,
+                    "kind": item.kind,
+                    "source": item.source,
+                    "observed_at": item.observed_at,
+                    "status": item.status,
+                    "reliability": item.reliability,
+                    "limitations": list(item.limitations),
+                }
+                for item in policy_input.evidence
+            ],
+            **result.to_report_fragment(),
+        }
+        validator = Draft202012Validator(self.scan_report_schema, format_checker=FormatChecker())
+        validator.validate(envelope)
+        # Verify additionalProperties: false is satisfied (no unrecognized fields)
+        self.assertNotIn("extra_field", envelope)
+
+    def test_e2e_finding_referential_integrity(self):
+        """Scenario 7: Every finding emitted by evaluate_evidence() strictly references existing evidence IDs."""
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        policy_input = PolicyInput(
+            scan_id="scan-ref-integrity-007",
+            target="ref.example.com",
+            scan_profile="standard",
+            coverage=CoverageSummary(checks_total=2, checks_observed=2, checks_failed=0, checks_not_run=0),
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-valid-threat",
+                    kind="threat_intelligence",
+                    source="threat_feed",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"matched": True, "threat_level": "malicious", "target": "ref.example.com"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-expired-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"is_valid": False, "is_expired": True, "hostname_match": True},
+                ),
+            ),
+        )
+        result = self.engine.evaluate_evidence(policy_input)
+        valid_eids = {e.evidence_id for e in policy_input.evidence}
+        self.assertGreater(len(result.findings), 0)
+        for f in result.findings:
+            f_eids = f.get("evidence_ids", [])
+            self.assertGreater(len(f_eids), 0, f"Finding {f.get('finding_id')} has empty evidence_ids")
+            for eid in f_eids:
+                self.assertIn(
+                    eid,
+                    valid_eids,
+                    f"Finding {f.get('finding_id')} references undeclared evidence ID '{eid}'",
+                )
 
 
 if __name__ == "__main__":

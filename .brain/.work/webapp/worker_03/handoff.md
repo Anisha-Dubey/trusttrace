@@ -1,6 +1,6 @@
 # worker_03 handoff
 
-**Status: PHASES 01, 02, 03, 04, 05 & CROSS-WORKER POLICY INTEGRATION COMPLETED.**
+**Status: PHASES 01, 02, 03, 04, 05 & 06 COMPLETED & VERIFIED.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
@@ -17,7 +17,7 @@
   - `evaluation.py` (FIXTURES_V1, FIXTURES_V2, build_eval_v1_set, build_eval_v2_set, ControlledEvaluationSet, ClaimAuditor)
   - `decision_log.py` (DecisionAuditRecord, DecisionLog with in-memory audit indexing)
   - `__init__.py` (public exports)
-  - `tests/test_triage_policy.py` (122 tests passing)
+  - `tests/test_triage_policy.py` (129 tests passing)
 
 ## Contract Version
 - Policy version: `w03-v1.0`
@@ -26,8 +26,11 @@
 
 ## Test Results
 ```
-Worker 03 Tests: Ran 122 tests in 0.131s — OK (zero regressions, zero errors)
-Full Repository: Ran 248 tests in 13.248s — OK (skipped=1)
+Worker 03 Tests: Ran 129 tests in 0.165s — OK (zero regressions, zero errors)
+Full Repository: 291 tests discovered (290 passed, 1 skipped, 0 failures in 16.825s)
+PostgreSQL 15 Integration: Ran 11 tests in 10.307s — OK (11 passed, 0 failures, 0 skipped)
+Web Interface Tests: Ran 10 tests in 0.613s — OK
+Worker 02 Integration Tests: Ran 11 tests in 1.488s — OK
 All 8 schema/negative/cross-record fixture checks passed
 ```
 
@@ -75,7 +78,7 @@ diff = runner.run_regression_against_baseline(v2_suite, snapshot)
 assert not diff.has_regressions
 ```
 
-### 2. Signal Construction (Safe Callsites)
+### 3. Signal Construction (Safe Callsites)
 ```python
 from trusttrace.policy import SignalRecord, SignalKind
 
@@ -96,7 +99,7 @@ sig = SignalRecord.create(
 )
 ```
 
-### 3. Uncertainty & Abstention Rationales
+### 4. Uncertainty & Abstention Rationales
 ```python
 # Access structured uncertainty assessment
 uncertainty = triage_result.uncertainty
@@ -107,7 +110,7 @@ if uncertainty.abstention_notice:
     print(uncertainty.abstention_notice.explanation)
 ```
 
-### 4. Automated Report Integrity Audit (Pre-Publication Gate for Worker 02)
+### 5. Automated Report Integrity Audit (Pre-Publication Gate for Worker 02)
 ```python
 from trusttrace.policy import ReportIntegrityAuditor
 
@@ -118,17 +121,18 @@ if not audit_result.is_valid:
         print(issue.rule_id, issue.severity, issue.affected_field, issue.explanation)
 ```
 
-## Cross-Worker Remediation Requirements (Action Items for other workers)
+## Cross-Worker Status & External Deliverables
 
-Detailed audit documentation and resolution guides:
-- Complete Conflict Register: `.brain/.report/worker_03_worker_04_conflict_register.md`
-- Phased Implementation Handoff: `.brain/.report/worker_03_to_worker_04_handoff.md`
+### Worker 04 (Web Frontend & Presentation):
+- **STATUS: RESOLVED & VERIFIED ON `main` (commit `4cfc0b4`)**
+- All 12 conflicts in Conflict Register (`CONFL-01` to `CONFL-12`) resolved.
+- Web routes invoke `evaluate_evidence()` and `SignalRecord.create()`.
+- Uncertainty and ordinal confidence bands rendered in HTML and API responses.
+- 10/10 tests pass in `tests/test_web_interface.py`.
 
-### For Worker 04 (Web Frontend & Presentation):
-- **DEF-01 / CONFL-01 (CRITICAL):** Update `SignalRecord` callsites in `src/trusttrace/web/routes.py` lines 42–45, 103–104, 152–155 to use keyword arguments or `SignalRecord.create()`.
-- **DEF-02 / CONFL-11 (HIGH):** Create `tests/test_web_interface.py` to provide automated test coverage for web endpoints.
-- **DEF-03 / CONFL-12 (CRITICAL):** Connect custom URL evaluation in `routes.py` to the real `ScanOrchestrator` and `TriageEngine` rather than hardcoding fake signals and violating EVID-002 (CONFL-09).
-- **DEF-05 / CONFL-07 (HIGH):** Include `result.uncertainty.to_dict()` in the JSON response and render the confidence band badge and abstention notice banner in HTML templates.
-
-### For Worker 02 (Evidence & Persistence):
-- **DEF-04 / CONFL-08 (MEDIUM):** Hook `ReportIntegrityAuditor().audit_report(report)` into `EvidenceService` before finalizing or publishing report dictionaries.
+### Worker 02 (Evidence & Persistence):
+- **STATUS: RESOLVED & VERIFIED ON `main` (PR #5, commit `c328cc2`)**
+- Worker 02 cross-worker integration merged into `main`:
+  - `EvidenceService.get_scan_report()` enforces `ReportIntegrityAuditor` pre-publication audit (DEF-04).
+  - `EvidenceService.ingest_batch()` invokes `TriageEngine.evaluate_evidence()` and persists findings.
+  - All 11 tests pass in `tests/test_worker02_cross_worker_integration.py`.
