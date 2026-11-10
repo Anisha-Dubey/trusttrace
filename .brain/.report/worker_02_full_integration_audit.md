@@ -11,6 +11,7 @@
 ## 1. Executive Summary
 
 TRUSTTRACE is a multi-worker web threat detection and digital trust intelligence platform consisting of four bounded subsystems:
+
 1. **Worker 01 (Intake & Collectors):** URL validation, IDNA canonicalization, SSRF protection, bounded DNS/TLS/HTTP collectors.
 2. **Worker 02 (Evidence & Persistence):** Evidence normalization, provenance tracking, coverage metrics, finding linkage, community threat intelligence, database persistence, REST API.
 3. **Worker 03 (Policy & Triage):** Conservative deterministic rule engine, signal extraction, uncertainty assessment, report integrity auditor.
@@ -25,7 +26,7 @@ The audit identified six critical integration gaps (designated Issues A through 
 ## 2. Cross-Worker Architectural Boundary Matrix
 
 | Worker Domain | Primary Responsibilities | Strict Architectural Boundaries | Integration Touchpoints with Worker 02 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Worker 01** | URL policy, SSRF isolation, socket collection, timeout budgets | Zero database writes; zero policy triage rules; produces raw `CollectorResult` payloads conforming to v1 contract | Consumed via `Worker01EvidenceAdapter.adapt_payload()`; zero internal socket/network imports permitted |
 | **Worker 02** | Evidence normalization, provenance fingerprints, database persistence, coverage metrics, REST API | Never performs external networking or SSRF checks; never invents ad-hoc policy rules; stores immutable evidence and links findings | Ingests batches from W01, runs W03 `TriageEngine.evaluate_evidence()`, audits via `ReportIntegrityAuditor`, exposes REST endpoints |
 | **Worker 03** | Pure-Python deterministic triage rules, signal extraction, uncertainty quantification, report integrity auditing | Zero network calls; zero direct database queries; operates strictly on immutable `PolicyInput` DTOs | Invoked in `EvidenceService.ingest_batch()` and `EvidenceService.get_scan_report()` |
@@ -36,6 +37,7 @@ The audit identified six critical integration gaps (designated Issues A through 
 ## 3. Detailed Audit of the Six Critical Integration Issues
 
 ### Issue A: Worker 03 `TriageEngine` Integration Gap in `EvidenceService.ingest_batch()`
+
 - **Severity:** HIGH
 - **Location:** `src/trusttrace/evidence/services/evidence_service.py` (`ingest_batch`)
 - **Finding:**
@@ -47,6 +49,7 @@ The audit identified six critical integration gaps (designated Issues A through 
   `EvidenceService` lacked dependency injection of `TriageEngine` and did not construct canonical `PolicyInput.from_components()`.
 
 ### Issue B: DEF-04 Report Integrity Pre-Publication Audit Gap
+
 - **Severity:** CRITICAL (Safety & Claim Discipline)
 - **Location:** `src/trusttrace/evidence/services/evidence_service.py` (`get_scan_report`)
 - **Finding:**
@@ -55,6 +58,7 @@ The audit identified six critical integration gaps (designated Issues A through 
   Reports containing disallowed absolute marketing claims ("100% safe"), un-disclosed partial coverage with `no_threat_observed` decisions, or orphan finding references could be published to external consumers without automated safety gates.
 
 ### Issue C: Reliability Enum Compatibility Mismatches
+
 - **Severity:** MEDIUM
 - **Location:** `src/trusttrace/evidence/domain/enums.py`, `src/trusttrace/evidence/adapters/worker01_adapter.py`
 - **Finding:**
@@ -63,6 +67,7 @@ The audit identified six critical integration gaps (designated Issues A through 
   When `Worker01EvidenceAdapter` or `EvidenceService.ingest_single_observation()` encountered `"high"` or `"medium"`, calling `Reliability(val)` raised `ValueError` and coerced the reliability to `Reliability.UNKNOWN`. This corrupted provenance tracking and signal confidence in downstream triage.
 
 ### Issue D: Named Collector Coverage vs Raw Evidence Record Count
+
 - **Severity:** HIGH (Contract & Metric Accuracy)
 - **Location:** `src/trusttrace/evidence/services/evidence_service.py` (`calculate_coverage`)
 - **Finding:**
@@ -71,6 +76,7 @@ The audit identified six critical integration gaps (designated Issues A through 
   Raw evidence record counts inflated the aggregate coverage metrics, misrepresenting partial scans as complete and violating the distinction between evidence-record counts and named check families (`url_intake`, `dns_resolution`, `tls_certificate`, `http_headers`, `redirect_chain`).
 
 ### Issue E: End-to-End Scan Persistence & Web Demo Route Defects (DEF-01 & DEF-05)
+
 - **Severity:** CRITICAL
 - **Location:** `src/trusttrace/web/routes.py`
 - **Finding:**
@@ -79,6 +85,7 @@ The audit identified six critical integration gaps (designated Issues A through 
   3. **Volatile In-Memory Bypass:** Submissions to `/api/v1/triage/demo` generated ephemeral JSON objects in memory without persisting scans, evidence, or findings to the database via `EvidenceService`.
 
 ### Issue F: Pydantic v2 / PolicyInput Serialization & Contract Compatibility
+
 - **Severity:** MEDIUM
 - **Location:** `src/trusttrace/evidence/domain/models.py`, `src/trusttrace/policy/policy_input.py`
 - **Finding:**
@@ -89,7 +96,7 @@ The audit identified six critical integration gaps (designated Issues A through 
 ## 4. Remediation Priority & Audit Conclusion
 
 | Issue | Target Subsystem | Remediation Complexity | Risk Level | Validation Requirement |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **A** | `EvidenceService.ingest_batch` | Medium | High | Automated unit & integration tests for triage evaluation and finding idempotency |
 | **B** | `EvidenceService.get_scan_report` | Low | Critical | Automated tests proving invalid reports are withheld and audited |
 | **C** | `enums.py` / `models.py` / `adapter.py` | Low | Medium | Automated tests verifying `"high"`, `"medium"`, `"low"` normalizations |
