@@ -106,6 +106,13 @@ from trusttrace.policy import (
     CounterfactualResult,
     CounterfactualExplanationEngine,
     COUNTERFACTUAL_DISCLAIMER,
+    # Phase 10
+    MatrixClaimCategory,
+    ClaimSupportStatus,
+    ExtractedClaim,
+    ClaimMatrixEntry,
+    ClaimEvidenceMatrixResult,
+    ClaimEvidenceMatrixGenerator,
 )
 import json
 from datetime import datetime, timezone, timedelta
@@ -4239,6 +4246,682 @@ class TestPhase09Counterfactuals(unittest.TestCase):
         self.assertIn("perturbations", d)
 
 
+# ─── Worker 03 Phase 10: Traceable Claim-to-Evidence Matrix ───────────
+
+
+class TestPhase10ClaimMatrix(unittest.TestCase):
+    """Worker 03 Phase 10: Complete Lineage Traceability & Epistemic Claim Matrix."""
+
+    def setUp(self):
+        self.now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        self.generator = ClaimEvidenceMatrixGenerator()
+
+    def test_01_deterministic_claim_extraction_from_structured_fields(self):
+        """01: Claims are extracted deterministically from structured report fields."""
+        report = {
+            "scan_id": "scan-10-01",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "invalid_or_expired", "behavior": "no_threat_detected"},
+            "findings": [
+                {
+                    "finding_id": "f-1",
+                    "kind": "certificate_issue",
+                    "summary": "TLS certificate is expired.",
+                    "evidence_ids": ["ev-1"],
+                }
+            ],
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-01",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "invalid_or_expired"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        self.assertEqual(res.total_claims, 4)  # 1 decision + 1 finding + 2 dimensions
+        self.assertEqual(res.supported_count, 3)
+
+    def test_02_derived_assessment_lineage_verification(self):
+        """02: Derived assessment verifies complete 7-field lineage."""
+        report = {
+            "scan_id": "scan-10-02",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-tls",
+                    "kind": "certificate_issue",
+                    "summary": "TLS cert expired.",
+                    "evidence_ids": ["ev-tls-1"],
+                    "rule_id": "RULE-CERT-001",
+                }
+            ],
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-02",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "valid": False},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        finding_entry = next(e for e in res.entries if e.claim.finding_id == "f-tls")
+        self.assertEqual(finding_entry.status, ClaimSupportStatus.SUPPORTED)
+        self.assertTrue(finding_entry.derivation_rule_verified)
+        self.assertEqual(finding_entry.supporting_evidence_ids, ("ev-tls-1",))
+
+    def test_03_exact_six_field_verification_for_factual_observation(self):
+        """03: Factual observation verifies exact target, modality, attribute, value, timestamp, provenance."""
+        report = {
+            "scan_id": "scan-10-03",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-03",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.SUPPORTED)
+        self.assertTrue(cert_entry.is_fresh)
+
+    def test_04_target_scope_mismatch_results_in_unsupported(self):
+        """04: Evidence targeting different domain fails target check -> UNSUPPORTED."""
+        report = {
+            "scan_id": "scan-10-04",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-04",
+            target="https://target.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "other-attacker.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.UNSUPPORTED)
+
+    def test_05_modality_mismatch_results_in_unsupported(self):
+        """05: Evidence kind mismatching asserted modality fails modality check -> UNSUPPORTED."""
+        report = {
+            "scan_id": "scan-10-05",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        # Only DNS evidence provided, but claim asserts certificate status
+        p_in = PolicyInput(
+            scan_id="scan-10-05",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "ip": "93.184.216.34"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.UNSUPPORTED)
+        self.assertIn("NO_EVIDENCE_FOR_TARGET_OR_MODALITY", cert_entry.diagnostics)
+
+    def test_06_attribute_absent_in_evidence_results_in_unsupported(self):
+        """06: Evidence exists for target and modality but lacks asserted attribute key -> UNSUPPORTED."""
+        report = {
+            "scan_id": "scan-10-06",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-06",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "unrelated_meta": 123},  # lacks certificate_status
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.UNSUPPORTED)
+        self.assertTrue(any("ATTRIBUTE_ABSENT_IN_EVIDENCE" in d for d in cert_entry.diagnostics))
+
+    def test_07_direct_value_conflict_results_in_contradicted(self):
+        """07: Evidence payload contains attribute with conflicting value -> CONTRADICTED."""
+        report = {
+            "scan_id": "scan-10-07",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-07",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "invalid_or_expired"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.CONTRADICTED)
+        self.assertIn("VALUE_MISMATCH_DIRECT_CONFLICT", cert_entry.diagnostics)
+        self.assertFalse(res.matrix_integrity_passed)
+
+    def test_08_parent_evidence_attribute_deficiency_propagates_to_derived_assessment(self):
+        """08: Missing parent evidence IDs in derived assessment results in UNSUPPORTED."""
+        report = {
+            "scan_id": "scan-10-08",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-fake",
+                    "kind": "phishing_finding",
+                    "summary": "Phishing feed match.",
+                    "evidence_ids": ["non-existent-ev-id"],
+                    "rule_id": "RULE-THREAT-001",
+                }
+            ],
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-08",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        f_entry = next(e for e in res.entries if e.claim.finding_id == "f-fake")
+        self.assertEqual(f_entry.status, ClaimSupportStatus.UNSUPPORTED)
+        self.assertTrue(any("NON_EXISTENT_EVIDENCE_IDS" in d for d in f_entry.diagnostics))
+
+    def test_09_source_specific_freshness_dns_24h_ttl(self):
+        """09: DNS observation older than 24h degrades to PARTIALLY_SUPPORTED."""
+        old_dns_iso = "2026-11-08T00:00:00Z"  # older than 24h
+        p_in = PolicyInput(
+            scan_id="scan-10-09",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-dns",
+                    kind="dns_resolution",
+                    source="dns_collector",
+                    observed_at=old_dns_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "dns_status": "observed"},
+                ),
+            ),
+        )
+        report = {
+            "scan_id": "scan-10-09",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-dns",
+                    "kind": "dns_finding",
+                    "summary": "DNS check complete.",
+                    "evidence_ids": ["ev-dns"],
+                    "rule_id": "RULE-DNS-001",
+                }
+            ],
+        }
+        res = self.generator.generate_matrix(report, p_in)
+        f_entry = next(e for e in res.entries if e.claim.finding_id == "f-dns")
+        self.assertEqual(f_entry.status, ClaimSupportStatus.PARTIALLY_SUPPORTED)
+        self.assertFalse(f_entry.is_fresh)
+
+    def test_10_source_specific_freshness_tls_7d_ttl(self):
+        """10: TLS certificate observation within 7 days is fresh."""
+        two_days_ago = "2026-11-08T10:00:00Z"  # ~2 days old, well within 7d TTL (604,800s)
+        p_in = PolicyInput(
+            scan_id="scan-10-10",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-tls",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=two_days_ago,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        report = {
+            "scan_id": "scan-10-10",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.SUPPORTED)
+        self.assertTrue(cert_entry.is_fresh)
+
+    def test_11_source_specific_freshness_threat_intel_12h_ttl(self):
+        """11: Threat intelligence older than 12h degrades to PARTIALLY_SUPPORTED."""
+        from datetime import datetime, timezone, timedelta
+        fourteen_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=14)).isoformat()
+        p_in = PolicyInput(
+            scan_id="scan-10-11",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-feed",
+                    kind="threat_feed",
+                    source="reputation",
+                    observed_at=fourteen_hours_ago,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "behavior_status": "clean"},
+                ),
+            ),
+        )
+        report = {
+            "scan_id": "scan-10-11",
+            "decision": "inconclusive",
+            "dimensions": {"behavior": "clean"},
+        }
+        res = self.generator.generate_matrix(report, p_in)
+        beh_entry = next(e for e in res.entries if e.claim.attribute_path == "behavior_status")
+        self.assertEqual(beh_entry.status, ClaimSupportStatus.PARTIALLY_SUPPORTED)
+        self.assertFalse(beh_entry.is_fresh)
+
+    def test_12_contemporaneous_contradiction_takes_strict_precedence_over_partial_support(self):
+        """12: Contemporaneous conflict takes strict precedence and is never silently downgraded."""
+        report = {
+            "scan_id": "scan-10-12",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        # One valid, one invalid observation for same target
+        p_in = PolicyInput(
+            scan_id="scan-10-12",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-valid",
+                    kind="tls_certificate",
+                    source="tls_1",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-invalid",
+                    kind="tls_certificate",
+                    source="tls_2",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "invalid_or_expired"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.CONTRADICTED)
+
+    def test_13_stale_historical_conflict_handling(self):
+        """13: Stale conflicting observation yields PARTIALLY_SUPPORTED with STALE_HISTORICAL_CONFLICT."""
+        from datetime import datetime, timezone, timedelta
+        ten_days_ago = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        report = {
+            "scan_id": "scan-10-13",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-13",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-fresh",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+                EvidenceItem(
+                    evidence_id="ev-stale-conflict",
+                    kind="tls_certificate",
+                    source="tls_old",
+                    observed_at=ten_days_ago,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "invalid_or_expired"},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        cert_entry = next(e for e in res.entries if e.claim.attribute_path == "certificate_status")
+        self.assertEqual(cert_entry.status, ClaimSupportStatus.PARTIALLY_SUPPORTED)
+        self.assertIn("STALE_HISTORICAL_CONFLICT", cert_entry.diagnostics)
+
+    def test_14_non_factual_hypothetical_claims_cleanly_segregated(self):
+        """14: Counterfactual explanation text is categorized as EXPLANATORY_OR_HYPOTHETICAL."""
+        report = {
+            "scan_id": "scan-10-14",
+            "decision": "inconclusive",
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-14",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(),
+        )
+        cf_texts = ["Hypothetical: Renewing TLS certificate would transition to inconclusive."]
+        res = self.generator.generate_matrix(report, p_in, counterfactual_texts=cf_texts)
+        cf_entry = next(e for e in res.entries if e.claim.category == MatrixClaimCategory.EXPLANATORY_OR_HYPOTHETICAL)
+        self.assertIn("NON_FACTUAL_EXPLANATION_SEGREGATED", cf_entry.diagnostics)
+        self.assertEqual(len(cf_entry.supporting_evidence_ids), 0)
+
+    def test_15_empty_evidence_ids_in_finding_results_in_unsupported(self):
+        """15: Finding with empty evidence_ids is marked UNSUPPORTED with MISSING_EVIDENCE_LINEAGE."""
+        report = {
+            "scan_id": "scan-10-15",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-orphan",
+                    "kind": "suspicious_finding",
+                    "summary": "Orphan finding with no evidence.",
+                    "evidence_ids": [],
+                    "rule_id": "RULE-SUSP-001",
+                }
+            ],
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-15",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        orphan_entry = next(e for e in res.entries if e.claim.finding_id == "f-orphan")
+        self.assertEqual(orphan_entry.status, ClaimSupportStatus.UNSUPPORTED)
+        self.assertIn("MISSING_EVIDENCE_LINEAGE", orphan_entry.diagnostics)
+
+    def test_16_parent_evidence_target_mismatch_results_in_unsupported(self):
+        """16: Parent evidence targeting wrong domain marks derived assessment UNSUPPORTED."""
+        report = {
+            "scan_id": "scan-10-16",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-scope",
+                    "kind": "cert_finding",
+                    "summary": "Cert check.",
+                    "evidence_ids": ["ev-wrong-target"],
+                    "rule_id": "RULE-CERT-001",
+                }
+            ],
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-16",
+            target="https://legitimate.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-wrong-target",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "completely-different-domain.com", "valid": True},
+                ),
+            ),
+        )
+        res = self.generator.generate_matrix(report, p_in)
+        f_entry = next(e for e in res.entries if e.claim.finding_id == "f-scope")
+        self.assertEqual(f_entry.status, ClaimSupportStatus.UNSUPPORTED)
+        self.assertTrue(any("TARGET_SCOPE_MISMATCH" in d for d in f_entry.diagnostics))
+
+    def test_17_triage_engine_generate_claim_matrix_integration(self):
+        """17: Integration test verifying TriageEngine.generate_claim_matrix."""
+        engine = TriageEngine()
+        p_in = PolicyInput(
+            scan_id="scan-10-17",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        matrix = engine.generate_claim_matrix(p_in)
+        self.assertIsInstance(matrix, ClaimEvidenceMatrixResult)
+        self.assertGreater(matrix.total_claims, 0)
+
+    def test_18_matrix_serialization_to_dict_integrity(self):
+        """18: Verifies ClaimEvidenceMatrixResult.to_dict() produces valid serializable dict."""
+        report = {
+            "scan_id": "scan-10-18",
+            "decision": "no_threat_observed",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-18",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        matrix = self.generator.generate_matrix(report, p_in)
+        d = matrix.to_dict()
+        self.assertEqual(d["scan_id"], "scan-10-18")
+        self.assertIn("entries", d)
+        self.assertIn("supported_count", d)
+
+    def test_19_uncontested_report_matrix_integrity_passed(self):
+        """19: Matrix integrity passes when contradicted_count is 0."""
+        report = {
+            "scan_id": "scan-10-19",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-19",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "valid_for_hostname"},
+                ),
+            ),
+        )
+        matrix = self.generator.generate_matrix(report, p_in)
+        self.assertTrue(matrix.matrix_integrity_passed)
+
+    def test_20_contested_report_matrix_integrity_fails(self):
+        """20: Matrix integrity fails when at least one claim is contradicted."""
+        report = {
+            "scan_id": "scan-10-20",
+            "decision": "inconclusive",
+            "dimensions": {"certificate": "valid_for_hostname"},
+        }
+        p_in = PolicyInput(
+            scan_id="scan-10-20",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-1",
+                    kind="tls_certificate",
+                    source="tls_collector",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "certificate_status": "invalid_or_expired"},
+                ),
+            ),
+        )
+        matrix = self.generator.generate_matrix(report, p_in)
+        self.assertFalse(matrix.matrix_integrity_passed)
+        self.assertGreater(matrix.contradicted_count, 0)
+
+    def test_21_cross_phase_isolation_simulated_signals_never_in_claim_matrix(self):
+        """21: Verifies Phase 09 simulated signals cannot leak into Phase 10 evidence matrix."""
+        engine = TriageEngine()
+        signals = [
+            SignalRecord(SignalKind.THREAT_FEED_MATCH, ["ev-threat"], "feed", SignalConfidence.HIGH),
+        ]
+        # Run counterfactual simulation
+        cf_res = engine.evaluate_with_counterfactual(signals, "inconclusive")
+        self.assertEqual(cf_res.status, "SUCCESS")
+
+        # Now evaluate real claim matrix on policy input with original threat evidence
+        p_in = PolicyInput(
+            scan_id="scan-10-21",
+            target="https://malicious.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-threat",
+                    kind="threat_feed",
+                    source="feed",
+                    observed_at=self.now_iso,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "malicious.com", "behavior_status": "malicious"},
+                ),
+            ),
+        )
+        matrix = engine.generate_claim_matrix(p_in, counterfactual_texts=[cf_res.explanation])
+        # The simulated delisting is isolated in non-factual explanation
+        cf_entry = next(e for e in matrix.entries if e.claim.category == MatrixClaimCategory.EXPLANATORY_OR_HYPOTHETICAL)
+        self.assertEqual(cf_entry.supporting_evidence_ids, ())
+        self.assertIn("NON_FACTUAL_EXPLANATION_SEGREGATED", cf_entry.diagnostics)
+
+    def test_22_http_headers_24h_ttl_verification(self):
+        """22: HTTP headers observation age > 24h degrades to PARTIALLY_SUPPORTED."""
+        from datetime import datetime, timezone, timedelta
+        thirty_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=30)).isoformat()
+        p_in = PolicyInput(
+            scan_id="scan-10-22",
+            target="https://example.com",
+            scan_profile="standard",
+            evidence=(
+                EvidenceItem(
+                    evidence_id="ev-http",
+                    kind="http_headers",
+                    source="http_collector",
+                    observed_at=thirty_hours_ago,
+                    status="observed",
+                    reliability="direct_observation",
+                    value={"target": "example.com", "status": "observed"},
+                ),
+            ),
+        )
+        report = {
+            "scan_id": "scan-10-22",
+            "decision": "inconclusive",
+            "findings": [
+                {
+                    "finding_id": "f-http",
+                    "kind": "http_finding",
+                    "summary": "HTTP headers captured.",
+                    "evidence_ids": ["ev-http"],
+                    "rule_id": "RULE-HTTP-001",
+                }
+            ],
+        }
+        matrix = self.generator.generate_matrix(report, p_in)
+        f_entry = next(e for e in matrix.entries if e.claim.finding_id == "f-http")
+        self.assertEqual(f_entry.status, ClaimSupportStatus.PARTIALLY_SUPPORTED)
+        self.assertFalse(f_entry.is_fresh)
 
 
 if __name__ == "__main__":

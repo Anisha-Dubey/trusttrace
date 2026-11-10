@@ -25,6 +25,14 @@ from .calibration import (
     MinimaxEvaluationResult,
     is_cost_close,
 )
+from .claim_matrix import (
+    ClaimCategory as MatrixClaimCategory,
+    ClaimEvidenceMatrixGenerator,
+    ClaimEvidenceMatrixResult,
+    ClaimMatrixEntry,
+    ClaimSupportStatus,
+    ExtractedClaim,
+)
 from .counterfactual import (
     COUNTERFACTUAL_DISCLAIMER,
     CounterfactualExplanationEngine,
@@ -212,4 +220,11 @@ __all__ = [
     "CounterfactualResult",
     "CounterfactualExplanationEngine",
     "COUNTERFACTUAL_DISCLAIMER",
+    # Claim-to-Evidence Matrix (Phase 10)
+    "MatrixClaimCategory",
+    "ClaimSupportStatus",
+    "ExtractedClaim",
+    "ClaimMatrixEntry",
+    "ClaimEvidenceMatrixResult",
+    "ClaimEvidenceMatrixGenerator",
 ]

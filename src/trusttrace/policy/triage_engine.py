@@ -121,6 +121,7 @@ class TriageResult:
     availability_mask: Optional[ModalityAvailabilityMask] = None
     cost_assessment: Optional[Any] = None
     counterfactual: Optional[Any] = None
+    claim_matrix: Optional[Any] = None
 
     def to_report_fragment(self) -> Dict[str, Any]:
         """Return dict suitable for merging into a scan report."""
@@ -142,9 +143,10 @@ class TriageEngine:
         freshness_policy: Optional[FreshnessPolicy] = None,
     ):
         self.policy_version = policy_version
+        self.freshness_policy = freshness_policy or FreshnessPolicy()
         self.validator = EvidenceValidator()
         self.extractor = EvidenceSignalExtractor()
-        self.uncertainty_engine = UncertaintyEngine(freshness_policy=freshness_policy)
+        self.uncertainty_engine = UncertaintyEngine(freshness_policy=self.freshness_policy)
         self.integrity_auditor = ReportIntegrityAuditor()
 
     def audit_report(self, report: Dict[str, Any]) -> ReportAuditResult:
@@ -1056,7 +1058,7 @@ class TriageEngine:
         min_ceiling = min(ceilings, key=lambda c: SEVERITY_ORDER.get(c, 999))
         return min_ceiling
 
-    # ─── Phase 08 Integrated Helper Method ────────────────────────────
+    # ─── Phase 08–10 Integrated Helper Methods (Optional & Additive) ─
 
     def evaluate_with_cost_calibration(
         self,
@@ -1107,6 +1109,29 @@ class TriageEngine:
             target_disposition=target_disposition,
             scan_id=scan_id or "cf-scan-001",
         )
+
+    def generate_claim_matrix(
+        self,
+        policy_input: Union[PolicyInput, Mapping[str, Any], Any],
+        triage_result: Optional[TriageResult] = None,
+        counterfactual_texts: Optional[Sequence[str]] = None,
+    ) -> Any:
+        """Phase 10: Extract claims from report and audit evidence traceability lineage."""
+        from .claim_matrix import ClaimEvidenceMatrixGenerator
+
+        p_in = policy_input if isinstance(policy_input, PolicyInput) else PolicyInput.from_components(policy_input)
+        res = triage_result or self.evaluate_evidence(p_in)
+        report_fragment = res.to_report_fragment()
+        report_fragment["scan_id"] = p_in.scan_id
+
+        generator = ClaimEvidenceMatrixGenerator(freshness_policy=self.freshness_policy)
+        matrix = generator.generate_matrix(
+            report_fragment=report_fragment,
+            policy_input=p_in,
+            counterfactual_texts=counterfactual_texts,
+        )
+        res.claim_matrix = matrix
+        return matrix
 
 
 def _now_iso() -> str:
