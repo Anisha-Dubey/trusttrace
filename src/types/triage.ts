@@ -43,7 +43,7 @@ export interface PassportRecord {
   scan_id: string;
   submitted_url_redacted: string;
   normalized_host: string;
-  status: 'completed' | 'rejected' | 'in_progress';
+  status: 'completed' | 'rejected' | 'in_progress' | 'partial' | 'failed';
   decision: DecisionType;
   policy_version: string;
   dimensions: DimensionState;

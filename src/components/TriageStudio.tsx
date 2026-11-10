@@ -17,7 +17,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { PassportRecord } from '../types/triage';
-import { CANONICAL_SCENARIOS, evaluateCustomTargetLocally } from '../data/scenarios';
+import { CANONICAL_SCENARIOS, evaluateCustomTargetLocally, buildBackendFailureReport } from '../data/scenarios';
 import { sound } from '../utils/audio';
 import LiquidCard from './LiquidCard';
 import LiquidButton from './LiquidButton';
@@ -30,6 +30,7 @@ interface TriageStudioProps {
   onTriageComplete: (report: PassportRecord) => void;
   onOpenInvariants: () => void;
   onOpenGallery?: () => void;
+  onShowToast?: (msg: string) => void;
 }
 
 export default function TriageStudio({
@@ -38,6 +39,7 @@ export default function TriageStudio({
   onTriageComplete,
   onOpenInvariants,
   onOpenGallery,
+  onShowToast,
 }: TriageStudioProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanStep, setScanStep] = useState(0);
@@ -73,8 +75,14 @@ export default function TriageStudio({
       } else {
         clearInterval(interval);
         setTimeout(async () => {
-          let report: PassportRecord;
+          let report: PassportRecord | null = null;
+          let backendFailed = false;
+          let failureReason = '';
+
           try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+
             const apiRes = await fetch('/api/v1/triage/demo', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -82,30 +90,42 @@ export default function TriageStudio({
                 url: targetUrl,
                 scenario: scenarioKey || 'custom',
               }),
+              signal: controller.signal,
             });
+            clearTimeout(timeoutId);
+
             if (apiRes.ok) {
               report = await apiRes.json();
             } else if (scenarioKey && CANONICAL_SCENARIOS[scenarioKey]) {
               report = CANONICAL_SCENARIOS[scenarioKey];
             } else {
-              report = evaluateCustomTargetLocally(targetUrl);
+              backendFailed = true;
+              failureReason = `HTTP ${apiRes.status}`;
             }
-          } catch {
+          } catch (err: any) {
             if (scenarioKey && CANONICAL_SCENARIOS[scenarioKey]) {
               report = CANONICAL_SCENARIOS[scenarioKey];
             } else {
-              report = evaluateCustomTargetLocally(targetUrl);
+              backendFailed = true;
+              failureReason = err?.name === 'AbortError' ? 'Scan request timed out' : 'Network unreachable';
             }
           }
 
-          if (report.status === 'rejected' || report.decision === 'rejected') {
+          if (!report || backendFailed) {
+            report = buildBackendFailureReport(targetUrl, failureReason || 'Scan unserviceable');
+            onShowToast?.(`Live scan unavailable (${failureReason || 'error'}) — evaluation inconclusive`);
+          }
+
+          const finalReport: PassportRecord = report;
+
+          if (finalReport.status === 'rejected' || finalReport.decision === 'rejected') {
             sound.playAlert();
           } else {
             sound.playSuccess();
           }
 
           setIsScanning(false);
-          onTriageComplete(report);
+          onTriageComplete(finalReport);
         }, 150);
       }
     }, 120);

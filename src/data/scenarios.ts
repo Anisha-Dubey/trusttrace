@@ -481,11 +481,11 @@ export function evaluateCustomTargetLocally(rawUrl: string): PassportRecord {
       policy_version: "w03-v1.0",
       dimensions: {
         identity: "unverified",
-        certificate: "valid_for_hostname",
-        behavior: "no_threat_observed",
-        evidence_quality: "complete"
+        certificate: "not_checked",
+        behavior: "suspicious",
+        evidence_quality: "partial"
       },
-      coverage: { checks_total: 5, checks_observed: 4, checks_failed: 0, checks_not_run: 1 },
+      coverage: { checks_total: 1, checks_observed: 1, checks_failed: 0, checks_not_run: 0 },
       findings: [
         {
           finding_id: "f-idn-confusable",
@@ -508,51 +508,95 @@ export function evaluateCustomTargetLocally(rawUrl: string): PassportRecord {
         }
       ],
       limitations: [
-        "Valid TLS certificate does not confirm legitimate organizational affiliation."
+        "Client-side detection: Cyrillic homoglyph lookalike identified in hostname.",
+        "TLS certificate not checked offline; live network probes required for complete telemetry."
       ]
     };
   }
 
-  // Default legitimate inspection evaluation
+  // Unknown custom target offline fallback:
+  // Strictly enforce rules:
+  // - Never fabricate evidence, TLS status, coverage, confidence or findings.
+  // - For HTTP and unprobed URLs, certificate status must be not_checked.
+  // - For unknown custom URLs without sufficient evidence, return inconclusive.
+  // - Coverage must count actual executed checks only (1 local syntax check).
   return {
     schema_version: "1.0",
-    scan_id: "scan-live-" + Math.floor(Math.random() * 9000 + 1000),
+    scan_id: "scan-offline-" + Math.floor(Math.random() * 9000 + 1000),
     submitted_url_redacted: url,
     normalized_host: host,
-    status: "completed",
-    decision: "no_threat_observed",
+    status: "partial",
+    decision: "inconclusive",
     policy_version: "w03-v1.0",
     dimensions: {
-      identity: "unverified",
-      certificate: "valid_for_hostname",
-      behavior: "no_threat_observed",
-      evidence_quality: "complete"
+      identity: "unknown",
+      certificate: "not_checked",
+      behavior: "unknown",
+      evidence_quality: "unavailable"
     },
-    coverage: { checks_total: 4, checks_observed: 4, checks_failed: 0, checks_not_run: 0 },
-    findings: [
-      {
-        finding_id: "f-live-001",
-        kind: "boundary_safe",
-        severity: "info",
-        summary: "Host passed all intake boundary validation checks (SSRF, credentials, IDN).",
-        rule_id: "intake-safe-ingress",
-        evidence_ids: ["ev-intake-live"]
-      }
-    ],
+    coverage: { checks_total: 1, checks_observed: 1, checks_failed: 0, checks_not_run: 0 },
+    findings: [],
     evidence: [
       {
-        evidence_id: "ev-intake-live",
-        kind: "intake_validation",
+        evidence_id: "ev-intake-offline",
+        kind: "target_policy",
         source: "intake_boundary",
         observed_at: new Date().toISOString(),
         status: "observed",
-        reliability: "high",
-        limitations: ["Passive metadata validation; zero active browser execution."]
+        reliability: "direct_observation",
+        limitations: ["Client-side intake boundary syntax check only; live network probes (DNS, TLS, threat intel) were not executed."]
       }
     ],
     limitations: [
-      "Live client-side assessment adherence to non-intrusive metadata inspection.",
-      "EVID-002: Negative threat match does not imply guaranteed safety."
+      "Offline / Client-Side Assessment: Zero egress network queries executed.",
+      "Disciplined Abstention: Target evaluation is inconclusive due to absence of live DNS, TLS, and threat intelligence evidence.",
+      "EVID-002: Negative threat match or absence of evidence does not imply verified safety."
+    ]
+  };
+}
+
+export function buildBackendFailureReport(rawUrl: string, failureReason: string): PassportRecord {
+  const url = rawUrl.trim();
+  const afterScheme = url.split("://")[1] || url;
+  const host = afterScheme.split("/")[0].split(":")[0] || "unresolved-target";
+  return {
+    schema_version: "1.0",
+    scan_id: "scan-err-" + Math.floor(Math.random() * 9000 + 1000),
+    submitted_url_redacted: url,
+    normalized_host: host,
+    status: "partial",
+    decision: "inconclusive",
+    policy_version: "w03-v1.0",
+    dimensions: {
+      identity: "unknown",
+      certificate: "not_checked",
+      behavior: "unknown",
+      evidence_quality: "unavailable"
+    },
+    coverage: {
+      checks_total: 4,
+      checks_observed: 0,
+      checks_failed: 1,
+      checks_not_run: 3
+    },
+    findings: [],
+    evidence: [
+      {
+        evidence_id: "ev-err-backend",
+        kind: "target_policy",
+        source: "triage_orchestrator",
+        observed_at: new Date().toISOString(),
+        status: "failed",
+        reliability: "direct_observation",
+        limitations: [
+          `Live backend inspection failed or timed out: ${failureReason}. Live telemetry could not be gathered.`
+        ]
+      }
+    ],
+    limitations: [
+      `Backend inspection unavailable: ${failureReason}.`,
+      "Decision is inconclusive because required live evidence (DNS, TLS, threat intel) could not be retrieved.",
+      "EVID-001: Never assume safety upon system failure."
     ]
   };
 }

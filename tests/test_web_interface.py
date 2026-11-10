@@ -393,6 +393,44 @@ class TestWebInterfaceRegression(unittest.TestCase):
         self.assertIn("counterfactual", data)
         self.assertIn("claim_matrix", data)
 
+    def test_16_http_target_certificate_not_checked(self):
+        """HTTP target without TLS probe must report certificate as not_checked."""
+        res = self.client.post("/api/v1/triage/demo", json={
+            "url": "http://example.com",
+            "scenario": "custom"
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["dimensions"]["certificate"], "not_checked")
+        self.assertEqual(data["decision"], "inconclusive")
+
+    def test_17_https_unknown_custom_target_inconclusive(self):
+        """Unknown HTTPS custom target without reputation feed must return inconclusive."""
+        res = self.client.post("/api/v1/triage/demo", json={
+            "url": "https://google.com",
+            "scenario": "custom"
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["decision"], "inconclusive")
+        self.assertEqual(data["dimensions"]["behavior"], "unknown")
+        self.assertEqual(data["dimensions"]["identity"], "unverified")
+        self.assertTrue(
+            "abstention" in data or ("uncertainty" in data and "abstention_notice" in data["uncertainty"])
+        )
+
+    def test_18_malformed_and_ssrf_custom_urls_rejected(self):
+        """Private loopback target must be rejected at preflight boundary with zero egress."""
+        res = self.client.post("/api/v1/triage/demo", json={
+            "url": "http://127.0.0.1:8000/secret",
+            "scenario": "custom"
+        })
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["decision"], "rejected")
+        self.assertEqual(data["status"], "rejected")
+        self.assertEqual(data["dimensions"]["certificate"], "not_checked")
+
 
 if __name__ == "__main__":
     unittest.main()

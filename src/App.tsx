@@ -41,7 +41,13 @@ export default function App() {
   const handleTriageComplete = (report: PassportRecord) => {
     setCurrentReport(report);
     setActiveTab('passport');
-    showToast(`Triage complete for ${report.normalized_host}`);
+    if (report.status === 'rejected') {
+      showToast(`Target rejected at intake boundary: ${report.normalized_host}`);
+    } else if (report.decision === 'inconclusive') {
+      showToast(`Triage inconclusive for ${report.normalized_host} (evidence unavailable)`);
+    } else {
+      showToast(`Triage complete for ${report.normalized_host}`);
+    }
   };
 
   const handleSelectCaseFromGallery = (scenarioKey: string, domainUrl: string) => {
@@ -113,6 +119,7 @@ export default function App() {
                 onTriageComplete={handleTriageComplete}
                 onOpenInvariants={() => setActiveTab('invariants')}
                 onOpenGallery={() => setActiveTab('gallery')}
+                onShowToast={showToast}
               />
             </motion.div>
           )}
