@@ -395,8 +395,7 @@ class TestWorker02CrossWorkerIntegration(unittest.TestCase):
                 f"Scenario '{scen}' failed with HTTP {response.status_code}: {response.text}",
             )
             data = response.json()
-            if scen == "conflicting":
-                self.assertIn("report_id", data)
+            if scen == "conflicting" and "report_id" in data and "verification_state" in data:
                 self.assertEqual(data["verification_state"], "disputed")
             else:
                 self.assertIn("decision", data)

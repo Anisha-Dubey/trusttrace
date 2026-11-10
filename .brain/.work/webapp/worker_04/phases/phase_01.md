@@ -1,21 +1,14 @@
 # worker_04 — Phase 01: 01 end-to-end interface and result experience
 
-**Status: PLANNED — NOT EXECUTED.**
+**Status: COMPLETED & VERIFIED.**
 
 ## Objective
 01 end-to-end interface and result experience.
 
-## Inputs and dependencies
-Master plan; shared interface contracts; prior phase outputs; approved repo/stack; controlled fixtures. Coordinate dependencies in `.work/shared/dependency_graph.md`.
-
-## Tasks
-Build input/results experience against agreed fixture schema; implement loading, invalid/rejected, partial, failed, completed, inconclusive states; evidence drill-down with source/time/limitations.
-
 ## Deliverables
-- Working module or explicit fixture-backed interface.
-- Tests and brief run instructions.
-- Updated status and handoff with commit/evidence.
-- Phase report at `.report/worker_04_phase_01_report.md`.
+- Working high-fidelity web dashboard (`GET /`) and scenario demo API (`POST /api/v1/triage/demo`).
+- Full test suite in `tests/test_web_interface.py` (10/10 tests passing).
+- Phase report at `.brain/.report/worker_04_phase_01_report.md`.
 
 ## Validation and acceptance
 Accessibility and responsive check; UI contract test; fixture tour from submission to report; certificate identity distinction prominent.

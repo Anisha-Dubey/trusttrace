@@ -484,3 +484,276 @@ class ClaimAuditor:
         """Check if any audited claims are unsupported."""
         return any(e.verdict == ClaimVerdict.UNSUPPORTED for e in entries)
 
+
+# ─── Canonical Controlled Evaluation Fixture Suites ────────────────────
+
+FIXTURES_V1: Tuple[EvaluationFixture, ...] = (
+    EvaluationFixture(
+        fixture_id="FIX-001",
+        description="Valid TLS, all collectors pass, no threats",
+        label=FixtureLabel.NO_THREAT_OBSERVED,
+        signals_config=[
+            {"kind": "tls_valid", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "tls_hostname_match", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "no_threat_match", "evidence_ids": ["ev-dns-1"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-tls-1", "ev-dns-1"]},
+        ],
+        expected_dimensions={
+            "identity": "unverified",
+            "certificate": "valid_for_hostname",
+            "behavior": "no_threat_observed",
+            "evidence_quality": "strong",
+        },
+        expected_decision="no_threat_observed",
+        is_simulated=True,
+        notes="Baseline legitimate site with valid TLS and no threat feed matches.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-002",
+        description="Threat feed match with strong evidence",
+        label=FixtureLabel.HIGH_RISK,
+        signals_config=[
+            {"kind": "threat_feed_match", "evidence_ids": ["ev-feed-1"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-feed-1"]},
+        ],
+        expected_dimensions={
+            "behavior": "malicious_evidence",
+            "evidence_quality": "strong",
+        },
+        expected_decision="high_risk",
+        is_simulated=True,
+        notes="Known malicious target flagged by authoritative feed.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-003",
+        description="Expired TLS certificate, no other signals",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "tls_expired", "evidence_ids": ["ev-tls-exp-1"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-tls-exp-1"]},
+        ],
+        expected_dimensions={
+            "certificate": "invalid_or_expired",
+            "identity": "unknown",
+            "evidence_quality": "strong",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Expired certificate alone is not evidence of active hostility.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-004",
+        description="All collectors failed",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "collector_failure", "evidence_ids": ["ev-fail-1"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "unavailable",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Collector failure requires honest abstention, never assumed benign.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-005",
+        description="Conflicting threat feed results",
+        label=FixtureLabel.CONFLICTING,
+        signals_config=[
+            {"kind": "threat_feed_match", "evidence_ids": ["ev-f1"]},
+            {"kind": "no_threat_match", "evidence_ids": ["ev-f2"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-f1", "ev-f2"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "partial",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Direct contradiction between feeds yields inconclusive disposition.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-006",
+        description="Corroborated community report",
+        label=FixtureLabel.CAUTION,
+        signals_config=[
+            {"kind": "community_report_corroborated", "evidence_ids": ["ev-c1", "ev-c2"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-dns-1"]},
+        ],
+        expected_dimensions={
+            "behavior": "suspicious",
+            "evidence_quality": "strong",
+        },
+        expected_decision="caution",
+        is_simulated=True,
+        notes="Multiple corroborated user reports justify caution, not unilateral high_risk.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-007",
+        description="Only stale evidence available",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "stale_evidence", "evidence_ids": ["ev-stale-1"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "weak",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Stale data with no recent observations degrades evidence quality to weak.",
+    ),
+)
+
+FIXTURES_V2: Tuple[EvaluationFixture, ...] = FIXTURES_V1 + (
+    EvaluationFixture(
+        fixture_id="FIX-008",
+        description="Expired TLS certificate with matching hostname and no threats",
+        label=FixtureLabel.NO_THREAT_OBSERVED,
+        signals_config=[
+            {"kind": "tls_expired", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "tls_hostname_match", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "no_threat_match", "evidence_ids": ["ev-dns-1"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-tls-1", "ev-dns-1"]},
+        ],
+        expected_dimensions={
+            "certificate": "invalid_or_expired",
+            "identity": "unverified",
+            "behavior": "no_threat_observed",
+            "evidence_quality": "strong",
+        },
+        expected_decision="no_threat_observed",
+        is_simulated=True,
+        notes="TLS-002 technical caution: expired TLS without threats does not fabricate phishing.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-009",
+        description="Mixed-script/Punycode IDN lookalike candidate with valid TLS",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "idn_lookalike", "evidence_ids": ["ev-dns-idn"], "limitations": ["idn_lookalike_candidate"]},
+            {"kind": "tls_valid", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "tls_hostname_match", "evidence_ids": ["ev-tls-1"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-dns-idn", "ev-tls-1"]},
+        ],
+        expected_dimensions={
+            "identity": "unverified",
+            "certificate": "valid_for_hostname",
+            "behavior": "unknown",
+            "evidence_quality": "strong",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="IDN lookalike candidate leaves identity unverified without asserting definitive impersonation.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-010",
+        description="Loopback or private IP target blocked upstream by safety policy",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "collector_failure", "evidence_ids": ["ev-fail-blocked"], "limitations": ["blocked_private_target"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "unavailable",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Blocked target collection abstains honestly with unavailable evidence quality.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-011",
+        description="Stale threat-feed observation with current collector execution",
+        label=FixtureLabel.HIGH_RISK,
+        signals_config=[
+            {"kind": "stale_evidence", "evidence_ids": ["ev-stale-feed"], "limitations": ["feed_stale_120d"]},
+            {"kind": "threat_feed_match", "evidence_ids": ["ev-stale-feed"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-coll-1"]},
+        ],
+        expected_dimensions={
+            "behavior": "malicious_evidence",
+            "evidence_quality": "partial",
+        },
+        expected_decision="high_risk",
+        is_simulated=True,
+        notes="Positive threat evidence is preserved under stale evidence with partial quality.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-012",
+        description="Rate-limited collector outcome represented using valid v1 failure status",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "collector_failure", "evidence_ids": ["ev-fail-rate"], "limitations": ["upstream_rate_limited"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "unavailable",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Upstream rate limiting does not invent unsupported status codes; marks quality unavailable.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-013",
+        description="Multi-source corroborated community report verified by Worker 02",
+        label=FixtureLabel.CAUTION,
+        signals_config=[
+            {"kind": "community_report_corroborated", "evidence_ids": ["ev-c1", "ev-c2"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-c1"]},
+        ],
+        expected_dimensions={
+            "behavior": "suspicious",
+            "evidence_quality": "strong",
+        },
+        expected_decision="caution",
+        is_simulated=True,
+        notes="Corroborated community reports elevate behavior to suspicious with caution disposition.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-014",
+        description="Network timeout across all required collectors causing complete abstention",
+        label=FixtureLabel.INCONCLUSIVE,
+        signals_config=[
+            {"kind": "collector_failure", "evidence_ids": ["ev-fail-timeout"], "limitations": ["network_timeout_all_collectors"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "unavailable",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="All-collector timeout forces honest abstention with unavailable quality.",
+    ),
+    EvaluationFixture(
+        fixture_id="FIX-015",
+        description="Conflicting provider observations for same target within comparable window",
+        label=FixtureLabel.CONFLICTING,
+        signals_config=[
+            {"kind": "threat_feed_match", "evidence_ids": ["ev-feed-pos"]},
+            {"kind": "no_threat_match", "evidence_ids": ["ev-feed-neg"]},
+            {"kind": "conflicting_signals", "evidence_ids": ["ev-feed-pos", "ev-feed-neg"]},
+            {"kind": "collector_success", "evidence_ids": ["ev-feed-pos", "ev-feed-neg"]},
+        ],
+        expected_dimensions={
+            "evidence_quality": "partial",
+            "behavior": "malicious_evidence",
+        },
+        expected_decision="inconclusive",
+        is_simulated=True,
+        notes="Conflicting provider observations retain evidence and cap decision at inconclusive.",
+    ),
+)
+
+
+def build_eval_v1_set() -> ControlledEvaluationSet:
+    """Build and freeze the canonical immutable Phase 02 evaluation suite (w03-eval-v1)."""
+    eval_set = ControlledEvaluationSet()
+    for fixture in FIXTURES_V1:
+        eval_set.add_fixture(fixture)
+    eval_set.freeze()
+    return eval_set
+
+
+def build_eval_v2_set() -> ControlledEvaluationSet:
+    """Build and freeze the expanded Phase 05 evaluation suite (w03-eval-v2)."""
+    eval_set = ControlledEvaluationSet()
+    for fixture in FIXTURES_V2:
+        eval_set.add_fixture(fixture)
+    eval_set.freeze()
+    return eval_set
+

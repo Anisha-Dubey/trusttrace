@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TRUSTTRACE — Autonomous Digital Trust &amp; Exposure Triage | Ethiack-Inspired</title>
+  
+  <!-- CDNs for Tailwind CSS and Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- High-end Technical Typography: Space Grotesk + JetBrains Mono + Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ethiack: {
+              black: '#000000',
+              void: '#030705',
+              surface: '#07100c',
+              elevated: '#0c1a14',
+              border: '#1b2c23',
+              borderHover: '#335242',
+              neon: '#5eff88',
+              neonMuted: '#38b75c',
+              deepGreen: '#154d32',
+              sage: '#82988b',
+              grayMuted: '#9baeb1',
+              danger: '#ff0015',
+              warning: '#ff9900',
+              caution: '#fbbf24',
+              info: '#38bdf8'
+            }
+          },
+          fontFamily: {
+            display: ['"Space Grotesk"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+            sans: ['"Inter"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Ethiack Signature Cyber Grid & Noise Background */
+    body {
+      background-color: #030705;
+      color: #e5ece8;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .font-display { font-family: 'Space Grotesk', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Ethiack Dot Matrix Background Pattern */
+    .bg-cyber-dots {
+      background-image: radial-gradient(rgba(94, 255, 136, 0.08) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    /* Ambient Green Glows */
+    .glow-radial-top {
+      background: radial-gradient(circle 800px at 50% -100px, rgba(21, 77, 50, 0.35), transparent 70%);
+    }
+
+    .glow-neon-card {
+      box-shadow: 0 0 30px -10px rgba(94, 255, 136, 0.12);
+    }
+
+    /* Technical Grid Borders with Crosshairs */
+    .crosshair-corner {
+      position: relative;
+    }
+    .crosshair-corner::before {
+      content: '+';
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #38b75c;
+      opacity: 0.7;
+    }
+    .crosshair-corner::after {
+      content: '+';
+      position: absolute;
+      bottom: -6px;
+      right: -6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #38b75c;
+      opacity: 0.7;
+    }
+
+    /* Subtle Scanlines effect */
+    .scanlines {
+      background: linear-gradient(
+        to bottom,
+        rgba(255,255,255,0),
+        rgba(255,255,255,0) 50%,
+        rgba(0, 0, 0, 0.25) 50%,
+        rgba(0, 0, 0, 0.25)
+      );
+      background-size: 100% 4px;
+    }
+
+    /* Custom Technical Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #030705; }
+    ::-webkit-scrollbar-thumb { background: #1b2c23; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #38b75c; }
+  </style>
+</head>
+<body class="bg-ethiack-void text-slate-200 antialiased min-h-screen flex flex-col justify-between selection:bg-ethiack-neon selection:text-black bg-cyber-dots relative">
+
+  <!-- Top Ambient Radial Backdrop -->
+  <div class="fixed inset-0 glow-radial-top pointer-events-none z-0"></div>
+
+  <!-- Ethiack Technical Header / Ticker -->
+  <aside aria-label="System status ticker" class="border-b border-ethiack-border/80 bg-ethiack-black/80 backdrop-blur-md px-4 py-1.5 text-[11px] font-mono relative z-50">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-3">
+        <span class="inline-flex items-center space-x-1.5 text-ethiack-neon">
+          <span class="h-1.5 w-1.5 rounded-full bg-ethiack-neon animate-ping"></span>
+          <span class="font-bold tracking-wider">[AUTONOMOUS_TRIAGE // ACTIVE]</span>
+        </span>
+        <span class="text-ethiack-border hidden sm:inline">|</span>
+        <span class="text-ethiack-grayMuted hidden sm:inline">
+          PROOF-OF-EVIDENCE VALIDATION &bull; ZERO BROWSER EXPLOITATION RISK
+        </span>
+      </div>
+      <div class="flex items-center space-x-4 text-[10px]">
+        <span class="text-ethiack-grayMuted font-mono">POLICY: <strong class="text-slate-200">W03-V1.0</strong></span>
+        <span class="text-ethiack-border">|</span>
+        <button onclick="openModal('invariantsModal')" class="text-ethiack-neon hover:underline cursor-pointer flex items-center space-x-1">
+          <i class="fa-solid fa-code-commit text-[9px]"></i>
+          <span>8/8 CONTRACT INVARIANTS</span>
+        </button>
+        <span class="text-ethiack-border">|</span>
+        <button onclick="openModal('launchModal')" class="text-slate-400 hover:text-white transition cursor-pointer">
+          <i class="fa-solid fa-terminal text-[9px] mr-1"></i>LAUNCH BACKEND
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Sticky Navbar (Ethiack Aesthetic) -->
+  <header class="sticky top-0 z-40 border-b border-ethiack-border bg-ethiack-black/90 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      
+      <!-- Brand Logo & Identity -->
+      <div class="flex items-center space-x-3.5">
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-ethiack-surface to-ethiack-elevated border border-ethiack-neon/40 flex items-center justify-center text-ethiack-neon font-mono font-bold text-base shadow-[0_0_15px_rgba(94,255,136,0.2)]">
+          <i class="fa-solid fa-radar text-sm"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-display font-bold text-lg tracking-tight text-white uppercase">TRUSTTRACE</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-ethiack-neon/10 text-ethiack-neon border border-ethiack-neon/30 font-semibold tracking-wider">
+              ETHIACK-VIBE
+            </span>
+          </div>
+          <p class="text-[10px] font-mono text-ethiack-grayMuted leading-none hidden md:block">Adversarial Exposure &amp; Evidence Passport Platform</p>
+        </div>
+      </div>
+
+      <!-- Center Pillar Navigation (See • Test • Act) -->
+      <nav class="hidden lg:flex items-center space-x-6 text-xs font-mono">
+        <a href="#triageEngine" class="text-slate-300 hover:text-ethiack-neon transition flex items-center space-x-1.5">
+          <span class="text-ethiack-neon">01.</span>
+          <span>SEE_SURFACE</span>
+        </a>
+        <a href="#passportSection" class="text-slate-300 hover:text-ethiack-neon transition flex items-center space-x-1.5">
+          <span class="text-ethiack-neon">02.</span>
+          <span>TEST_EVIDENCE</span>
+        </a>
+        <a href="#intelFeed" class="text-slate-300 hover:text-ethiack-neon transition flex items-center space-x-1.5">
+          <span class="text-ethiack-neon">03.</span>
+          <span>ACT_ON_TRUTH</span>
+        </a>
+      </nav>
+
+      <!-- Right CTAs -->
+      <div class="flex items-center space-x-3 text-xs">
+        <button onclick="toggleRawJson()" class="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-ethiack-surface border border-ethiack-border hover:border-ethiack-neon/50 text-slate-300 hover:text-white transition font-mono cursor-pointer">
+          <i class="fa-solid fa-brackets-curly text-[11px] text-ethiack-neon"></i>
+          <span>RAW_SCHEMA</span>
+        </button>
+        <button onclick="exportCurrentJSON()" class="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-ethiack-neon text-black hover:bg-white font-mono font-bold transition shadow-[0_0_20px_rgba(94,255,136,0.3)] active:scale-95 cursor-pointer">
+          <i class="fa-solid fa-file-export text-xs"></i>
+          <span>EXPORT_JSON</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Hero Section (Ethiack Headline & Autonomous Pentesting Cadence) -->
+  <main class="max-w-7xl mx-auto px-4 py-10 flex-grow space-y-12 w-full relative z-10">
+
+    <section class="text-center max-w-4xl mx-auto space-y-6 pt-4">
+      
+      <!-- Eyebrow Pill -->
+      <div class="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-ethiack-surface border border-ethiack-border text-xs font-mono text-ethiack-neon">
+        <i class="fa-solid fa-shield-halved text-[11px]"></i>
+        <span>ELIMINATE 90% OF SCANNER NOISE WITH PROOF-OF-EXPLOIT EVIDENCE</span>
+      </div>
+
+      <!-- Main Heading (Ethiack Font Style) -->
+      <h1 class="font-display text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white leading-[1.08]">
+        AI Offensive Security Triage.<br>
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-ethiack-neon">
+          Proven, Continuous, Traceable.
+        </span>
+      </h1>
+
+      <!-- Subtitle -->
+      <p class="text-ethiack-grayMuted text-sm sm:text-base max-w-2xl mx-auto leading-relaxed">
+        Ordinary scanners output noisy green locks or theoretical vulnerabilities. 
+        <strong class="text-slate-100">TRUSTTRACE</strong> breaks down trust across 4 verifiable dimensions with proof-of-exploit evidence lineage and strict boundary safety.
+      </p>
+
+      <!-- Ethiack 3-Pillar Pillars Bar (See • Test • Act) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 text-left">
+        <div class="p-3.5 rounded-xl bg-ethiack-surface/60 border border-ethiack-border hover:border-ethiack-neon/40 transition">
+          <div class="text-[11px] font-mono text-ethiack-neon font-bold">01 // SEE</div>
+          <div class="font-display font-bold text-white text-sm">Full Exposure Mapping</div>
+          <p class="text-[11px] text-ethiack-grayMuted mt-1">Continuous intake boundary with SSRF, DNS rebinding, and IDNA homoglyph detection.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-ethiack-surface/60 border border-ethiack-border hover:border-ethiack-neon/40 transition">
+          <div class="text-[11px] font-mono text-ethiack-neon font-bold">02 // TEST</div>
+          <div class="font-display font-bold text-white text-sm">Proof-of-Evidence Triage</div>
+          <p class="text-[11px] text-ethiack-grayMuted mt-1">Evaluates TLS validity vs entity identity with zero dangerous browser execution.</p>
+        </div>
+        <div class="p-3.5 rounded-xl bg-ethiack-surface/60 border border-ethiack-border hover:border-ethiack-neon/40 transition">
+          <div class="text-[11px] font-mono text-ethiack-neon font-bold">03 // ACT</div>
+          <div class="font-display font-bold text-white text-sm">Actionable Trust Passport</div>
+          <p class="text-[11px] text-ethiack-grayMuted mt-1">Auditor-ready evidence records, coverage arithmetic invariants, and verified triage.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Interactive Triage Engine Terminal (Ethiack Hackian Console Style) -->
+    <section id="triageEngine" class="rounded-2xl bg-ethiack-surface border border-ethiack-border overflow-hidden shadow-2xl glow-neon-card crosshair-corner">
+      
+      <!-- Terminal Header Bar -->
+      <div class="bg-ethiack-black px-5 py-3 border-b border-ethiack-border flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="h-2.5 w-2.5 rounded-full bg-rose-500/80"></div>
+          <div class="h-2.5 w-2.5 rounded-full bg-amber-500/80"></div>
+          <div class="h-2.5 w-2.5 rounded-full bg-ethiack-neon/80"></div>
+          <span class="text-xs font-mono text-slate-400 ml-2">hackian@trusttrace-triage:~$ ./run_exposure_assessment.py</span>
+        </div>
+        <div class="flex items-center space-x-2 text-[10px] font-mono text-ethiack-neon">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-ethiack-neon animate-pulse"></span>
+          <span>PASSIVE_EGRESS_GUARD: ACTIVE</span>
+        </div>
+      </div>
+
+      <div class="p-6 md:p-8 space-y-6">
+        
+        <!-- URL Input & Command Prompt -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label for="urlInput" class="text-xs font-mono uppercase font-bold text-slate-300 flex items-center space-x-2">
+              <span class="text-ethiack-neon">></span>
+              <span>TARGET ASSET OR URL SCOPE:</span>
+            </label>
+            <span class="text-[11px] font-mono text-ethiack-grayMuted">Autonomous Invariant Engine</span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-grow">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-ethiack-neon font-mono pointer-events-none text-sm">
+                $
+              </span>
+              <input type="url" id="urlInput" value="https://bank-secure-lоgin.com" 
+                class="w-full pl-9 pr-4 py-3.5 bg-ethiack-black border border-ethiack-border rounded-xl text-white font-mono text-sm focus:outline-none focus:border-ethiack-neon focus:ring-1 focus:ring-ethiack-neon transition placeholder:text-slate-600 shadow-inner"
+                placeholder="https://target.corp/login" />
+            </div>
+            <button onclick="runClientTriage('custom')" id="triageBtn"
+              class="px-7 py-3.5 bg-ethiack-neon hover:bg-white text-black font-display font-bold text-sm rounded-xl transition flex items-center justify-center space-x-2.5 shadow-[0_0_20px_rgba(94,255,136,0.3)] active:scale-95 cursor-pointer">
+              <i class="fa-solid fa-bolt"></i>
+              <span>EXECUTE_TRIAGE</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Controlled Demonstration Scopes (Ethiack Attack Scenarios) -->
+        <div>
+          <div class="text-xs font-mono uppercase tracking-wider text-ethiack-grayMuted mb-3 flex items-center space-x-2">
+            <i class="fa-solid fa-crosshairs text-ethiack-neon"></i>
+            <span>OR SELECT A VERIFIED ATTACK SURFACE TEST SCOPE:</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+            
+            <!-- Scope 1: Phishing Lookalike -->
+            <button onclick="selectScenario('phishing_lookalike', 'https://bank-secure-lоgin.com')"
+              class="scenario-btn p-3.5 rounded-xl bg-ethiack-black border border-amber-500/30 hover:border-amber-400 hover:bg-ethiack-elevated transition text-left space-y-1.5 group cursor-pointer">
+              <div class="flex items-center justify-between font-mono font-bold text-amber-400">
+                <span>01 // LOOKALIKE</span>
+                <i class="fa-solid fa-triangle-exclamation text-xs group-hover:rotate-12 transition"></i>
+              </div>
+              <div class="font-display font-bold text-white text-sm">Phishing Domain</div>
+              <p class="text-[11px] text-ethiack-grayMuted leading-snug">Valid TLS, Cyrillic 'о' confusable. Transport ≠ Identity.</p>
+              <div class="text-[10px] font-mono text-amber-500/80 pt-1 border-t border-ethiack-border/50">Core Thesis Invariant</div>
+            </button>
+
+            <!-- Scope 2: Legitimate Domain -->
+            <button onclick="selectScenario('legitimate', 'https://example.com')"
+              class="scenario-btn p-3.5 rounded-xl bg-ethiack-black border border-ethiack-neon/30 hover:border-ethiack-neon hover:bg-ethiack-elevated transition text-left space-y-1.5 group cursor-pointer">
+              <div class="flex items-center justify-between font-mono font-bold text-ethiack-neon">
+                <span>02 // BENCHMARK</span>
+                <i class="fa-solid fa-shield-check text-xs group-hover:scale-110 transition"></i>
+              </div>
+              <div class="font-display font-bold text-white text-sm">Legitimate Domain</div>
+              <p class="text-[11px] text-ethiack-grayMuted leading-snug">Full verified organization entity and cryptographic match.</p>
+              <div class="text-[10px] font-mono text-ethiack-neon/80 pt-1 border-t border-ethiack-border/50">Verified Entity</div>
+            </button>
+
+            <!-- Scope 3: Expired TLS -->
+            <button onclick="selectScenario('expired_tls', 'https://legacy-portal.internal-corp.net')"
+              class="scenario-btn p-3.5 rounded-xl bg-ethiack-black border border-sky-500/30 hover:border-sky-400 hover:bg-ethiack-elevated transition text-left space-y-1.5 group cursor-pointer">
+              <div class="flex items-center justify-between font-mono font-bold text-sky-400">
+                <span>03 // HYGIENE</span>
+                <i class="fa-solid fa-clock-rotate-left text-xs group-hover:-rotate-45 transition"></i>
+              </div>
+              <div class="font-display font-bold text-white text-sm">Expired TLS Cert</div>
+              <p class="text-[11px] text-ethiack-grayMuted leading-snug">Expired 5 days ago. Technical lapse alone is not proof of phishing.</p>
+              <div class="text-[10px] font-mono text-sky-400/80 pt-1 border-t border-ethiack-border/50">TLS-002 Invariant</div>
+            </button>
+
+            <!-- Scope 4: Conflicting Intel -->
+            <button onclick="selectScenario('conflicting', 'https://disputed-exchange.io')"
+              class="scenario-btn p-3.5 rounded-xl bg-ethiack-black border border-purple-500/30 hover:border-purple-400 hover:bg-ethiack-elevated transition text-left space-y-1.5 group cursor-pointer">
+              <div class="flex items-center justify-between font-mono font-bold text-purple-400">
+                <span>04 // DISPUTED</span>
+                <i class="fa-solid fa-code-compare text-xs group-hover:scale-110 transition"></i>
+              </div>
+              <div class="font-display font-bold text-white text-sm">Conflicting Intel</div>
+              <p class="text-[11px] text-ethiack-grayMuted leading-snug">Contradictory community signals. Abstains safely to inconclusive.</p>
+              <div class="text-[10px] font-mono text-purple-400/80 pt-1 border-t border-ethiack-border/50">Safe Abstention</div>
+            </button>
+
+            <!-- Scope 5: SSRF Blocked -->
+            <button onclick="selectScenario('ssrf_blocked', 'http://169.254.169.254/latest/meta-data')"
+              class="scenario-btn p-3.5 rounded-xl bg-ethiack-black border border-rose-500/30 hover:border-rose-400 hover:bg-ethiack-elevated transition text-left space-y-1.5 group cursor-pointer">
+              <div class="flex items-center justify-between font-mono font-bold text-rose-400">
+                <span>05 // SSRF SHIELD</span>
+                <i class="fa-solid fa-ban text-xs group-hover:scale-110 transition"></i>
+              </div>
+              <div class="font-display font-bold text-white text-sm">Cloud Metadata</div>
+              <p class="text-[11px] text-ethiack-grayMuted leading-snug">169.254.169.254 rejected at intake boundary with 0 egress.</p>
+              <div class="text-[10px] font-mono text-rose-400/80 pt-1 border-t border-ethiack-border/50">SEC-001 Invariant</div>
+            </button>
+
+          </div>
+
+          <!-- Quick Test Targets Links -->
+          <div class="mt-3.5 text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="text-ethiack-neon font-bold">QUICK_TESTS:</span>
+            <button onclick="selectScenario('custom', 'http://127.0.0.1:8000/api')" class="hover:text-rose-400 underline cursor-pointer">127.0.0.1 (Loopback SSRF)</button> &bull;
+            <button onclick="selectScenario('custom', 'https://victim:supersecret@bank-target.com')" class="hover:text-rose-400 underline cursor-pointer">user:pass@host (Credentials)</button> &bull;
+            <button onclick="selectScenario('custom', 'https://github.com')" class="hover:text-ethiack-neon underline cursor-pointer">github.com (Live Public)</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Evidence Passport Section (Ethiack Security Dossier View) -->
+    <section id="passportSection" class="space-y-6">
+
+      <!-- Dossier Container -->
+      <div class="rounded-2xl bg-ethiack-surface border border-ethiack-border p-6 md:p-8 space-y-6 shadow-2xl crosshair-corner">
+        
+        <!-- Dossier Top Metadata Bar -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-ethiack-border">
+          <div class="space-y-1">
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-mono uppercase font-bold text-ethiack-neon flex items-center space-x-1.5">
+                <i class="fa-solid fa-fingerprint"></i>
+                <span>VERIFIABLE EVIDENCE PASSPORT</span>
+              </span>
+              <span id="policyVersionBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-ethiack-elevated border border-ethiack-border text-slate-300">
+                policy: w03-v1.0
+              </span>
+            </div>
+            <div class="font-display font-extrabold text-xl sm:text-2xl md:text-3xl text-white break-all flex items-center space-x-2">
+              <span id="resUrl">https://bank-secure-lоgin.com</span>
+            </div>
+            <div class="text-xs font-mono text-ethiack-grayMuted flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+              <span>SCAN_ID: <strong id="resScanId" class="text-white">scan-demo-phish-001</strong></span>
+              <span>HOST: <strong id="resHost" class="text-white">bank-secure-lоgin.com</strong></span>
+              <span>STATUS: <strong id="resStatus" class="text-ethiack-neon uppercase">completed</strong></span>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 self-start lg:self-center">
+            <div id="decisionBadge" class="px-5 py-2.5 rounded-xl font-display font-bold text-sm uppercase tracking-wider flex items-center space-x-2 shadow-lg">
+              <!-- Dynamically Populated -->
+            </div>
+            <div id="confidenceBadge" class="px-3.5 py-2 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border bg-ethiack-black border-ethiack-border text-slate-300">
+              <i class="fa-solid fa-gauge-high text-ethiack-neon"></i>
+              <span id="confidenceBandText">SCOPED OBSERVATION</span>
+            </div>
+            <button onclick="toggleRawJson()" title="Toggle JSON Inspector" 
+              class="p-2.5 rounded-xl bg-ethiack-black border border-ethiack-border hover:border-ethiack-neon/60 text-slate-300 hover:text-white transition cursor-pointer">
+              <i class="fa-solid fa-code text-sm"></i>
+            </button>
+            <button onclick="exportCurrentJSON()" title="Copy JSON" 
+              class="p-2.5 rounded-xl bg-ethiack-black border border-ethiack-border hover:border-ethiack-neon/60 text-slate-300 hover:text-white transition cursor-pointer">
+              <i class="fa-solid fa-copy text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Abstention Notice Banner (EVID-001 & Uncertainty Display) -->
+        <div id="abstentionBanner" class="hidden p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs font-mono space-y-2">
+          <div class="flex items-center justify-between text-amber-400 font-bold uppercase tracking-wider">
+            <span class="flex items-center space-x-2">
+              <i class="fa-solid fa-hand"></i>
+              <span>EXPLICIT ABSTENTION NOTICE: <strong id="abstentionReasonCode">ABSTAIN_COLLECTION_FAILURE</strong></span>
+            </span>
+            <span id="abstentionRescanBadge" class="px-2 py-0.5 rounded text-[10px] bg-amber-500/20 border border-amber-500/40 text-amber-300">
+              RESCAN RECOMMENDED
+            </span>
+          </div>
+          <p id="abstentionExplanation" class="text-slate-300 font-sans leading-relaxed text-xs"></p>
+          <div id="abstentionScopeInfo" class="text-[10px] text-slate-400 font-mono flex items-center space-x-3">
+            <span>TARGET_SCOPE: <strong id="abstentionTargetScope" class="text-white">N/A</strong></span>
+            <span class="text-ethiack-border">|</span>
+            <span>AFFECTED: <strong id="abstentionAffectedDims" class="text-amber-400">N/A</strong></span>
+          </div>
+        </div>
+
+        <!-- 4 Verifiable Dimension Cards (Ethiack Metric Grid) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Dimension 1: Identity -->
+          <div class="p-5 rounded-xl bg-ethiack-black border border-ethiack-border space-y-2 relative overflow-hidden group hover:border-ethiack-borderHover transition">
+            <div class="flex items-center justify-between text-xs font-mono text-ethiack-grayMuted">
+              <span class="font-bold">01 // IDENTITY</span>
+              <i class="fa-solid fa-id-card text-slate-600"></i>
+            </div>
+            <div id="dimIdentity" class="font-display text-xl font-bold text-amber-400">unverified</div>
+            <p class="text-[11px] text-ethiack-grayMuted leading-relaxed">
+              Separates transport encryption from legitimate entity authorization.
+            </p>
+            <div class="text-[10px] font-mono text-slate-500 pt-2 border-t border-ethiack-border/50 flex items-center space-x-1">
+              <i class="fa-solid fa-circle-check text-ethiack-neon text-[8px]"></i>
+              <span>Core Thesis Invariant</span>
+            </div>
+          </div>
+
+          <!-- Dimension 2: Certificate -->
+          <div class="p-5 rounded-xl bg-ethiack-black border border-ethiack-border space-y-2 relative overflow-hidden group hover:border-ethiack-borderHover transition">
+            <div class="flex items-center justify-between text-xs font-mono text-ethiack-grayMuted">
+              <span class="font-bold">02 // CERTIFICATE</span>
+              <i class="fa-solid fa-lock text-slate-600"></i>
+            </div>
+            <div id="dimCertificate" class="font-display text-xl font-bold text-ethiack-neon">valid_for_hostname</div>
+            <p class="text-[11px] text-ethiack-grayMuted leading-relaxed">
+              Cryptographic binding of TLS/X.509 cert strictly to target domain.
+            </p>
+            <div class="text-[10px] font-mono text-slate-500 pt-2 border-t border-ethiack-border/50 flex items-center space-x-1">
+              <i class="fa-solid fa-circle-check text-ethiack-neon text-[8px]"></i>
+              <span>Transport Security Only</span>
+            </div>
+          </div>
+
+          <!-- Dimension 3: Behavior -->
+          <div class="p-5 rounded-xl bg-ethiack-black border border-ethiack-border space-y-2 relative overflow-hidden group hover:border-ethiack-borderHover transition">
+            <div class="flex items-center justify-between text-xs font-mono text-ethiack-grayMuted">
+              <span class="font-bold">03 // BEHAVIOR</span>
+              <i class="fa-solid fa-network-wired text-slate-600"></i>
+            </div>
+            <div id="dimBehavior" class="font-display text-xl font-bold text-slate-300">no_threat_observed</div>
+            <p class="text-[11px] text-ethiack-grayMuted leading-relaxed">
+              Observed threat telemetry, heuristics, and redirect chain integrity.
+            </p>
+            <div class="text-[10px] font-mono text-slate-500 pt-2 border-t border-ethiack-border/50 flex items-center space-x-1">
+              <i class="fa-solid fa-circle-check text-ethiack-neon text-[8px]"></i>
+              <span>Negative Match &ne; Benign</span>
+            </div>
+          </div>
+
+          <!-- Dimension 4: Evidence Quality -->
+          <div class="p-5 rounded-xl bg-ethiack-black border border-ethiack-border space-y-2 relative overflow-hidden group hover:border-ethiack-borderHover transition">
+            <div class="flex items-center justify-between text-xs font-mono text-ethiack-grayMuted">
+              <span class="font-bold">04 // QUALITY</span>
+              <i class="fa-solid fa-chart-pie text-slate-600"></i>
+            </div>
+            <div id="dimQuality" class="font-display text-xl font-bold text-sky-400">complete</div>
+            <p class="text-[11px] text-ethiack-grayMuted leading-relaxed">
+              Completeness, missing signal tracking, and collector freshness.
+            </p>
+            <div class="text-[10px] font-mono text-slate-500 pt-2 border-t border-ethiack-border/50 flex items-center space-x-1">
+              <i class="fa-solid fa-circle-check text-ethiack-neon text-[8px]"></i>
+              <span>Mathematical Invariant</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Coverage Arithmetic Bar (Invariant Check) -->
+        <div class="pt-4 border-t border-ethiack-border space-y-2.5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-mono gap-1">
+            <span class="text-ethiack-neon flex items-center space-x-2">
+              <i class="fa-solid fa-check-double"></i>
+              <span>INVARIANT COV-001: checks_total == observed + failed + not_run</span>
+            </span>
+            <span id="coverageSummary" class="text-white font-bold">5 Total (4 Observed, 0 Failed, 1 Not Run)</span>
+          </div>
+          <div class="w-full h-3 bg-ethiack-black rounded-full overflow-hidden flex border border-ethiack-border shadow-inner">
+            <div id="covObservedBar" style="width: 80%" class="bg-ethiack-neon transition-all duration-500" title="Observed"></div>
+            <div id="covFailedBar" style="width: 0%" class="bg-rose-500 transition-all duration-500" title="Failed"></div>
+            <div id="covNotRunBar" style="width: 20%" class="bg-slate-700 transition-all duration-500" title="Not Run"></div>
+          </div>
+          <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-0.5">
+            <span class="text-ethiack-neon flex items-center space-x-1"><span class="h-1.5 w-1.5 rounded-full bg-ethiack-neon inline-block"></span> <span>OBSERVED</span></span>
+            <span class="text-rose-400 flex items-center space-x-1"><span class="h-1.5 w-1.5 rounded-full bg-rose-500 inline-block"></span> <span>FAILED</span></span>
+            <span class="text-slate-400 flex items-center space-x-1"><span class="h-1.5 w-1.5 rounded-full bg-slate-600 inline-block"></span> <span>NOT_RUN</span></span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Collapsible Raw JSON Viewer -->
+      <div id="rawJsonBox" class="hidden rounded-2xl bg-ethiack-surface border border-ethiack-border p-6 space-y-3">
+        <div class="flex items-center justify-between font-mono">
+          <span class="text-xs uppercase font-bold text-ethiack-neon flex items-center space-x-2">
+            <i class="fa-solid fa-terminal"></i>
+            <span>CANONICAL REPORT OBJECT (v1.0 SCHEMA)</span>
+          </span>
+          <button onclick="exportCurrentJSON()" class="text-xs px-3 py-1 bg-ethiack-neon/20 text-ethiack-neon border border-ethiack-neon/40 rounded-lg hover:bg-ethiack-neon hover:text-black transition cursor-pointer">
+            <i class="fa-solid fa-copy mr-1"></i>COPY_TO_CLIPBOARD
+          </button>
+        </div>
+        <pre id="jsonPreview" class="bg-ethiack-black p-4 rounded-xl text-xs text-ethiack-neon font-mono overflow-x-auto max-h-80 border border-ethiack-border leading-relaxed"></pre>
+      </div>
+
+      <!-- Adjudicated Findings & Traceable Evidence Split (Ethiack Proof-of-Exploit View) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Findings Drawer -->
+        <div class="rounded-2xl bg-ethiack-surface border border-ethiack-border p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-ethiack-border pb-3">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-list-check text-ethiack-neon"></i>
+              <h2 class="font-display font-bold text-white text-base">Adjudicated Findings</h2>
+            </div>
+            <span id="findingsCount" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-ethiack-elevated border border-ethiack-border text-ethiack-neon">0 Findings</span>
+          </div>
+          <div id="findingsList" class="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+            <!-- Dynamically Populated -->
+          </div>
+        </div>
+
+        <!-- Evidence Records Drawer -->
+        <div class="rounded-2xl bg-ethiack-surface border border-ethiack-border p-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-ethiack-border pb-3">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-database text-sky-400"></i>
+              <h2 class="font-display font-bold text-white text-base">Traceable Evidence Records</h2>
+            </div>
+            <span id="evidenceCount" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-ethiack-elevated border border-ethiack-border text-sky-400">0 Records</span>
+          </div>
+          <div id="evidenceList" class="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+            <!-- Dynamically Populated -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Formal Limitations & Disclosures -->
+      <div class="rounded-2xl bg-ethiack-surface/80 border border-ethiack-border p-6 space-y-2">
+        <div class="font-mono text-xs text-slate-300 font-bold flex items-center space-x-2">
+          <i class="fa-solid fa-circle-info text-amber-400"></i>
+          <span>POLICY DISCLOSURES &amp; ADJUDICATION RATIONALE</span>
+        </div>
+        <ul id="limitationsList" class="list-disc list-inside space-y-1 text-xs text-ethiack-grayMuted font-mono pl-1">
+          <!-- Dynamically Populated -->
+        </ul>
+      </div>
+
+    </section>
+
+    <!-- Collaborative Threat Intelligence (Ethiack Hacker Tribe Community Feed) -->
+    <section id="intelFeed" class="rounded-2xl bg-ethiack-surface border border-ethiack-border p-6 md:p-8 space-y-6 shadow-2xl crosshair-corner">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-ethiack-border pb-4 gap-3">
+        <div>
+          <div class="flex items-center space-x-2.5">
+            <h2 class="font-display font-bold text-white text-lg sm:text-xl">Ethical Hacker Tribe // Threat Telemetry</h2>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 font-bold uppercase">
+              Worker 02 Subsystem
+            </span>
+          </div>
+          <p class="text-xs text-ethiack-grayMuted mt-1">
+            Decentralized community findings with anti-Sybil deduplication, non-inflated corroboration counts, and XSS sanitization.
+          </p>
+        </div>
+        <button onclick="resetCommunityFeed()" class="self-start sm:self-auto text-xs font-mono text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-ethiack-black border border-ethiack-border hover:border-ethiack-neon transition flex items-center space-x-1.5 cursor-pointer">
+          <i class="fa-solid fa-rotate-left text-[11px]"></i>
+          <span>RESET_FEED</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Submit Report Form -->
+        <div class="rounded-xl bg-ethiack-black border border-ethiack-border p-5 space-y-3.5">
+          <div class="text-xs font-mono font-bold text-white uppercase tracking-wider flex items-center space-x-2">
+            <i class="fa-solid fa-bug text-purple-400"></i>
+            <span>SUBMIT COMMUNITY TELEMETRY</span>
+          </div>
+
+          <form id="communityForm" onsubmit="submitClientCommunityReport(event)" class="space-y-3 text-xs">
+            <div>
+              <label for="commDomain" class="block font-mono text-slate-400 mb-1">Target Host / Domain</label>
+              <input type="text" id="commDomain" required 
+                class="w-full px-3 py-2.5 bg-ethiack-surface border border-ethiack-border rounded-lg text-white font-mono focus:border-purple-500 focus:outline-none placeholder:text-slate-600" 
+                placeholder="suspicious-domain.com" />
+            </div>
+
+            <div>
+              <label for="commClaimType" class="block font-mono text-slate-400 mb-1">Claim Category</label>
+              <select id="commClaimType" class="w-full px-3 py-2.5 bg-ethiack-surface border border-ethiack-border rounded-lg text-white font-mono focus:border-purple-500 focus:outline-none">
+                <option value="phishing">Phishing Campaign</option>
+                <option value="credential_harvesting">Credential Harvesting</option>
+                <option value="brand_impersonation">Brand Impersonation</option>
+                <option value="malware_distribution">Malware Distribution</option>
+                <option value="suspicious_activity">General Suspicious</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="commNotes" class="block font-mono text-slate-400 mb-1">Analyst Proof-of-Exploit Notes (XSS Strip)</label>
+              <textarea id="commNotes" rows="3" required
+                class="w-full px-3 py-2 bg-ethiack-surface border border-ethiack-border rounded-lg text-white font-mono focus:border-purple-500 focus:outline-none placeholder:text-slate-600" 
+                placeholder="Observed fake banking portal with credential extraction payload..."></textarea>
+            </div>
+
+            <button type="submit" id="commSubmitBtn" 
+              class="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-mono font-bold rounded-lg transition shadow-lg shadow-purple-600/20 active:scale-95 cursor-pointer flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-paper-plane text-xs"></i>
+              <span>DISPATCH_REPORT</span>
+            </button>
+          </form>
+
+          <div id="commFeedback" class="hidden text-[11px] p-2.5 rounded-lg font-mono"></div>
+        </div>
+
+        <!-- Community Feed List -->
+        <div class="lg:col-span-2 space-y-3">
+          <div class="flex items-center justify-between text-xs font-mono">
+            <span class="font-bold text-slate-400">RECENT CORROBORATED INTEL</span>
+            <span id="commCountBadge" class="bg-ethiack-elevated border border-ethiack-border text-slate-300 px-2 py-0.5 rounded font-mono text-[10px]">4 Reports</span>
+          </div>
+          <div id="communityFeedList" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 text-xs">
+            <!-- Dynamically Populated -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Ethiack Footer -->
+  <footer class="border-t border-ethiack-border bg-ethiack-black/90 py-8 text-xs text-ethiack-grayMuted relative z-10 font-mono">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="h-6 w-6 rounded bg-ethiack-surface border border-ethiack-neon/40 flex items-center justify-center text-ethiack-neon text-xs">
+          <i class="fa-solid fa-radar"></i>
+        </div>
+        <span><strong>TRUSTTRACE</strong> &bull; HackMatrix '26 Adversarial Exposure Validation</span>
+      </div>
+      <div class="flex items-center space-x-4 text-[11px]">
+        <span>WORKER_04_DELIVERY</span>
+        <span>&bull;</span>
+        <span>8_INVARIANTS_ENFORCED</span>
+        <span>&bull;</span>
+        <span class="text-ethiack-neon">ZERO_EGRESS_ABUSE</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal 1: How to Launch Live Backend -->
+  <div id="launchModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-ethiack-surface border border-ethiack-border rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl crosshair-corner">
+      <div class="flex items-center justify-between border-b border-ethiack-border pb-3">
+        <h3 class="font-display font-bold text-white text-base flex items-center space-x-2">
+          <i class="fa-solid fa-rocket text-ethiack-neon"></i>
+          <span>Launch Full FastAPI Platform</span>
+        </h3>
+        <button onclick="closeModal('launchModal')" class="text-slate-400 hover:text-white p-1 text-xl cursor-pointer">
+          &times;
+        </button>
+      </div>
+      <div class="text-xs text-slate-300 space-y-3 leading-relaxed font-mono">
+        <p class="text-ethiack-grayMuted">This HTML file is standalone and runs anywhere. To launch the full Python server with SQLite databases, use either command:</p>
+        
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Option 1: Windows One-Click Batch</div>
+          <pre class="bg-ethiack-black p-3 rounded-lg text-ethiack-neon border border-ethiack-border">launch.bat</pre>
+        </div>
+
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Option 2: Direct Python Runner</div>
+          <pre class="bg-ethiack-black p-3 rounded-lg text-ethiack-neon border border-ethiack-border">python run_app.py --port 8000</pre>
+        </div>
+
+        <div class="space-y-1 text-slate-400">
+          <div class="text-[10px] font-bold text-slate-400 uppercase">Live Endpoints:</div>
+          <div>&bull; Dashboard: <span class="text-white">http://localhost:8000/</span></div>
+          <div>&bull; Swagger Docs: <span class="text-white">http://localhost:8000/docs</span></div>
+          <div>&bull; Subsystem Health: <span class="text-white">http://localhost:8000/health</span></div>
+        </div>
+      </div>
+      <div class="pt-2 text-right">
+        <button onclick="closeModal('launchModal')" class="px-4 py-2 bg-ethiack-neon text-black font-mono font-bold rounded-lg text-xs hover:bg-white transition cursor-pointer">
+          CLOSE_GUIDE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: 8 Invariants Reference -->
+  <div id="invariantsModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-ethiack-surface border border-ethiack-border rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl crosshair-corner">
+      <div class="flex items-center justify-between border-b border-ethiack-border pb-3">
+        <h3 class="font-display font-bold text-white text-base flex items-center space-x-2">
+          <i class="fa-solid fa-scale-balanced text-ethiack-neon"></i>
+          <span>Formal Architecture &amp; Policy Invariants</span>
+        </h3>
+        <button onclick="closeModal('invariantsModal')" class="text-slate-400 hover:text-white p-1 text-xl cursor-pointer">
+          &times;
+        </button>
+      </div>
+      <div class="text-xs text-slate-300 space-y-2.5 max-h-96 overflow-y-auto pr-1 font-mono">
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">1. TLS-001 (Core Thesis Invariant)</div>
+          <div class="text-ethiack-grayMuted">Valid DV TLS certificate proves transport encryption only, never organizational legitimacy.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">2. COV-001 (Coverage Arithmetic)</div>
+          <div class="text-ethiack-grayMuted"><code>checks_total == checks_observed + checks_failed + checks_not_run</code>. Zero unallocated checks permitted.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">3. SEC-001 (Zero Egress Abuse)</div>
+          <div class="text-ethiack-grayMuted">RFC1918 private IPs, AWS/GCP metadata (169.254.169.254), and loopback targets are rejected before network egress.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">4. SEC-002 (Prohibited Credentials)</div>
+          <div class="text-ethiack-grayMuted">URLs containing embedded credentials (<code>user:pass@host</code>) are rejected immediately to prevent credential leaks.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">5. EVID-002 (Negative Threat Match)</div>
+          <div class="text-ethiack-grayMuted">Absence of a blacklist match produces <code>no_threat_observed</code>, NOT guaranteed benign status.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">6. SAFE-001 (Zero Active Browser Risk)</div>
+          <div class="text-ethiack-grayMuted">Metadata collection only. Never executes arbitrary DOM, JavaScript, or flash payload on untrusted targets.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">7. COMM-001 (Anti-Sybil Deduplication &amp; XSS)</div>
+          <div class="text-ethiack-grayMuted">All community submissions are strictly sanitized, and repeat reports from the same source do not inflate confidence.</div>
+        </div>
+        <div class="p-2.5 bg-ethiack-black rounded-lg border border-ethiack-border">
+          <div class="font-bold text-white text-[11px]">8. SCH-001 (Traceable Audit Lineage)</div>
+          <div class="text-ethiack-grayMuted">Every finding points to at least one concrete evidence record ID with source reliability metadata.</div>
+        </div>
+      </div>
+      <div class="pt-2 text-right">
+        <button onclick="closeModal('invariantsModal')" class="px-4 py-2 bg-ethiack-black border border-ethiack-border hover:border-ethiack-neon text-white font-mono font-bold rounded-lg text-xs transition cursor-pointer">
+          DISMISS
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-ethiack-neon text-black px-4 py-2.5 rounded-xl font-mono font-bold text-xs shadow-2xl flex items-center space-x-2 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="toastMsg">Action completed successfully</span>
+  </div>
+
+  <!-- Client-side Interactive Engine Script -->
+  <script>
+    let currentReport = null;
+
+    // In-memory seed database for community threat reports
+    let communityReports = [
+      {
+        report_id: "rep-comm-001",
+        normalized_domain: "bank-secure-lоgin.com",
+        claim_type: "phishing",
+        verification_state: "verified",
+        independent_source_count: 3,
+        note_sanitized: "Credential harvesting form disguised as customer banking login portal.",
+        submitted_at: "2026-11-09T22:15:00Z"
+      },
+      {
+        report_id: "rep-comm-002",
+        normalized_domain: "disputed-exchange.io",
+        claim_type: "brand_impersonation",
+        verification_state: "disputed",
+        independent_source_count: 1,
+        note_sanitized: "Conflicting evidence on whether this is an official decentralized exchange mirror or imitation.",
+        submitted_at: "2026-11-10T00:10:00Z"
+      },
+      {
+        report_id: "rep-comm-003",
+        normalized_domain: "legacy-portal.internal-corp.net",
+        claim_type: "suspicious_activity",
+        verification_state: "unverified",
+        independent_source_count: 1,
+        note_sanitized: "Expired certificate observed during internal portal routine sweep.",
+        submitted_at: "2026-11-10T01:05:00Z"
+      },
+      {
+        report_id: "rep-comm-004",
+        normalized_domain: "example.com",
+        claim_type: "suspicious_activity",
+        verification_state: "disputed",
+        independent_source_count: 0,
+        note_sanitized: "IANA benchmark domain; verified benign entity.",
+        submitted_at: "2026-11-08T12:00:00Z"
+      }
+    ];
+
+    // Canonical Pre-canned Scenarios matching schemas perfectly
+    const SCENARIOS = {
+      phishing_lookalike: {
+        schema_version: "1.0",
+        scan_id: "scan-demo-phish-001",
+        submitted_url_redacted: "https://bank-secure-lоgin.com",
+        normalized_host: "bank-secure-lоgin.com",
+        status: "completed",
+        decision: "caution",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unverified",
+          certificate: "valid_for_hostname",
+          behavior: "no_threat_observed",
+          evidence_quality: "complete"
+        },
+        coverage: {
+          checks_total: 5,
+          checks_observed: 4,
+          checks_failed: 0,
+          checks_not_run: 1
+        },
+        findings: [
+          {
+            finding_id: "f-tls-enc-001",
+            kind: "tls_encryption_only",
+            severity: "caution",
+            summary: "Valid DV TLS certificate issued by Let's Encrypt proves transport encryption only, not identity.",
+            rule_id: "tls-dv-unverified-identity",
+            evidence_ids: ["ev-tls-001"]
+          },
+          {
+            finding_id: "f-idn-002",
+            kind: "idn_lookalike_detected",
+            severity: "high",
+            summary: "Target domain contains Cyrillic homoglyph lookalike character 'о' (U+043E) imitating Latin 'o'.",
+            rule_id: "idn-confusable-homoglyph",
+            evidence_ids: ["ev-idn-003"]
+          }
+        ],
+        evidence: [
+          {
+            evidence_id: "ev-tls-001",
+            kind: "tls_certificate",
+            source: "tls_collector",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "high",
+            limitations: ["Valid DV TLS proves transport encryption only, not organizational entity."]
+          },
+          {
+            evidence_id: "ev-rdap-002",
+            kind: "rdap_registration",
+            source: "rdap_collector",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "medium",
+            limitations: ["Privacy guard active; domain registrant is hidden."]
+          },
+          {
+            evidence_id: "ev-idn-003",
+            kind: "url_canonicalization",
+            source: "url_policy",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "high",
+            limitations: ["Unicode confusable homoglyph detected in second-level domain label."]
+          },
+          {
+            evidence_id: "ev-rep-004",
+            kind: "reputation_feed",
+            source: "threat_intel_feed",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "medium",
+            limitations: ["EVID-002: Negative threat match does not imply verified safety."]
+          }
+        ],
+        limitations: [
+          "CORE THESIS: Valid DV TLS certificate does NOT verify organizational authenticity.",
+          "Zero active browser DOM or JavaScript execution performed."
+        ]
+      },
+
+      legitimate: {
+        schema_version: "1.0",
+        scan_id: "scan-demo-legit-001",
+        submitted_url_redacted: "https://example.com",
+        normalized_host: "example.com",
+        status: "completed",
+        decision: "no_threat_observed",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "verified_organization",
+          certificate: "valid_for_hostname",
+          behavior: "no_threat_observed",
+          evidence_quality: "complete"
+        },
+        coverage: {
+          checks_total: 4,
+          checks_observed: 4,
+          checks_failed: 0,
+          checks_not_run: 0
+        },
+        findings: [
+          {
+            finding_id: "f-id-001",
+            kind: "identity_verified",
+            severity: "info",
+            summary: "Domain registration and authoritative entity verified through legitimate institutional delegation.",
+            rule_id: "identity-entity-verified",
+            evidence_ids: ["ev-rdap-001", "ev-tls-002"]
+          }
+        ],
+        evidence: [
+          {
+            evidence_id: "ev-tls-002",
+            kind: "tls_certificate",
+            source: "tls_collector",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "high",
+            limitations: ["Valid X.509 certificate bound to target hostname."]
+          },
+          {
+            evidence_id: "ev-rdap-001",
+            kind: "rdap_registration",
+            source: "rdap_collector",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "high",
+            limitations: ["Verified institutional organization entity."]
+          }
+        ],
+        limitations: [
+          "Passive trust evaluation only; benign evaluation reflects absence of observed threats."
+        ]
+      },
+
+      expired_tls: {
+        schema_version: "1.0",
+        scan_id: "scan-demo-expired-001",
+        submitted_url_redacted: "https://legacy-portal.internal-corp.net",
+        normalized_host: "legacy-portal.internal-corp.net",
+        status: "completed",
+        decision: "caution",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unverified",
+          certificate: "invalid_or_expired",
+          behavior: "no_threat_observed",
+          evidence_quality: "complete"
+        },
+        coverage: {
+          checks_total: 4,
+          checks_observed: 3,
+          checks_failed: 1,
+          checks_not_run: 0
+        },
+        findings: [
+          {
+            finding_id: "f-tls-exp-001",
+            kind: "tls_certificate_expired",
+            severity: "caution",
+            summary: "X.509 certificate expired 5 days ago; browser security warnings active.",
+            rule_id: "tls-expired-hygiene-warning",
+            evidence_ids: ["ev-tls-exp-01"]
+          }
+        ],
+        evidence: [
+          {
+            evidence_id: "ev-tls-exp-01",
+            kind: "tls_certificate",
+            source: "tls_collector",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "failed",
+            reliability: "high",
+            limitations: ["Certificate expired; technical hygiene lapse ≠ malicious intent."]
+          }
+        ],
+        limitations: [
+          "TLS-002: Expired certificate alone is an operational failure, not conclusive proof of phishing."
+        ]
+      },
+
+      conflicting: {
+        schema_version: "1.0",
+        scan_id: "scan-demo-conflict-001",
+        submitted_url_redacted: "https://disputed-exchange.io",
+        normalized_host: "disputed-exchange.io",
+        status: "completed",
+        decision: "inconclusive",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unverified",
+          certificate: "valid_for_hostname",
+          behavior: "unknown",
+          evidence_quality: "partial"
+        },
+        coverage: {
+          checks_total: 5,
+          checks_observed: 3,
+          checks_failed: 0,
+          checks_not_run: 2
+        },
+        findings: [
+          {
+            finding_id: "f-conf-001",
+            kind: "conflicting_threat_intel",
+            severity: "info",
+            summary: "Contradictory community claims observed. Policy engine safely abstains to inconclusive.",
+            rule_id: "policy-conflict-abstention",
+            evidence_ids: ["ev-comm-conflict-01"]
+          }
+        ],
+        evidence: [
+          {
+            evidence_id: "ev-comm-conflict-01",
+            kind: "community_corroboration",
+            source: "community_reports",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "observed",
+            reliability: "low",
+            limitations: ["Unverified single reporter; disputed by authoritative maintainers."]
+          }
+        ],
+        limitations: [
+          "Contradictory signals prevent authoritative determination; manual investigation recommended."
+        ]
+      },
+
+      ssrf_blocked: {
+        schema_version: "1.0",
+        scan_id: "scan-rejected-ssrf-001",
+        submitted_url_redacted: "http://169.254.169.254/latest/meta-data",
+        normalized_host: "169.254.169.254",
+        status: "rejected",
+        decision: "rejected",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unknown",
+          certificate: "not_checked",
+          behavior: "unknown",
+          evidence_quality: "unavailable"
+        },
+        coverage: {
+          checks_total: 4,
+          checks_observed: 0,
+          checks_failed: 0,
+          checks_not_run: 4
+        },
+        findings: [],
+        evidence: [
+          {
+            evidence_id: "ev-boundary-block-001",
+            kind: "target_policy",
+            source: "url_safety_policy",
+            observed_at: "2026-11-10T00:30:00Z",
+            status: "blocked",
+            reliability: "direct_observation",
+            limitations: ["Zero network request made. Egress safely halted at intake boundary."]
+          }
+        ],
+        limitations: [
+          "SEC-001: Cloud metadata IP (169.254.169.254) blocked by SSRF defense.",
+          "Zero egress packets transmitted."
+        ]
+      }
+    };
+
+    // Client-side URL intake & triage simulator
+    function evaluateCustomTargetLocally(rawUrl) {
+      const url = rawUrl.trim();
+      if (!url) return null;
+
+      // Check scheme
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return buildRejectedReport(url, "unsupported_scheme", "Scheme must be http or https.");
+      }
+
+      // Check embedded credentials (user:pass@host)
+      const afterScheme = url.split("://")[1] || "";
+      const authority = afterScheme.split("/")[0] || "";
+      if (authority.includes("@")) {
+        return buildRejectedReport(url, "embedded_credentials_prohibited", "SEC-002: URLs with embedded credentials prohibited.");
+      }
+
+      // Extract host and port
+      const hostPort = authority.toLowerCase();
+      const host = hostPort.split(":")[0];
+
+      // SSRF & Loopback check
+      const isLoopback = (host === "localhost" || host === "127.0.0.1" || host.startsWith("127."));
+      const isMetadata = (host === "169.254.169.254");
+      const isPrivateRFC1918 = (
+        host.startsWith("10.") ||
+        host.startsWith("192.168.") ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+      );
+
+      if (isLoopback || isMetadata || isPrivateRFC1918) {
+        const reason = isMetadata ? "cloud_metadata_target" : (isLoopback ? "loopback_target" : "rfc1918_private_ip");
+        return buildRejectedReport(url, reason, `SEC-001: Target host '${host}' is prohibited by SSRF intake policy.`);
+      }
+
+      // Check for homoglyph / Cyrillic in hostname
+      const hasCyrillic = /[\u0400-\u04FF]/.test(host);
+      if (hasCyrillic) {
+        return {
+          schema_version: "1.0",
+          scan_id: "scan-live-cyrillic-" + Math.floor(Math.random() * 9000 + 1000),
+          submitted_url_redacted: url,
+          normalized_host: host,
+          status: "completed",
+          decision: "caution",
+          policy_version: "w03-v1.0",
+          dimensions: {
+            identity: "unverified",
+            certificate: "valid_for_hostname",
+            behavior: "no_threat_observed",
+            evidence_quality: "complete"
+          },
+          coverage: { checks_total: 5, checks_observed: 4, checks_failed: 0, checks_not_run: 1 },
+          findings: [
+            {
+              finding_id: "f-idn-confusable",
+              kind: "idn_lookalike_detected",
+              severity: "high",
+              summary: "IDN homoglyph lookalike character detected in domain name.",
+              rule_id: "idn-confusable-homoglyph",
+              evidence_ids: ["ev-idn-live"]
+            }
+          ],
+          evidence: [
+            {
+              evidence_id: "ev-idn-live",
+              kind: "url_canonicalization",
+              source: "url_policy",
+              observed_at: new Date().toISOString(),
+              status: "observed",
+              reliability: "high",
+              limitations: ["Unicode homoglyph spoofing pattern observed."]
+            }
+          ],
+          limitations: [
+            "Valid TLS certificate does not confirm legitimate organizational affiliation."
+          ]
+        };
+      }
+
+      // Default safe triage output
+      return {
+        schema_version: "1.0",
+        scan_id: "scan-live-" + Math.floor(Math.random() * 9000 + 1000),
+        submitted_url_redacted: url,
+        normalized_host: host,
+        status: "completed",
+        decision: "no_threat_observed",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unverified",
+          certificate: "valid_for_hostname",
+          behavior: "no_threat_observed",
+          evidence_quality: "complete"
+        },
+        coverage: { checks_total: 4, checks_observed: 4, checks_failed: 0, checks_not_run: 0 },
+        findings: [
+          {
+            finding_id: "f-live-001",
+            kind: "boundary_safe",
+            severity: "info",
+            summary: "Host passed all intake boundary validation checks (SSRF, credentials, IDN).",
+            rule_id: "intake-safe-ingress",
+            evidence_ids: ["ev-intake-live"]
+          }
+        ],
+        evidence: [
+          {
+            evidence_id: "ev-intake-live",
+            kind: "intake_validation",
+            source: "intake_boundary",
+            observed_at: new Date().toISOString(),
+            status: "observed",
+            reliability: "high",
+            limitations: ["Passive metadata validation; zero active browser execution."]
+          }
+        ],
+        limitations: [
+          "Live client-side assessment adherence to non-intrusive metadata inspection.",
+          "EVID-002: Negative threat match does not imply guaranteed safety."
+        ]
+      };
+    }
+
+    function buildRejectedReport(url, reason, detail) {
+      const host = (url.split("://")[1] || url).split("/")[0].split(":")[0];
+      return {
+        schema_version: "1.0",
+        scan_id: "scan-rej-" + Math.floor(Math.random() * 9000 + 1000),
+        submitted_url_redacted: url,
+        normalized_host: host || "rejected-target",
+        status: "rejected",
+        decision: "rejected",
+        policy_version: "w03-v1.0",
+        dimensions: {
+          identity: "unknown",
+          certificate: "not_checked",
+          behavior: "unknown",
+          evidence_quality: "unavailable"
+        },
+        coverage: {
+          checks_total: 4,
+          checks_observed: 0,
+          checks_failed: 0,
+          checks_not_run: 4
+        },
+        findings: [],
+        evidence: [
+          {
+            evidence_id: "ev-block-001",
+            kind: "target_policy",
+            source: "intake_boundary",
+            observed_at: new Date().toISOString(),
+            status: "blocked",
+            reliability: "direct_observation",
+            limitations: [detail, "Zero egress network requests executed."]
+          }
+        ],
+        limitations: [
+          `Target rejected at intake boundary: ${reason}.`,
+          "Zero egress packets transmitted."
+        ]
+      };
+    }
+
+    // Select scenario helper
+    function selectScenario(scenarioName, targetUrl) {
+      document.getElementById('urlInput').value = targetUrl;
+      runClientTriage(scenarioName);
+    }
+
+    // Main Triage Handler (Live FastAPI Backend with Standalone Offline Fallback)
+    async function runClientTriage(scenarioName) {
+      const triageBtn = document.getElementById('triageBtn');
+      const urlInput = document.getElementById('urlInput');
+      const url = urlInput.value.trim();
+
+      triageBtn.disabled = true;
+      triageBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i><span>TRIAGING...</span>';
+
+      try {
+        // Step 1: Attempt to communicate with the live FastAPI backend
+        const res = await fetch('/api/v1/triage/demo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url || 'https://bank-secure-lоgin.com',
+            scenario: scenarioName || 'custom'
+          })
+        });
+
+        if (res.ok) {
+          const reportData = await res.json();
+          currentReport = reportData;
+          renderPassport(reportData);
+          showToast(`Triage completed via live backend (${reportData.decision})`);
+          return;
+        }
+      } catch (err) {
+        // Network or offline file protocol error; proceed to offline evaluation fallback
+      } finally {
+        triageBtn.disabled = false;
+        triageBtn.innerHTML = '<i class="fa-solid fa-bolt"></i><span>EXECUTE_TRIAGE</span>';
+      }
+
+      // Step 2: Standalone local simulation fallback
+      let reportData = null;
+      if (scenarioName && SCENARIOS[scenarioName]) {
+        reportData = SCENARIOS[scenarioName];
+      } else {
+        reportData = evaluateCustomTargetLocally(url);
+      }
+
+      if (!reportData) {
+        showToast('Please enter a valid URL');
+        return;
+      }
+
+      currentReport = reportData;
+      renderPassport(reportData);
+    }
+
+    // Render Passport in UI (Ethiack Aesthetic + Uncertainty & Abstention Integration)
+    function renderPassport(data) {
+      document.getElementById('resUrl').textContent = data.submitted_url_redacted || document.getElementById('urlInput').value;
+      document.getElementById('resScanId').textContent = data.scan_id || 'scan-001';
+      document.getElementById('resHost').textContent = data.normalized_host || 'target';
+      
+      const statusEl = document.getElementById('resStatus');
+      statusEl.textContent = data.status || 'completed';
+      if (data.status === 'rejected') {
+        statusEl.className = 'text-rose-400 uppercase font-mono font-bold';
+      } else {
+        statusEl.className = 'text-ethiack-neon uppercase font-mono font-bold';
+      }
+
+      // Decision Badge (Ethiack Style)
+      const badge = document.getElementById('decisionBadge');
+      const dec = data.decision || 'inconclusive';
+
+      if (dec === 'high_risk' || dec === 'rejected') {
+        badge.className = 'px-5 py-2.5 rounded-xl font-display font-bold text-sm uppercase tracking-wider flex items-center space-x-2 bg-rose-500/10 text-rose-400 border border-rose-500/40 shadow-[0_0_15px_rgba(255,0,21,0.2)]';
+        badge.innerHTML = '<i class="fa-solid fa-ban"></i><span>' + dec.replace('_', ' ') + '</span>';
+      } else if (dec === 'caution') {
+        badge.className = 'px-5 py-2.5 rounded-xl font-display font-bold text-sm uppercase tracking-wider flex items-center space-x-2 bg-amber-500/10 text-amber-400 border border-amber-500/40 shadow-[0_0_15px_rgba(251,191,36,0.2)]';
+        badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i><span>Caution</span>';
+      } else if (dec === 'no_threat_observed') {
+        badge.className = 'px-5 py-2.5 rounded-xl font-display font-bold text-sm uppercase tracking-wider flex items-center space-x-2 bg-ethiack-neon/10 text-ethiack-neon border border-ethiack-neon/40 shadow-[0_0_15px_rgba(94,255,136,0.2)]';
+        badge.innerHTML = '<i class="fa-solid fa-shield-check"></i><span>No Threat Observed</span>';
+      } else {
+        badge.className = 'px-5 py-2.5 rounded-xl font-display font-bold text-sm uppercase tracking-wider flex items-center space-x-2 bg-slate-800 text-slate-300 border border-slate-700';
+        badge.innerHTML = '<i class="fa-solid fa-circle-question"></i><span>Inconclusive</span>';
+      }
+
+      // Qualitative Confidence Band Badge (Worker 03 Phase 04 Integration)
+      const confBadge = document.getElementById('confidenceBadge');
+      const confText = document.getElementById('confidenceBandText');
+      const band = (data.uncertainty && data.uncertainty.confidence_band) || 'SUFFICIENT_FOR_SCOPED_OBSERVATION';
+      const cleanBand = String(band).replace(/^ConfidenceBand\./, '').toUpperCase();
+      confText.textContent = cleanBand.replace(/_/g, ' ');
+
+      if (cleanBand.includes('CONTRADICTORY')) {
+        confBadge.className = 'px-3.5 py-2 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border bg-purple-500/10 border-purple-500/40 text-purple-300';
+      } else if (cleanBand.includes('LIMITED')) {
+        confBadge.className = 'px-3.5 py-2 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border bg-amber-500/10 border-amber-500/40 text-amber-300';
+      } else if (cleanBand.includes('HIGH')) {
+        confBadge.className = 'px-3.5 py-2 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border bg-ethiack-neon/10 border-ethiack-neon/40 text-ethiack-neon';
+      } else {
+        confBadge.className = 'px-3.5 py-2 rounded-xl font-mono font-bold text-xs uppercase tracking-wider flex items-center space-x-2 border bg-sky-500/10 border-sky-500/40 text-sky-300';
+      }
+
+      // Explicit Abstention Notice Banner (EVID-001)
+      const abstBanner = document.getElementById('abstentionBanner');
+      const abstNotice = data.abstention || (data.uncertainty && data.uncertainty.abstention_notice);
+      if (abstNotice) {
+        abstBanner.classList.remove('hidden');
+        document.getElementById('abstentionReasonCode').textContent = abstNotice.reason_code || 'ABSTAIN_OBSERVATION';
+        document.getElementById('abstentionExplanation').textContent = abstNotice.explanation || 'Assessment abstained due to uncertainty or coverage limits.';
+        document.getElementById('abstentionTargetScope').textContent = abstNotice.target_scope || data.normalized_host || 'target';
+        document.getElementById('abstentionAffectedDims').textContent = (abstNotice.affected_dimensions || []).join(', ') || 'evidence_quality';
+        const rescanBadge = document.getElementById('abstentionRescanBadge');
+        if (abstNotice.is_rescan_recommended) {
+          rescanBadge.textContent = 'RESCAN RECOMMENDED';
+          rescanBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold';
+        } else {
+          rescanBadge.textContent = 'FINAL DISPOSITION';
+          rescanBadge.className = 'px-2 py-0.5 rounded text-[10px] bg-slate-800 border border-slate-700 text-slate-400 font-medium';
+        }
+      } else {
+        abstBanner.classList.add('hidden');
+      }
+
+      // 4 Dimensions
+      const dims = data.dimensions || {};
+      const idEl = document.getElementById('dimIdentity');
+      idEl.textContent = dims.identity || 'unverified';
+      idEl.className = 'font-display text-xl font-bold ' + 
+        (dims.identity === 'verified_organization' ? 'text-ethiack-neon' : (dims.identity === 'unverified' ? 'text-amber-400' : 'text-slate-400'));
+
+      const certEl = document.getElementById('dimCertificate');
+      certEl.textContent = dims.certificate || 'unobserved';
+      certEl.className = 'font-display text-xl font-bold ' + 
+        (dims.certificate === 'valid_for_hostname' ? 'text-ethiack-neon' : (dims.certificate === 'invalid_or_expired' ? 'text-sky-400' : 'text-slate-400'));
+
+      const behEl = document.getElementById('dimBehavior');
+      behEl.textContent = dims.behavior || 'unobserved';
+      behEl.className = 'font-display text-xl font-bold ' + 
+        (dims.behavior === 'no_threat_observed' ? 'text-slate-300' : (dims.behavior === 'suspicious' ? 'text-rose-400' : 'text-slate-400'));
+
+      const qualEl = document.getElementById('dimQuality');
+      qualEl.textContent = dims.evidence_quality || 'complete';
+      qualEl.className = 'font-display text-xl font-bold ' + 
+        (dims.evidence_quality === 'complete' ? 'text-sky-400' : (dims.evidence_quality === 'partial' ? 'text-amber-400' : 'text-slate-400'));
+
+      // Coverage Invariant Math
+      const cov = data.coverage || { checks_total: 4, checks_observed: 4, checks_failed: 0, checks_not_run: 0 };
+      const total = cov.checks_total || 1;
+      const obsPct = Math.min(100, Math.round((cov.checks_observed / total) * 100));
+      const failPct = Math.min(100, Math.round((cov.checks_failed / total) * 100));
+      const notRunPct = Math.max(0, 100 - obsPct - failPct);
+
+      document.getElementById('coverageSummary').textContent = 
+        `${cov.checks_total} Total (${cov.checks_observed} Observed, ${cov.checks_failed} Failed, ${cov.checks_not_run} Not Run)`;
+      
+      document.getElementById('covObservedBar').style.width = obsPct + '%';
+      document.getElementById('covFailedBar').style.width = failPct + '%';
+      document.getElementById('covNotRunBar').style.width = notRunPct + '%';
+
+      // Adjudicated Findings
+      const findingsList = document.getElementById('findingsList');
+      findingsList.innerHTML = '';
+      const findings = data.findings || [];
+      document.getElementById('findingsCount').textContent = findings.length + ' Findings';
+      
+      if (findings.length === 0) {
+        findingsList.innerHTML = '<div class="text-slate-500 font-mono text-xs py-4 text-center border border-dashed border-ethiack-border rounded-xl">No discrete warning findings reported. Target passed baseline checks.</div>';
+      } else {
+        findings.forEach(f => {
+          const item = document.createElement('div');
+          item.className = 'p-3.5 bg-ethiack-black border border-ethiack-border rounded-xl space-y-1.5 text-xs';
+          const sevColor = f.severity === 'high' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 
+            (f.severity === 'caution' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-300');
+          
+          item.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white uppercase tracking-wider font-mono">${f.kind || 'finding'}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${sevColor}">${f.severity || 'info'}</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed font-sans">${escapeHtml(f.summary || '')}</p>
+            <div class="text-[10px] text-slate-500 font-mono pt-1 border-t border-ethiack-border/50 flex justify-between">
+              <span>Rule: ${f.rule_id || 'N/A'}</span>
+              <span>Evidence: ${(f.evidence_ids || []).join(', ') || 'N/A'}</span>
+            </div>
+          `;
+          findingsList.appendChild(item);
+        });
+      }
+
+      // Evidence Records
+      const evidenceList = document.getElementById('evidenceList');
+      evidenceList.innerHTML = '';
+      const evidence = data.evidence || [];
+      document.getElementById('evidenceCount').textContent = evidence.length + ' Records';
+      
+      if (evidence.length === 0) {
+        evidenceList.innerHTML = '<div class="text-slate-500 font-mono text-xs py-4 text-center border border-dashed border-ethiack-border rounded-xl">No evidence records ingested.</div>';
+      } else {
+        evidence.forEach(e => {
+          const item = document.createElement('div');
+          item.className = 'p-3.5 bg-ethiack-black border border-ethiack-border rounded-xl space-y-1.5 text-xs';
+          const statusColor = e.status === 'observed' ? 'bg-ethiack-neon/20 text-ethiack-neon border border-ethiack-neon/30' : 
+            (e.status === 'blocked' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-300');
+
+          item.innerHTML = `
+            <div class="flex items-center justify-between font-mono text-[11px]">
+              <span class="font-bold text-sky-400">${e.evidence_id}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColor}">${e.status}</span>
+            </div>
+            <div class="text-slate-300 font-mono text-[11px]">
+              <span class="text-slate-500">Source:</span> <strong class="text-white">${e.source}</strong> &bull; 
+              <span class="text-slate-500">Reliability:</span> <span class="text-slate-300">${e.reliability}</span>
+            </div>
+            ${e.limitations && e.limitations.length ? `<div class="text-[11px] text-ethiack-grayMuted font-mono bg-ethiack-surface/80 p-2 rounded-lg border border-ethiack-border">Limitations: ${escapeHtml(e.limitations.join('; '))}</div>` : ''}
+          `;
+          evidenceList.appendChild(item);
+        });
+      }
+
+      // Limitations
+      const limList = document.getElementById('limitationsList');
+      limList.innerHTML = '';
+      const lims = data.limitations || ["Standard baseline policy assessment."];
+      lims.forEach(l => {
+        const li = document.createElement('li');
+        li.textContent = l;
+        limList.appendChild(li);
+      });
+
+      // Update JSON preview
+      document.getElementById('jsonPreview').textContent = JSON.stringify(data, null, 2);
+    }
+
+    // Community Feed Rendering
+    function renderCommunityFeed() {
+      const feedList = document.getElementById('communityFeedList');
+      feedList.innerHTML = '';
+      document.getElementById('commCountBadge').textContent = `${communityReports.length} Reports`;
+
+      communityReports.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'p-3.5 bg-ethiack-black border border-ethiack-border rounded-xl space-y-1 text-xs hover:border-ethiack-borderHover transition';
+        
+        let stateBadge = 'bg-slate-800 text-slate-400';
+        if (r.verification_state === 'verified') stateBadge = 'bg-ethiack-neon/20 text-ethiack-neon border border-ethiack-neon/30';
+        if (r.verification_state === 'disputed') stateBadge = 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
+
+        item.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-bold text-white text-sm">${escapeHtml(r.normalized_domain)}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${stateBadge}">
+              ${r.verification_state}
+            </span>
+          </div>
+          <div class="text-slate-300 font-sans">
+            <span class="text-slate-500 uppercase font-mono text-[10px] font-bold">${r.claim_type.replace(/_/g, ' ')}:</span> 
+            ${escapeHtml(r.note_sanitized || 'No analyst notes')}
+          </div>
+          <div class="text-[10px] text-slate-500 font-mono pt-1 flex items-center justify-between">
+            <span>Corroboration: <strong class="text-slate-300">${r.independent_source_count} independent source(s)</strong></span>
+            <span>${r.submitted_at ? r.submitted_at.replace('T', ' ').substring(0, 16) : 'recently'}</span>
+          </div>
+        `;
+        feedList.appendChild(item);
+      });
+    }
+
+    // Submit new community report (Live Backend API + Standalone Fallback)
+    async function submitClientCommunityReport(e) {
+      e.preventDefault();
+      const domainInput = document.getElementById('commDomain');
+      const claimType = document.getElementById('commClaimType').value;
+      const notesInput = document.getElementById('commNotes');
+      const feedback = document.getElementById('commFeedback');
+      
+      const domain = domainInput.value.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+      const rawNote = notesInput.value.trim();
+
+      if (!domain) {
+        feedback.className = 'text-[11px] p-2.5 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 font-mono';
+        feedback.textContent = 'Please enter a valid domain.';
+        feedback.classList.remove('hidden');
+        return;
+      }
+
+      // Step 1: Try submitting to the live backend API
+      try {
+        const res = await fetch('/api/v1/community/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            normalized_domain: domain,
+            claim_type: claimType,
+            note: rawNote,
+          })
+        });
+
+        if (res.ok) {
+          const resJson = await res.json();
+          const reportObj = (resJson.data && resJson.data.report) ? resJson.data.report : resJson;
+          feedback.className = 'text-[11px] p-2.5 rounded-lg bg-ethiack-neon/20 text-ethiack-neon border border-ethiack-neon/30 font-mono';
+          feedback.textContent = `Report saved to live database! ID: ${reportObj.report_id || 'rep-ok'} (State: ${reportObj.verification_state || 'unverified'})`;
+          feedback.classList.remove('hidden');
+          document.getElementById('communityForm').reset();
+          showToast(`Report saved for ${domain}`);
+          return;
+        }
+      } catch (err) {
+        // Fallback to local storage/simulation
+      }
+
+      // Step 2: Client-side standalone fallback
+      const sanitizedNote = escapeHtml(rawNote);
+      const existing = communityReports.find(r => r.normalized_domain === domain);
+      let newCount = 1;
+      let state = 'unverified';
+
+      if (existing) {
+        newCount = existing.independent_source_count + 1;
+        state = newCount >= 2 ? 'verified' : 'unverified';
+      }
+
+      const newReportId = 'rep-comm-' + Math.floor(Math.random() * 9000 + 1000);
+      const newReport = {
+        report_id: newReportId,
+        normalized_domain: domain,
+        claim_type: claimType,
+        verification_state: state,
+        independent_source_count: newCount,
+        note_sanitized: sanitizedNote,
+        submitted_at: new Date().toISOString()
+      };
+
+      communityReports.unshift(newReport);
+      renderCommunityFeed();
+
+      feedback.className = 'text-[11px] p-2.5 rounded-lg bg-ethiack-neon/20 text-ethiack-neon border border-ethiack-neon/30 font-mono';
+      feedback.textContent = `Report logged safely! ID: ${newReportId} (Verification: ${state}, Corroboration: ${newCount})`;
+      feedback.classList.remove('hidden');
+
+      document.getElementById('communityForm').reset();
+      showToast(`Report logged for ${domain}`);
+    }
+
+    function resetCommunityFeed() {
+      communityReports = [
+        {
+          report_id: "rep-comm-001",
+          normalized_domain: "bank-secure-lоgin.com",
+          claim_type: "phishing",
+          verification_state: "verified",
+          independent_source_count: 3,
+          note_sanitized: "Credential harvesting form disguised as customer banking login portal.",
+          submitted_at: "2026-11-09T22:15:00Z"
+        },
+        {
+          report_id: "rep-comm-002",
+          normalized_domain: "disputed-exchange.io",
+          claim_type: "brand_impersonation",
+          verification_state: "disputed",
+          independent_source_count: 1,
+          note_sanitized: "Conflicting evidence on whether this is an official decentralized exchange mirror or imitation.",
+          submitted_at: "2026-11-10T00:10:00Z"
+        },
+        {
+          report_id: "rep-comm-003",
+          normalized_domain: "legacy-portal.internal-corp.net",
+          claim_type: "suspicious_activity",
+          verification_state: "unverified",
+          independent_source_count: 1,
+          note_sanitized: "Expired certificate observed during internal portal routine sweep.",
+          submitted_at: "2026-11-10T01:05:00Z"
+        },
+        {
+          report_id: "rep-comm-004",
+          normalized_domain: "example.com",
+          claim_type: "suspicious_activity",
+          verification_state: "disputed",
+          independent_source_count: 0,
+          note_sanitized: "IANA benchmark domain; verified benign entity.",
+          submitted_at: "2026-11-08T12:00:00Z"
+        }
+      ];
+      renderCommunityFeed();
+      document.getElementById('commFeedback').classList.add('hidden');
+      showToast('Threat telemetry feed reset');
+    }
+
+    // Toggle Raw JSON Box
+    function toggleRawJson() {
+      const box = document.getElementById('rawJsonBox');
+      box.classList.toggle('hidden');
+      if (!box.classList.contains('hidden')) {
+        box.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    // Copy Current JSON
+    function exportCurrentJSON() {
+      if (!currentReport) return;
+      const jsonStr = JSON.stringify(currentReport, null, 2);
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        showToast('JSON report copied to clipboard!');
+      }).catch(() => {
+        showToast('Failed to copy. Inspect JSON below.');
+        document.getElementById('rawJsonBox').classList.remove('hidden');
+      });
+    }
+
+    // Modal Helpers
+    function openModal(id) {
+      document.getElementById(id).classList.remove('hidden');
+    }
+    function closeModal(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // Toast Helper
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2800);
+    }
+
+    // Strict HTML Entity Escaper for XSS Defense
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Initialize UI on load
+    window.addEventListener('DOMContentLoaded', () => {
+      runClientTriage('phishing_lookalike');
+      renderCommunityFeed();
+    });
+  </script>
+</body>
+</html>

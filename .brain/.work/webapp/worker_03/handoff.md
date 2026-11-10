@@ -1,6 +1,6 @@
 # worker_03 handoff
 
-**Status: PHASES 01, 02, 03, 04 & CROSS-WORKER POLICY INTEGRATION COMPLETED.**
+**Status: PHASES 01, 02, 03, 04, 05 & CROSS-WORKER POLICY INTEGRATION COMPLETED.**
 
 ## Branch & Permitted Scope
 - Branch: `main`
@@ -13,8 +13,11 @@
   - `triage_engine.py` (multi-type `evaluate_evidence()`, deterministic finding IDs, orphan suppression)
   - `uncertainty.py` (UncertaintyType, ConfidenceBand, FreshnessPolicy, AbstentionNotice, UncertaintyEngine)
   - `integrity_auditor.py` (ReportIntegrityAuditor enforcing rules 1-6 and anti-marketing guard)
+  - `regression.py` (PolicyRegressionRunner, RegressionDiffReport for zero-false-positive drift detection)
+  - `evaluation.py` (FIXTURES_V1, FIXTURES_V2, build_eval_v1_set, build_eval_v2_set, ControlledEvaluationSet, ClaimAuditor)
+  - `decision_log.py` (DecisionAuditRecord, DecisionLog with in-memory audit indexing)
   - `__init__.py` (public exports)
-  - `tests/test_triage_policy.py` (107 tests passing)
+  - `tests/test_triage_policy.py` (122 tests passing)
 
 ## Contract Version
 - Policy version: `w03-v1.0`
@@ -23,8 +26,8 @@
 
 ## Test Results
 ```
-Worker 03 Tests: Ran 107 tests in 0.090s — OK (zero regressions, zero errors)
-Full Repository: Ran 233 tests in 15.910s — OK (skipped=1)
+Worker 03 Tests: Ran 122 tests in 0.131s — OK (zero regressions, zero errors)
+Full Repository: Ran 248 tests in 13.248s — OK (skipped=1)
 All 8 schema/negative/cross-record fixture checks passed
 ```
 
@@ -51,6 +54,25 @@ triage_result: TriageResult = engine.evaluate_evidence(policy_input)  # Also acc
 
 # Extract report fragment mergeable into scan_report.schema.json
 report_fragment = triage_result.to_report_fragment()
+```
+
+### 2. Policy Regression Runner & Controlled Evaluation (Phase 05)
+```python
+from trusttrace.policy import (
+    PolicyRegressionRunner,
+    build_eval_v1_set,
+    build_eval_v2_set,
+)
+
+runner = PolicyRegressionRunner()
+v2_suite = build_eval_v2_set()
+
+# Capture baseline
+snapshot = runner.capture_baseline_snapshot(v2_suite)
+
+# Verify zero policy drift against candidate policy engine
+diff = runner.run_regression_against_baseline(v2_suite, snapshot)
+assert not diff.has_regressions
 ```
 
 ### 2. Signal Construction (Safe Callsites)
@@ -98,11 +120,15 @@ if not audit_result.is_valid:
 
 ## Cross-Worker Remediation Requirements (Action Items for other workers)
 
+Detailed audit documentation and resolution guides:
+- Complete Conflict Register: `.brain/.report/worker_03_worker_04_conflict_register.md`
+- Phased Implementation Handoff: `.brain/.report/worker_03_to_worker_04_handoff.md`
+
 ### For Worker 04 (Web Frontend & Presentation):
-- **DEF-01 (CRITICAL):** Update `SignalRecord` callsites in `src/trusttrace/web/routes.py` lines 42–45, 103–104, 152–155 to use keyword arguments or `SignalRecord.create()`.
-- **DEF-02 (HIGH):** Create `tests/test_web_routes.py` to provide automated test coverage for web endpoints.
-- **DEF-03 (HIGH):** Connect custom URL evaluation in `routes.py` to the real `ScanOrchestrator` and `TriageEngine` rather than hardcoding fake signals.
-- **DEF-05 (LOW):** Include `result.uncertainty.to_dict()` in the JSON response and render the confidence band badge and abstention notice banner in HTML templates.
+- **DEF-01 / CONFL-01 (CRITICAL):** Update `SignalRecord` callsites in `src/trusttrace/web/routes.py` lines 42–45, 103–104, 152–155 to use keyword arguments or `SignalRecord.create()`.
+- **DEF-02 / CONFL-11 (HIGH):** Create `tests/test_web_interface.py` to provide automated test coverage for web endpoints.
+- **DEF-03 / CONFL-12 (CRITICAL):** Connect custom URL evaluation in `routes.py` to the real `ScanOrchestrator` and `TriageEngine` rather than hardcoding fake signals and violating EVID-002 (CONFL-09).
+- **DEF-05 / CONFL-07 (HIGH):** Include `result.uncertainty.to_dict()` in the JSON response and render the confidence band badge and abstention notice banner in HTML templates.
 
 ### For Worker 02 (Evidence & Persistence):
-- **DEF-04 (MEDIUM):** Hook `ReportIntegrityAuditor().audit_report(report)` into `EvidenceService` before finalizing or publishing report dictionaries.
+- **DEF-04 / CONFL-08 (MEDIUM):** Hook `ReportIntegrityAuditor().audit_report(report)` into `EvidenceService` before finalizing or publishing report dictionaries.
