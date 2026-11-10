@@ -555,13 +555,27 @@ async def triage_demo_endpoint(payload: TriageDemoRequest):
     target_host = eval_res.normalized_host or url.split("//")[-1].split("/")[0].split(":")[0]
     community_report_dicts = []
     try:
-        from ..evidence.community.service import CommunityIntelligenceService
-        comm_svc = CommunityIntelligenceService()
+        from ..api.routes.community import community_service as comm_svc
         stored_reports = comm_svc.list_reports_for_domain(target_host)
         community_report_dicts = [
             r.model_dump() if hasattr(r, "model_dump") else (r.to_dict() if hasattr(r, "to_dict") else dict(r))
             for r in stored_reports
         ]
+        for r in community_report_dicts:
+            evidence_items.append({
+                "evidence_id": r.get("report_id"),
+                "kind": "community_report",
+                "source": "community_intelligence",
+                "observed_at": r.get("submitted_at") or now_iso,
+                "status": "observed",
+                "reliability": "corroborated" if r.get("verification_state") == "verified" else "direct_observation",
+                "value": {
+                    "claim_type": r.get("claim_type"),
+                    "verification_state": r.get("verification_state"),
+                    "independent_source_count": r.get("independent_source_count", 1),
+                },
+                "limitations": ["Community report from crowdsourced intelligence feed (COMM-001)."],
+            })
     except Exception:
         community_report_dicts = []
 

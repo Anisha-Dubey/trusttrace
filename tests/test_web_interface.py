@@ -431,6 +431,33 @@ class TestWebInterfaceRegression(unittest.TestCase):
         self.assertEqual(data["status"], "rejected")
         self.assertEqual(data["dimensions"]["certificate"], "not_checked")
 
+    def test_19_community_evidence_reaches_live_triage(self):
+        """Community reports for a domain reach live triage engine and influence policy output."""
+        # 1. Submit community threat report for a resolvable domain
+        domain = "example.com"
+        sub_res = self.client.post("/api/v1/community/reports", json={
+            "normalized_domain": domain,
+            "claim_type": "phishing",
+            "note": "Reported credential harvester portal."
+        })
+        self.assertIn(sub_res.status_code, (200, 201))
+
+        # 2. Trigger custom scan triage for this domain
+        triage_res = self.client.post("/api/v1/triage/demo", json={
+            "url": f"https://{domain}",
+            "scenario": "custom"
+        })
+        self.assertEqual(triage_res.status_code, 200)
+        triage_data = triage_res.json()
+
+        # 3. Verify community intelligence reached policy evaluation
+        finding_kinds = [f.get("kind") for f in triage_data.get("findings", [])]
+        self.assertTrue(
+            any("community_report" in k for k in finding_kinds),
+            f"Expected community_report finding in live triage findings: {finding_kinds}"
+        )
+        self.assertEqual(triage_data.get("decision"), "caution")
+
 
 if __name__ == "__main__":
     unittest.main()
