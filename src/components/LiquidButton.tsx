@@ -27,7 +27,7 @@ export default function LiquidButton({
   const handlePointerEnter = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {
       sound.playHover();
-      triggerLiquidWarp(10);
+      triggerLiquidWarp(12);
 
       if (btnRef.current) {
         const rect = btnRef.current.getBoundingClientRect();
@@ -53,7 +53,7 @@ export default function LiquidButton({
       } else if (soundType === 'pill') {
         sound.playPill();
       }
-      triggerLiquidWarp(14);
+      triggerLiquidWarp(16);
       onClick?.(e);
     },
     [onClick, soundType]
@@ -73,16 +73,16 @@ export default function LiquidButton({
       onPointerLeave={handlePointerLeave}
       onClick={handleClick}
       data-cursor-text={cursorBadge}
-      className={`relative overflow-hidden transition-all duration-200 active:scale-95 cursor-pointer font-mono select-none ${baseStyles} ${className}`}
+      className={`relative overflow-hidden transition-all duration-200 active:scale-95 cursor-pointer font-mono select-none handdrawn-btn ${baseStyles} ${className}`}
       {...rest}
     >
-      {/* Liquid droplet ripple expansion from pointer entry point */}
+      {/* Hand-drawn liquid droplet ink ripple from pointer entry point */}
       {ripplePos.active && (
         <motion.span
-          initial={{ scale: 0, opacity: 0.35 }}
-          animate={{ scale: 3.5, opacity: 0 }}
+          initial={{ scale: 0, opacity: 0.4 }}
+          animate={{ scale: 3.8, opacity: 0 }}
           transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-          className="pointer-events-none absolute w-24 h-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current opacity-20"
+          className="pointer-events-none absolute w-24 h-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current opacity-25"
           style={{
             left: ripplePos.x,
             top: ripplePos.y,

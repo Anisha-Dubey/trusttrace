@@ -241,7 +241,7 @@ export default function TriageStudio({
               sound.playHover();
               triggerLiquidWarp(6);
             }}
-            className="w-full pl-10 sm:pl-14 pr-26 sm:pr-38 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] rounded-xl sm:rounded-2xl text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50"
+            className="w-full pl-10 sm:pl-14 pr-26 sm:pr-38 py-4 sm:py-5 bg-[#FFFFFF] border border-[#D9D9D9] text-[#040404] text-xs sm:text-base font-mono placeholder:text-[#6B6B6B] focus:outline-none focus:border-[#040404] focus:ring-1 focus:ring-[#040404] transition-all disabled:opacity-50 handdrawn-input shadow-xs"
           />
 
           <div className="absolute right-1.5 sm:right-3">
@@ -307,7 +307,7 @@ export default function TriageStudio({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden border border-[#D9D9D9] bg-[#F6F6F6] rounded-2xl p-5 space-y-3"
+              className="overflow-hidden border border-[#D9D9D9] bg-[#F6F6F6] handdrawn-box p-5 space-y-3"
             >
               <div className="flex items-center justify-between text-xs font-mono">
                 <span className="text-[#040404] font-bold flex items-center gap-2">
@@ -367,7 +367,8 @@ export default function TriageStudio({
                 soundType="pill"
                 enableTilt={true}
                 enableLiquidWarp={true}
-                className={`p-3.5 rounded-xl border text-left flex flex-col justify-between h-28 cursor-pointer select-none transition-all ${
+                variant="box"
+                className={`p-3.5 border text-left flex flex-col justify-between h-28 cursor-pointer select-none transition-all ${
                   idx === 4 ? 'col-span-2 sm:col-span-1' : ''
                 } ${
                   isSelected
@@ -417,7 +418,8 @@ export default function TriageStudio({
               soundType="liquid"
               enableTilt={true}
               enableLiquidWarp={true}
-              className="p-6 rounded-2xl border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404]"
+              variant="card"
+              className="p-6 border border-[#D9D9D9] bg-[#F6F6F6] space-y-3 cursor-pointer hover:border-[#040404]"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono font-bold text-[#6B6B6B] uppercase tracking-wider">
@@ -446,7 +448,8 @@ export default function TriageStudio({
           cursorBadge="INVARIANTS"
           soundType="liquid"
           enableTilt={false}
-          className="rounded-3xl bg-[#101010] text-white p-8 sm:p-12 space-y-6 shadow-xl"
+          variant="card"
+          className="bg-[#101010] text-white p-8 sm:p-12 space-y-6 shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <span className="font-mono text-xs uppercase tracking-widest text-white/50 font-semibold">

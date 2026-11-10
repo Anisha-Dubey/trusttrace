@@ -98,7 +98,7 @@ export default function Header({
                 {isActive && (
                   <motion.div
                     layoutId="header-active-pill"
-                    className="absolute inset-0 bg-[#F6F6F6] border border-[#D9D9D9] rounded-lg"
+                    className="absolute inset-0 bg-[#F6F6F6] border border-[#D9D9D9] handdrawn-pill"
                     transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                   />
                 )}
@@ -119,7 +119,7 @@ export default function Header({
             data-cursor-text="AUDIO"
             title={soundEnabled ? 'Mute Sound Effects' : 'Enable Sound Effects'}
             onMouseEnter={() => sound.playHover()}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1.5 border text-xs font-mono transition-all flex items-center gap-2 cursor-pointer handdrawn-pill ${
               soundEnabled
                 ? 'bg-[#F6F6F6] border-[#D9D9D9] text-[#040404] hover:border-[#040404]'
                 : 'bg-transparent border-[#D9D9D9] text-[#6B6B6B] hover:text-[#040404]'
@@ -165,7 +165,7 @@ export default function Header({
             data-cursor-text="JSON"
             title="Inspect Canonical JSON Schema"
             onMouseEnter={() => sound.playHover()}
-            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#6B6B6B] hover:text-[#040404] transition-all text-xs hidden sm:flex items-center gap-1 font-mono cursor-pointer"
+            className="p-1.5 sm:px-2.5 sm:py-1.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#6B6B6B] hover:text-[#040404] transition-all text-xs hidden sm:flex items-center gap-1 font-mono cursor-pointer"
           >
             <Code className="w-3.5 h-3.5" />
             <span className="text-[10px]">JSON</span>
@@ -180,7 +180,7 @@ export default function Header({
             }}
             data-cursor-text="PYTHON"
             onMouseEnter={() => sound.playHover()}
-            className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] hover:bg-white transition-all text-xs font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 handdrawn-pill bg-[#F6F6F6] border border-[#D9D9D9] hover:border-[#040404] text-[#040404] hover:bg-white transition-all text-xs font-mono hidden sm:flex items-center gap-1.5 cursor-pointer"
           >
             <Terminal className="w-3.5 h-3.5 text-[#040404]" />
             <span>FastAPI</span>
@@ -195,7 +195,7 @@ export default function Header({
             }}
             data-cursor-text="START"
             onMouseEnter={() => sound.playHover()}
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#040404] hover:bg-[#101010] text-white font-medium text-xs tracking-tight transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap cursor-pointer shadow-sm"
+            className="px-3.5 sm:px-4 py-1.5 sm:py-2 handdrawn-btn bg-[#040404] hover:bg-[#101010] text-white font-medium text-xs tracking-tight transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap cursor-pointer shadow-sm"
           >
             <span className="hidden xs:inline">Run Triage</span>
             <span className="xs:hidden">Triage</span>

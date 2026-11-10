@@ -1,5 +1,5 @@
-// Ultra-refined Web Audio API sound engine for Osply-style tactile micro-interactions
-// Zero external assets required — synthesized via pure Web Audio API oscillators and filters
+// Ultra-refined Web Audio API sound engine with punchy, audible presence
+// Higher gain levels calibrated for noticeable audio feedback across device speakers
 
 type SoundListener = (active: boolean) => void;
 
@@ -67,12 +67,12 @@ class SoundEngine {
       localStorage.setItem('trusttrace_sfx', this.enabled ? 'true' : 'false');
     }
     if (this.enabled) {
-      this.playClick();
+      this.playClick(650, 0.05);
     }
     return this.enabled;
   }
 
-  // 1. Soft organic tactile tick on button / card hover (Osply style)
+  // 1. Tactile click/pop on button / card hover (Noticeably loud & crisp)
   public playHover() {
     if (!this.enabled) return;
     try {
@@ -84,14 +84,15 @@ class SoundEngine {
       const filter = this.ctx.createBiquadFilter();
 
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1600, this.ctx.currentTime);
+      filter.frequency.setValueAtTime(2200, this.ctx.currentTime);
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(850, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(420, this.ctx.currentTime + 0.025);
+      osc.frequency.setValueAtTime(950, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(450, this.ctx.currentTime + 0.035);
 
-      gain.gain.setValueAtTime(0.02, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.025);
+      // Louder gain (0.09) with snappy curve
+      gain.gain.setValueAtTime(0.09, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.035);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -99,12 +100,12 @@ class SoundEngine {
 
       this.notify(true);
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.025);
-      setTimeout(() => this.notify(false), 30);
+      osc.stop(this.ctx.currentTime + 0.035);
+      setTimeout(() => this.notify(false), 40);
     } catch {}
   }
 
-  // 2. Liquid hover ripple droplet (Osply signature water/fluid morph)
+  // 2. Liquid hover ripple droplet (Rich resonant water droplet tone)
   public playLiquid() {
     if (!this.enabled) return;
     try {
@@ -116,21 +117,22 @@ class SoundEngine {
       const modGain = this.ctx.createGain();
       const gain = this.ctx.createGain();
 
-      // FM synthesis for organic liquid droplet ripple
+      // FM synthesis for rich organic liquid droplet ripple
       mod.type = 'sine';
-      mod.frequency.setValueAtTime(35, this.ctx.currentTime);
-      modGain.gain.setValueAtTime(140, this.ctx.currentTime);
-      modGain.gain.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.07);
+      mod.frequency.setValueAtTime(45, this.ctx.currentTime);
+      modGain.gain.setValueAtTime(220, this.ctx.currentTime);
+      modGain.gain.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.09);
 
       mod.connect(modGain);
       modGain.connect(osc.frequency);
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(740, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(320, this.ctx.currentTime + 0.07);
+      osc.frequency.setValueAtTime(820, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(360, this.ctx.currentTime + 0.09);
 
-      gain.gain.setValueAtTime(0.035, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.07);
+      // Louder gain (0.14)
+      gain.gain.setValueAtTime(0.14, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.09);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
@@ -138,41 +140,51 @@ class SoundEngine {
       this.notify(true);
       mod.start();
       osc.start();
-      mod.stop(this.ctx.currentTime + 0.07);
-      osc.stop(this.ctx.currentTime + 0.07);
-      setTimeout(() => this.notify(false), 80);
+      mod.stop(this.ctx.currentTime + 0.09);
+      osc.stop(this.ctx.currentTime + 0.09);
+      setTimeout(() => this.notify(false), 100);
     } catch {}
   }
 
-  // 3. Crisp tactile click (glass / mechanical hybrid)
-  public playClick(freq = 720, duration = 0.035) {
+  // 3. Crisp tactile click (Punchy mechanical & glass attack)
+  public playClick(freq = 780, duration = 0.045) {
     if (!this.enabled) return;
     try {
       this.initCtx();
       if (!this.ctx) return;
 
-      const osc = this.ctx.createOscillator();
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.35, this.ctx.currentTime + duration);
+      // Dual-tone layered click for maximum presence
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(freq * 0.3, this.ctx.currentTime + duration);
 
-      gain.gain.setValueAtTime(0.065, this.ctx.currentTime);
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(freq * 1.5, this.ctx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(freq * 0.4, this.ctx.currentTime + duration);
+
+      // Louder gain (0.20)
+      gain.gain.setValueAtTime(0.20, this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
-      osc.connect(gain);
+      osc1.connect(gain);
+      osc2.connect(gain);
       gain.connect(this.ctx.destination);
 
       this.notify(true);
-      osc.start();
-      osc.stop(this.ctx.currentTime + duration);
-      setTimeout(() => this.notify(false), duration * 1000 + 10);
+      osc1.start();
+      osc2.start();
+      osc1.stop(this.ctx.currentTime + duration);
+      osc2.stop(this.ctx.currentTime + duration);
+      setTimeout(() => this.notify(false), duration * 1000 + 15);
     } catch {}
   }
 
-  // 4. Scenario pill select pop
-  public playPill(freq = 520) {
+  // 4. Scenario pill select pop (Noticeable organic bubble pop)
+  public playPill(freq = 560) {
     if (!this.enabled) return;
     try {
       this.initCtx();
@@ -183,18 +195,19 @@ class SoundEngine {
 
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.4, this.ctx.currentTime + 0.04);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.5, this.ctx.currentTime + 0.05);
 
-      gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.04);
+      // Louder gain (0.16)
+      gain.gain.setValueAtTime(0.16, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.05);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       this.notify(true);
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.04);
-      setTimeout(() => this.notify(false), 50);
+      osc.stop(this.ctx.currentTime + 0.05);
+      setTimeout(() => this.notify(false), 60);
     } catch {}
   }
 
@@ -208,25 +221,26 @@ class SoundEngine {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      const baseFreq = 420 + stepIndex * 90;
+      const baseFreq = 480 + stepIndex * 110;
       osc.type = 'sine';
       osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.35, this.ctx.currentTime + 0.07);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.45, this.ctx.currentTime + 0.08);
 
-      gain.gain.setValueAtTime(0.045, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.07);
+      // Louder gain (0.18)
+      gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.08);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       this.notify(true);
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.07);
-      setTimeout(() => this.notify(false), 80);
+      osc.stop(this.ctx.currentTime + 0.08);
+      setTimeout(() => this.notify(false), 90);
     } catch {}
   }
 
-  // 6. Adjudication success harmonic chord
+  // 6. Adjudication success harmonic chord (Triumphant rich triad)
   public playSuccess() {
     if (!this.enabled) return;
     try {
@@ -242,12 +256,13 @@ class SoundEngine {
         const gain = this.ctx!.createGain();
 
         osc.type = 'sine';
-        const start = this.ctx!.currentTime + idx * 0.035;
-        const dur = 0.28;
+        const start = this.ctx!.currentTime + idx * 0.04;
+        const dur = 0.35;
 
         osc.frequency.setValueAtTime(freq, start);
 
-        gain.gain.setValueAtTime(0.035, start);
+        // Louder chord tones (0.14)
+        gain.gain.setValueAtTime(0.14, start);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
 
         osc.connect(gain);
@@ -257,11 +272,11 @@ class SoundEngine {
         osc.stop(start + dur);
       });
 
-      setTimeout(() => this.notify(false), 380);
+      setTimeout(() => this.notify(false), 420);
     } catch {}
   }
 
-  // 7. Caution / Lookalike alert tone
+  // 7. Caution / Lookalike alert tone (Prominent warning drone)
   public playAlert() {
     if (!this.enabled) return;
     try {
@@ -272,27 +287,28 @@ class SoundEngine {
       const gain = this.ctx.createGain();
 
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(280, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(140, this.ctx.currentTime + 0.16);
+      osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(160, this.ctx.currentTime + 0.2);
 
-      gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.16);
+      // Louder gain (0.16)
+      gain.gain.setValueAtTime(0.16, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.2);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       this.notify(true);
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.16);
-      setTimeout(() => this.notify(false), 170);
+      osc.stop(this.ctx.currentTime + 0.2);
+      setTimeout(() => this.notify(false), 210);
     } catch {}
   }
 
-  // 8. Faint micro-tick when passing slide checkpoints during scroll
+  // 8. Faint micro-tick when passing scroll checkpoints
   public playScrollTick() {
     if (!this.enabled) return;
     const now = Date.now();
-    if (now - this.lastTickTime < 140) return; // Debounce rapid triggers
+    if (now - this.lastTickTime < 140) return;
     this.lastTickTime = now;
 
     try {
@@ -303,15 +319,16 @@ class SoundEngine {
       const gain = this.ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, this.ctx.currentTime);
-      gain.gain.setValueAtTime(0.008, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.015);
+      osc.frequency.setValueAtTime(1300, this.ctx.currentTime);
+      // Increased gain (0.04)
+      gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.02);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start();
-      osc.stop(this.ctx.currentTime + 0.015);
+      osc.stop(this.ctx.currentTime + 0.02);
     } catch {}
   }
 }

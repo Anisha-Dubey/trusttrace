@@ -49,7 +49,7 @@ DOMAIN_RULES = {
     ],
     "worker_04": [
         r"^src/trusttrace/web/",
-        r"^src/(components|data|types|utils)/",
+        r"^src/(components|data|types|utils|hooks)/",
         r"^src/App\.tsx$",
         r"^src/main\.tsx$",
         r"^src/index\.css$",
