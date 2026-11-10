@@ -13,6 +13,8 @@ Covers cases:
 import sys
 import unittest
 import socket
+import http.server
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import json
@@ -319,6 +321,121 @@ class TestBoundedCollectors(unittest.TestCase):
         )
         meta = parse_der_certificate(der)
         self.assertNotIn("target.example.com", meta["sans"])
+
+
+    def test_http_connection_pinning_dns_rebinding_defense(self):
+        """P0-1: HTTP collector connects to validated pinned IP while preserving Host header."""
+        received_hosts = []
+
+        class TestServerHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                received_hosts.append(self.headers.get("Host"))
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("X-Custom-Signal", "pinned-ok")
+                self.end_headers()
+                self.wfile.write(b"OK from pinned server")
+
+            def log_message(self, format, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), TestServerHandler)
+        port = server.server_address[1]
+        t = threading.Thread(target=server.serve_forever)
+        t.daemon = True
+        t.start()
+
+        try:
+            collector = BoundedHTTPCollector(timeout=2.0)
+            # URL uses virtual unresolvable hostname, but socket connects to 127.0.0.1
+            results = collector.collect(
+                url=f"http://virtual-phish.test:{port}/login",
+                pinned_ip="127.0.0.1"
+            )
+            self.assertEqual(len(results), 1)
+            res = results[0]
+            self.assertEqual(res.status, "observed")
+            self.assertEqual(res.value["status_code"], 200)
+            self.assertEqual(res.value["pinned_ip"], "127.0.0.1")
+            has_signal = any(
+                k.lower() == "x-custom-signal" and "pinned-ok" in v
+                for k, v in res.value["headers"].items()
+            )
+            self.assertTrue(has_signal, f"Expected X-Custom-Signal in headers: {res.value['headers']}")
+            self.assertIn(f"virtual-phish.test:{port}", received_hosts)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_http_redirect_connection_pinning(self):
+        """P2-6: Redirects pin each hop to the validated IP returned by redirect policy."""
+        received_hops = []
+
+        # Find an allowed safe web port (SAFE_ADDITIONAL_PORTS)
+        safe_port = 8888
+        for candidate in [8888, 8080, 8000, 8008, 3000, 5000]:
+            try:
+                s = socket.socket()
+                s.bind(("127.0.0.1", candidate))
+                s.close()
+                safe_port = candidate
+                break
+            except OSError:
+                continue
+
+        class RedirectHandler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                received_hops.append((self.path, self.headers.get("Host")))
+                if self.path == "/start":
+                    self.send_response(302)
+                    self.send_header("Location", f"http://redirect-target.test:{safe_port}/final")
+                    self.end_headers()
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"Destination reached safely")
+
+            def log_message(self, format, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", safe_port), RedirectHandler)
+        port = safe_port
+        t = threading.Thread(target=server.serve_forever)
+        t.daemon = True
+        t.start()
+
+        try:
+            from trusttrace.intake.dns_resolver import DNSResolutionResult
+            from trusttrace.intake.redirect_policy import RedirectPolicy
+
+            # Mock resolver returning safe pinned_ip="127.0.0.1" for redirect evaluation
+            class MockSafePinnedResolver:
+                def resolve(self, host, p=443):
+                    return DNSResolutionResult(
+                        hostname=host,
+                        is_safe=True,
+                        resolved_ips=["127.0.0.1"],
+                        pinned_ip="127.0.0.1"
+                    )
+
+            red_policy = RedirectPolicy(max_hops=3, resolver=MockSafePinnedResolver())
+            collector = BoundedHTTPCollector(timeout=2.0, redirect_policy=red_policy)
+
+            results = collector.collect(
+                url=f"http://initial-domain.test:{port}/start",
+                pinned_ip="127.0.0.1"
+            )
+            headers_res = next(r for r in results if r.kind == "http_headers")
+            redirect_res = next(r for r in results if r.kind == "redirect_chain")
+            self.assertEqual(headers_res.value["status_code"], 200)
+            self.assertEqual(redirect_res.value["hop_count"], 1)
+            self.assertEqual(len(received_hops), 2)
+            self.assertEqual(received_hops[0][0], "/start")
+            self.assertEqual(received_hops[1][0], "/final")
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 if __name__ == "__main__":

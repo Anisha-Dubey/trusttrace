@@ -162,7 +162,8 @@ class ScanOrchestrator:
             if cancel_token and cancel_token.is_cancelled:
                 return self._build_cancelled_report(scan_id, eval_res, now_start, "Cancelled before HTTP collection.")
 
-            http_ev_list = self.http_collector.collect(raw_url)
+            pinned_ip = dns_ev.value.get("pinned_ip") if dns_ev.status == "observed" else None
+            http_ev_list = self.http_collector.collect(raw_url, pinned_ip=pinned_ip)
             for h_ev in http_ev_list:
                 evidence_items.append(h_ev.to_dict())
                 if h_ev.status == "observed":
