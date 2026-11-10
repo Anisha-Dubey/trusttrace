@@ -54,6 +54,8 @@ class CommunityIntelligenceService:
         """
         with self._lock:
             clean_domain = normalized_domain.strip().lower()
+            if clean_domain.endswith("."):
+                clean_domain = clean_domain[:-1]
             clean_note = sanitize_text(note, max_length=1000)
             reporter_hash = hash_reporter_identity(raw_reporter_identifier)
             family = SourceFamilyAnalyzer.validate_and_canonicalize(
@@ -204,6 +206,8 @@ class CommunityIntelligenceService:
     def list_reports_for_domain(self, normalized_domain: str) -> List[CommunityReportModel]:
         """List all reports filed for a given domain."""
         clean_domain = normalized_domain.strip().lower()
+        if clean_domain.endswith("."):
+            clean_domain = clean_domain[:-1]
         with self.db.session_scope() as session:
             entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
             reports = []
@@ -245,7 +249,10 @@ class CommunityIntelligenceService:
                     distinct_families = {
                         SourceFamilyAnalyzer.canonicalize_family(e.source_family)
                         for e in entities
-                        if e.verification_state != VerificationState.DISPUTED.value
+                        if (
+                            e.verification_state != VerificationState.DISPUTED.value
+                            and e.source_family is not None
+                        )
                     }
                     derived_count = max(1, len(distinct_families))
 
