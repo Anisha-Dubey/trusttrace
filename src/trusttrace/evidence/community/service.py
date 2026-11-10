@@ -212,7 +212,7 @@ class CommunityIntelligenceService:
             entities = self.repo.find_community_reports(session, normalized_domain=clean_domain)
             reports = []
             for e in entities:
-                rep = self.repo.get_community_report(session, e.report_id)
+                rep = self.repo.get_community_report(session, str(e.report_id))
                 if rep:
                     reports.append(rep)
             return reports
@@ -247,7 +247,7 @@ class CommunityIntelligenceService:
                 else:
                     entities = self.repo.find_community_reports(session, normalized_domain=current.normalized_domain)
                     distinct_families = {
-                        SourceFamilyAnalyzer.canonicalize_family(e.source_family)
+                        SourceFamilyAnalyzer.canonicalize_family(str(e.source_family))
                         for e in entities
                         if e.verification_state != VerificationState.DISPUTED.value
                     }

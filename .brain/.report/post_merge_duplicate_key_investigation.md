@@ -223,3 +223,4 @@ This ensures that if internal service callers bypass the FastAPI schema layer (`
 1. **No Production Defect Exists:** The observed duplicate-key log entries are expected diagnostic artifacts of PostgreSQL validating unique constraints during intentional concurrent multi-process testing.
 2. **Preserve Current Repository State:** Do not remove unique constraints; do not disable savepoint handling.
 3. **Branch Ready for Review:** Keep the investigation branch `fix/community-domain-duplicate-key-investigation` isolated until explicit user authorization to merge.
+
